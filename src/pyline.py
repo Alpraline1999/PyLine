@@ -626,7 +626,7 @@ class PyLine:
                 title="Save the line data to a file",
             )
             if output_file:
-                with open(output_file, 'W') as f:
+                with open(output_file, 'w') as f:
                     for point in converted_points:
                         f.write(f"{point[0]} {point[1]}\n")
                 print(f">>> Line data has been saved to {output_file}")
