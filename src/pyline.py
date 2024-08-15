@@ -1,7 +1,7 @@
 # pyline.py
 import tkinter as tk
 from tkinter import filedialog, colorchooser, simpledialog, Menu, ttk
-from PIL import Image, ImageTk
+from PIL import Image
 import sys
 import mouseset
 import drawphoto
