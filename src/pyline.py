@@ -3,11 +3,8 @@ import tkinter as tk
 from tkinter import filedialog, colorchooser, simpledialog, Menu, ttk
 from PIL import Image, ImageTk
 import sys
-import base64
-from io import BytesIO
 import mouseset
 import drawphoto
-import icon
 
 
 class PyLine:
@@ -19,13 +16,6 @@ class PyLine:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.mouse_set = mouseset.MouseSensitivitySet()
-
-        # set icon
-        icon_base64 = icon.icon_data().icon_base64
-        icon_data = base64.b64decode(icon_base64)
-        icon_image = Image.open(BytesIO(icon_data))
-        icon_image = ImageTk.PhotoImage(icon_image)
-        self.root.iconphoto(False, icon_image)
 
         self._init_variables()
         self._create_frame()
