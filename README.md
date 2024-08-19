@@ -6,4 +6,6 @@ A series of functions are used to extract data points from the curve on images, 
 
 ## A simple demo
 
-![demo](./images/demo.mp4)
+[Demo Vedio](./images/demo.mp4)
+
+![demo](./images/demo.gif)
