@@ -5,16 +5,13 @@ from PIL import Image
 import mouseset
 import drawphoto
 
-# # set icon
-# from PIL import ImageTk
-# import base64
-# from io import BytesIO
-# import icon
-
 
 class PyLine:
     def __init__(self, root):
-        self._init_variables()
+        try:
+            self.language
+        except:
+            self._init_variables()
 
         self.root = root
         self.root.title("PyLine")
@@ -24,12 +21,7 @@ class PyLine:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.config(bg=self.root_color)
 
-        # # set icon
-        # icon_base64 = icon.icon_data().icon_base64
-        # icon_data = base64.b64decode(icon_base64)
-        # icon_image = Image.open(BytesIO(icon_data))
-        # icon_image = ImageTk.PhotoImage(icon_image)
-        # self.root.iconphoto(False, icon_image)
+        self._init_strings()
 
         self.mouse_set = mouseset.MouseSensitivitySet()
 
@@ -44,6 +36,9 @@ class PyLine:
         self._create_print_types()
 
     def _init_variables(self):
+        # default language
+        self.language = "zh"
+
         # image file
         self.image_file = None
 
@@ -51,11 +46,9 @@ class PyLine:
         # set colors
         #################################################
         self.root_color = "#F3E5F5"
-        # self.root_color = ""
         self.label_color = "#E3F2FD"
         self.button_color = "#FFF3E0"
         self.text_color = "#E8F5E9"
-        # self.frame_color = "#FFF3E0"
         self.frame_color = "lightgray"
 
         #################################################
@@ -74,9 +67,9 @@ class PyLine:
         #################################################
         self.default_line_color = 'black'  # default line color
         self.default_line_width = 2  # default line width
-        self.default_point_scale = 1  # point_radius = point_scale * line_width
+        self.default_point_scale_factor = 1  # point_radius = point_scale * line_width
         self.default_point_interval = 7  # default point interval
-        self.default_scale_factor = 2  # default scale factor
+        self.default_zoom_scale_factor = 2  # default scale factor
 
         #################################################
         # set main canvas size and zoom canvas size
@@ -84,13 +77,118 @@ class PyLine:
         self.main_width = 800  # main canvas width
         self.main_height = 600  # main canvas height
 
-        self.scale_factor = self.default_scale_factor  # scale factor for zoom
+        self.zoom_scale_factor = self.default_zoom_scale_factor  # scale factor for zoom
         self.zoom_size = 300  # zoom canvas size
         self.zoom_cursor_size = 12  # zoom cursor size
 
         # real axis and screen axis
         self.x1_real = self.x2_real = self.y1_real = self.y2_real = None
         self.x1_screen = self.x2_screen = self.y1_screen = self.y2_screen = None
+
+    def _change_language(self):
+        self.language = simpledialog.askstring(
+            self.str_language, self.str_select_language
+        )
+        self._init_strings()
+
+        self.root.destroy()
+        new_root = tk.Tk()
+        self.__init__(new_root)
+        new_root.mainloop()
+
+    def _init_strings(self):
+        if self.language == "zh":
+            self.str_language = "Language"
+            self.str_select_language = "Simplified Chinese/English (zh/en):"
+
+            self.str_menu_file = "文件"
+            self.str_menu_edit = "编辑"
+            self.str_menu_settings = "设置"
+            self.str_menu_hotkeys = "快捷键 (F1)"
+            self.str_hotkeys_list = "快捷键列表"
+            self.str_open = "打开"
+            self.str_save = "导出"
+            self.str_quit = "退出"
+            self.str_redraw = "重绘"
+            self.str_undo = "撤销"
+            self.str_redo = "重做"
+            self.str_clean = "清除"
+            self.str_line_color = "颜色"
+            self.str_line_width = "线宽"
+            self.str_point_interval = "点间距"
+            self.str_point_scale = "点的尺寸系数"
+            self.str_zoom_scale = "图片缩放系数"
+            self.str_mouse_sensitivity = "鼠标灵敏度"
+            self.str_draw_mode = "绘图模式"
+            self.str_mode_point = "点"
+            self.str_mode_point_line = "点-线"
+            self.str_pick_color = "选取颜色"
+            self.str_assisted_pick_points = "辅助取点"
+            self.str_set = "设置"
+            self.str_input = "输入"
+            self.str_default = "默认为"
+
+            self.str_no_image_loaded = "无加载图片"
+            self.str_ref_color = "参考色"
+            self.str_no_point_picked = "无选取点"
+            self.str_image_files = "图片文件"
+            self.str_open_image = "打开图片"
+
+            self.str_set_coordinates_first = "未设置坐标"
+            self.str_line_saved = "已保存曲线数据"
+            self.str_no_line = "无曲线数据"
+            self.str_clear_all = "已清除所有点"
+            self.str_undone = "已撤销"
+            self.str_redone = "已重做"
+            self.str_oldest = "已位于最旧位置"
+            self.str_latest = "已位于最新位置"
+            self.str_redrawn = "已重绘曲线"
+        elif self.language == "en":
+            self.str_language = "语言"
+            self.str_select_language = "简体中文/英文 (zh/en): "
+
+            self.str_menu_file = "Files"
+            self.str_menu_edit = "Edit"
+            self.str_menu_settings = "Settings"
+            self.str_menu_hotkeys = "HotKeys (F1)"
+            self.str_hotkeys_list = "HotKeys List"
+            self.str_open = "Open"
+            self.str_save = "Export"
+            self.str_quit = "Quit"
+            self.str_redraw = "Redraw"
+            self.str_undo = "Undo"
+            self.str_redo = "Redo"
+            self.str_clean = "Clean"
+            self.str_line_color = "Line Color"
+            self.str_line_width = "Line Width"
+            self.str_point_interval = "Point Interval"
+            self.str_point_scale = "Point Scale Factor"
+            self.str_zoom_scale = "Zoom Scale Factor"
+            self.str_mouse_sensitivity = "Mouse Sensitivity"
+            self.str_draw_mode = "Draw Mode"
+            self.str_mode_point = "Point"
+            self.str_mode_point_line = "Point_Line"
+            self.str_pick_color = "Pick Color"
+            self.str_assisted_pick_points = "Assisted Pick Points"
+            self.str_set = "Set "
+            self.str_input = "Input "
+            self.str_default = "default "
+
+            self.str_no_image_loaded = "No Image Loaded"
+            self.str_ref_color = "Reference Color"
+            self.str_no_point_picked = "No Point Picked"
+            self.str_image_files = "Image Files"
+            self.str_open_image = "Open Image"
+
+            self.str_set_coordinates_first = "Set Coordinates First"
+            self.str_line_saved = "Line data has been saved"
+            self.str_no_line = "No lines"
+            self.str_clear_all = "All line datas cleared"
+            self.str_undone = "Undone"
+            self.str_redone = "Redone"
+            self.str_oldest = "Already the oldest location"
+            self.str_latest = "Already the latest location"
+            self.str_redrawn = "Line Re-drawn"
 
     def _create_frame(self):
         self.frame_toolbar = tk.Frame(
@@ -177,14 +275,14 @@ class PyLine:
         # set color, width and point interval for lines
         self.main.line.set_line_color(self.default_line_color)
         self.main.line.set_line_width(self.default_line_width)
-        self.main.line.set_point_scale(self.default_point_scale)
+        self.main.line.set_point_scale(self.default_point_scale_factor)
         self.main.line.set_point_interval(self.default_point_interval)
 
         self.zoom.line.set_line_color(self.default_line_color)
-        self.zoom.line.set_line_width(self.scale_factor * self.default_line_width)
-        self.main.line.set_point_scale(self.default_point_scale)
+        self.zoom.line.set_line_width(self.zoom_scale_factor * self.default_line_width)
+        self.main.line.set_point_scale(self.default_point_scale_factor)
         self.zoom.line.set_point_interval(
-            self.scale_factor * self.default_point_interval
+            self.zoom_scale_factor * self.default_point_interval
         )
 
     def _create_menu(self):
@@ -192,43 +290,49 @@ class PyLine:
         self.root.config(menu=menu_bar)
 
         file_menu = Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="Files", menu=file_menu)
-        file_menu.add_command(label="Open", command=self.open_main_image)
-        file_menu.add_command(label="Export", command=self.save_main_line)
+        menu_bar.add_cascade(label=self.str_menu_file, menu=file_menu)
+        file_menu.add_command(label=self.str_open, command=self.open_main_image)
+        file_menu.add_command(label=self.str_save, command=self.save_main_line)
         file_menu.add_separator()
-        file_menu.add_command(label="Quit", command=self.on_closing)
+        file_menu.add_command(label=self.str_quit, command=self.on_closing)
 
         edit_menu = Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="Edit", menu=edit_menu)
-        edit_menu.add_command(label="Redraw", command=self.redraw_lines)
-        edit_menu.add_command(label="Undo", command=self.undo_last_action)
-        edit_menu.add_command(label="Redo", command=self.redo_last_action)
-        edit_menu.add_command(label="Clean", command=self.clear_all_linedatas)
+        menu_bar.add_cascade(label=self.str_menu_edit, menu=edit_menu)
+        edit_menu.add_command(label=self.str_redraw, command=self.redraw_lines)
+        edit_menu.add_command(label=self.str_undo, command=self.undo_last_action)
+        edit_menu.add_command(label=self.str_redo, command=self.redo_last_action)
+        edit_menu.add_command(label=self.str_clean, command=self.clear_all_linedatas)
 
         options_menu = Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="Settings", menu=options_menu)
-        options_menu.add_command(label="Line Color", command=self.set_line_color)
-        options_menu.add_command(label="Line Width", command=self.set_line_width)
+        menu_bar.add_cascade(label=self.str_menu_settings, menu=options_menu)
+        options_menu.add_command(label=self.str_line_color, command=self.set_line_color)
+        options_menu.add_command(label=self.str_line_width, command=self.set_line_width)
         options_menu.add_command(
-            label="Point Interval", command=self.set_point_interval
+            label=self.str_point_interval, command=self.set_point_interval
         )
         options_menu.add_command(
-            label="Point Scale Factor", command=self.set_point_scale
+            label=self.str_point_scale, command=self.set_point_scale
         )
         options_menu.add_command(
-            label="Mouse Sensitivity",
+            label=self.str_mouse_sensitivity,
             command=self.set_mouse_sensitivity,
         )
-        options_menu.add_command(label="Zoom Scale Factor", command=self.set_zoom_scale)
+        options_menu.add_command(label=self.str_zoom_scale, command=self.set_zoom_scale)
 
         hotkeys_menu = Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="Hotkeys (F1)", menu=hotkeys_menu)
-        hotkeys_menu.add_command(label="HotKeys List", command=self.show_hotkeys)
+        menu_bar.add_cascade(label=self.str_menu_hotkeys, menu=hotkeys_menu)
+        hotkeys_menu.add_command(label=self.str_hotkeys_list, command=self.show_hotkeys)
+
+        language_menu = Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label=self.str_language, menu=language_menu)
+        language_menu.add_command(
+            label=self.str_language, command=self._change_language
+        )
 
     def _creat_toolbar(self):
         self.open_button = tk.Button(
             self.frame_toolbar,
-            text="Open",
+            text=self.str_open,
             command=self.open_main_image,
             bg=self.button_color,
         )
@@ -238,7 +342,7 @@ class PyLine:
 
         self.save_button = tk.Button(
             self.frame_toolbar,
-            text="Export",
+            text=self.str_save,
             command=self.save_main_line,
             bg=self.button_color,
         )
@@ -248,7 +352,7 @@ class PyLine:
 
         self.redraw_button = tk.Button(
             self.frame_toolbar,
-            text="Redraw",
+            text=self.str_redraw,
             command=self.redraw_lines,
             bg=self.button_color,
         )
@@ -258,7 +362,7 @@ class PyLine:
 
         self.undo_button = tk.Button(
             self.frame_toolbar,
-            text="Undo",
+            text=self.str_undo,
             command=self.undo_last_action,
             bg=self.button_color,
         )
@@ -268,7 +372,7 @@ class PyLine:
 
         self.redo_button = tk.Button(
             self.frame_toolbar,
-            text="Redo",
+            text=self.str_redo,
             command=self.redo_last_action,
             bg=self.button_color,
         )
@@ -278,7 +382,7 @@ class PyLine:
 
         self.clean_button = tk.Button(
             self.frame_toolbar,
-            text="Clean",
+            text=self.str_clean,
             command=self.clear_all_linedatas,
             bg=self.button_color,
         )
@@ -288,7 +392,7 @@ class PyLine:
 
         self.zoom_scale_button = tk.Button(
             self.frame_toolbar,
-            text="Zoom Scale Factor",
+            text=self.str_zoom_scale,
             command=self.set_zoom_scale,
             bg=self.button_color,
         )
@@ -298,7 +402,7 @@ class PyLine:
 
         self.mouse_sensitivity_button = tk.Button(
             self.frame_toolbar,
-            text="Mouse Sensitivity",
+            text=self.str_mouse_sensitivity,
             command=self.set_mouse_sensitivity,
             bg=self.button_color,
         )
@@ -308,7 +412,7 @@ class PyLine:
 
         self.point_scale_button = tk.Button(
             self.frame_toolbar,
-            text="Point Scale Factor",
+            text=self.str_point_scale,
             command=self.set_point_scale,
             bg=self.button_color,
         )
@@ -318,7 +422,7 @@ class PyLine:
 
         self.point_interval_button = tk.Button(
             self.frame_toolbar,
-            text="Point Interval",
+            text=self.str_point_interval,
             command=self.set_point_interval,
             bg=self.button_color,
         )
@@ -328,7 +432,7 @@ class PyLine:
 
         self.linewidth_button = tk.Button(
             self.frame_toolbar,
-            text="Line Width",
+            text=self.str_line_width,
             command=self.set_line_width,
             bg=self.button_color,
         )
@@ -338,7 +442,7 @@ class PyLine:
 
         self.linecolor_button = tk.Button(
             self.frame_toolbar,
-            text="Line Color",
+            text=self.str_line_color,
             command=self.set_line_color,
             bg=self.button_color,
         )
@@ -359,7 +463,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='W',
         )
         tk.Label(
             self.frame_settings,
@@ -372,7 +476,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='W',
         )
         tk.Label(
             self.frame_settings,
@@ -385,7 +489,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='W',
         )
         tk.Label(
             self.frame_settings,
@@ -398,38 +502,29 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='W',
         )
 
         self.entry_x1 = tk.Entry(self.frame_settings, relief=tk.RAISED)
         self.entry_x1.grid(
             row=0, column=1, padx=self.setting_padx, pady=self.setting_pady
         )
-        self.entry_x2 = tk.Entry(
-            self.frame_settings,
-            relief=tk.RAISED,
-        )
+        self.entry_x2 = tk.Entry(self.frame_settings, relief=tk.RAISED)
         self.entry_x2.grid(
             row=1, column=1, padx=self.setting_padx, pady=self.setting_pady
         )
-        self.entry_y1 = tk.Entry(
-            self.frame_settings,
-            relief=tk.RAISED,
-        )
+        self.entry_y1 = tk.Entry(self.frame_settings, relief=tk.RAISED)
         self.entry_y1.grid(
             row=2, column=1, padx=self.setting_padx, pady=self.setting_pady
         )
-        self.entry_y2 = tk.Entry(
-            self.frame_settings,
-            relief=tk.RAISED,
-        )
+        self.entry_y2 = tk.Entry(self.frame_settings, relief=tk.RAISED)
         self.entry_y2.grid(
             row=3, column=1, padx=self.setting_padx, pady=self.setting_pady
         )
 
         self.button_x1 = tk.Button(
             self.frame_settings,
-            text="Set X1",
+            text=self.str_set + "X1",
             command=self.record_x1_screen,
             relief=tk.RAISED,
             bg=self.button_color,
@@ -439,11 +534,11 @@ class PyLine:
             column=2,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='E',
         )
         self.button_x2 = tk.Button(
             self.frame_settings,
-            text="Set X2",
+            text=self.str_set + "X2",
             command=self.record_x2_screen,
             relief=tk.RAISED,
             bg=self.button_color,
@@ -453,11 +548,11 @@ class PyLine:
             column=2,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='E',
         )
         self.button_y1 = tk.Button(
             self.frame_settings,
-            text="Set Y1",
+            text=self.str_set + "Y1",
             command=self.record_y1_screen,
             relief=tk.RAISED,
             bg=self.button_color,
@@ -467,11 +562,11 @@ class PyLine:
             column=2,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='E',
         )
         self.button_y2 = tk.Button(
             self.frame_settings,
-            text="Set Y2",
+            text=self.str_set + "Y2",
             command=self.record_y2_screen,
             relief=tk.RAISED,
             bg=self.button_color,
@@ -481,7 +576,7 @@ class PyLine:
             column=2,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='E',
         )
 
         self.output_text = tk.Text(
@@ -504,7 +599,7 @@ class PyLine:
         # combobox for draw mode
         tk.Label(
             self.frame_operations,
-            text="Draw Mode:",
+            text=self.str_draw_mode + ": ",
             relief=tk.RAISED,
             bg=self.label_color,
         ).grid(
@@ -512,7 +607,7 @@ class PyLine:
             column=0,
             padx=self.operation_padx,
             pady=self.operation_pady,
-            sticky='E',
+            sticky='W',
         )
 
         self.drawmode_option = tk.StringVar()
@@ -527,9 +622,12 @@ class PyLine:
             columnspan=2,
             padx=self.operation_padx,
             pady=self.operation_pady,
-            sticky='W',
+            sticky='EW',
         )
-        self.drawmode_combobox['values'] = ("Point", "Point-Line")
+        self.drawmode_combobox['values'] = (
+            self.str_mode_point,
+            self.str_mode_point_line,
+        )
         self.drawmode_combobox.current(0)
         self.drawmode_combobox.bind("<<ComboboxSelected>>", self.set_drawmode)
 
@@ -553,7 +651,7 @@ class PyLine:
 
         self.pick_color_button = tk.Button(
             self.frame_operations,
-            text="Pick Color",
+            text=self.str_pick_color,
             command=self._pick_color,
             relief=tk.RAISED,
             bg=self.button_color,
@@ -569,7 +667,7 @@ class PyLine:
         self.assisted_option = tk.IntVar()
         self.assisted_checkbox = tk.Checkbutton(
             self.frame_operations,
-            text="Assisted Pick Points",
+            text=self.str_assisted_pick_points,
             variable=self.assisted_option,
             command=self.set_assisted_point,
             relief=tk.RAISED,
@@ -584,7 +682,9 @@ class PyLine:
 
     def set_assisted_point(self):
         self.main.if_assisted = self.assisted_option.get() == 1
-        self._print("INFO", "Assisted Pick Points: " + str(self.main.if_assisted))
+        self._print(
+            "INFO", self.str_assisted_pick_points + ": " + str(self.main.if_assisted)
+        )
 
     def change_assisted_point(self):
         self.assisted_option.set(1 - self.assisted_option.get())
@@ -592,7 +692,7 @@ class PyLine:
 
     def _pick_color(self):
         if not self.main.image:
-            self._print("ERROR", "No Image Loaded!!!")
+            self._print("ERROR", self.str_no_image_loaded)
             return
 
         if self.main.line.last_point:
@@ -605,9 +705,9 @@ class PyLine:
                 foreground=self._comple_color(ref_color),
                 text=ref_color,
             )
-            self._print("INFO", "Reference Color: " + ref_color)
+            self._print("INFO", self.str_ref_color + ": " + ref_color)
         else:
-            self._print("ERROR", "No Point Picked!!!")
+            self._print("ERROR", self.str_no_point_picked)
 
     def _comple_color(self, hex_color):
         rgb = self.hex_to_rgb(hex_color)
@@ -714,8 +814,8 @@ class PyLine:
 
     def open_main_image(self):
         self.image_file = filedialog.askopenfilename(
-            filetypes=[("Image files", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff")],
-            title="Choose an image file",
+            filetypes=[(self.str_image_files, "*.jpg;*.jpeg;*.png;*.bmp;*.tiff")],
+            title=self.str_open_image,
         )
         if self.image_file:
             image = Image.open(self.image_file)
@@ -732,7 +832,7 @@ class PyLine:
             resized_image = image.resize((new_width, new_height))
             self.main.canvas.config(width=new_width, height=new_height)
             self.main.set_photoimage(resized_image)
-            self._print("INFO", f"Image opened successfully: {self.image_file}")
+            self._print("INFO", self.str_open_image + f": {self.image_file}")
 
             if self.main.line.line_segments:
                 self.clear_all_linedatas()
@@ -749,16 +849,16 @@ class PyLine:
                 return
 
             # Calculate the zoom size based on the main image size and the scale factor
-            real_zoom_size = self.zoom_size // self.scale_factor
-            half_real_zoom_size = self.zoom_size // (2 * self.scale_factor)
+            real_zoom_size = self.zoom_size // self.zoom_scale_factor
+            half_real_zoom_size = self.zoom_size // (2 * self.zoom_scale_factor)
             if x - half_real_zoom_size < 0:
-                dx = (x - half_real_zoom_size) * self.scale_factor
+                dx = (x - half_real_zoom_size) * self.zoom_scale_factor
                 self.zoom_left = 0
                 self.zoom_right = self.zoom_left + real_zoom_size
             elif x + half_real_zoom_size > self.main.image.width:
                 dx = (
                     x + half_real_zoom_size - self.main.image.width
-                ) * self.scale_factor
+                ) * self.zoom_scale_factor
                 self.zoom_right = self.main.image.width
                 self.zoom_left = self.zoom_right - real_zoom_size
             else:
@@ -767,13 +867,13 @@ class PyLine:
                 self.zoom_right = x + half_real_zoom_size
 
             if y - half_real_zoom_size < 0:
-                dy = (y - half_real_zoom_size) * self.scale_factor
+                dy = (y - half_real_zoom_size) * self.zoom_scale_factor
                 self.zoom_upper = 0
                 self.zoom_lower = self.zoom_upper + real_zoom_size
             elif y + half_real_zoom_size > self.main.image.height:
                 dy = (
                     y + half_real_zoom_size - self.main.image.height
-                ) * self.scale_factor
+                ) * self.zoom_scale_factor
                 self.zoom_lower = self.main.image.height
                 self.zoom_upper = self.zoom_lower - real_zoom_size
             else:
@@ -797,8 +897,8 @@ class PyLine:
             for segment in self.main.line.line_segments:
                 zoom_segment = [
                     (
-                        (px - self.zoom_left) * self.scale_factor,
-                        (py - self.zoom_upper) * self.scale_factor,
+                        (px - self.zoom_left) * self.zoom_scale_factor,
+                        (py - self.zoom_upper) * self.zoom_scale_factor,
                     )
                     for px, py in segment
                 ]
@@ -808,8 +908,8 @@ class PyLine:
         if self.main.line.current_segment:
             self.zoom.line.current_segment = [
                 (
-                    (px - self.zoom_left) * self.scale_factor,
-                    (py - self.zoom_upper) * self.scale_factor,
+                    (px - self.zoom_left) * self.zoom_scale_factor,
+                    (py - self.zoom_upper) * self.zoom_scale_factor,
                 )
                 for px, py in self.main.line.current_segment
             ]
@@ -869,7 +969,7 @@ class PyLine:
                 or self.y1_real is None
                 or self.y2_real is None
             ):  # if not set coordinates, output all points without conversion
-                self._print("WARNING", "Set the coordinates first ! ! !")
+                self._print("WARNING", self.str_set_coordinates_first)
                 converted_points = all_points
             else:  # if set coordinates, convert points to real coordinates
                 x_scale = (self.x2_real - self.x1_real) / (
@@ -891,9 +991,9 @@ class PyLine:
                 with open(output_file, 'w') as f:
                     for point in converted_points:
                         f.write(f"{point[0]} {point[1]}\n")
-                self._print("INFO", f"Line data has been saved: {output_file}")
+                self._print("INFO", self.str_line_saved + f": {output_file}")
         else:
-            self._print("ERROR", "No lines to save ! ! !")
+            self._print("ERROR", self.str_no_line)
 
     def update_all_lines(self):
         self.update_zoom_line()
@@ -911,34 +1011,34 @@ class PyLine:
         status1 = self.main.clear_linedata()
         self.update_all_lines()
         if status1 == 0:
-            self._print("INFO", "Clear all line datas")
+            self._print("INFO", self.str_clear_all)
             self.update_all_photos()
         else:
-            self._print("WARNING", "No lines to clear!")
+            self._print("WARNING", self.str_no_line)
 
     def undo_last_action(self):
         status1 = self.main.undo_photoline()
         self.update_all_lines()
         if status1 == 0:
-            self._print("INFO", "Undone")
+            self._print("INFO", self.str_undone)
         else:
-            self._print("WARNING", "Already the oldest location!")
+            self._print("WARNING", self.str_oldest)
 
     def redo_last_action(self):
         status1 = self.main.redo_photoline()
         self.update_all_lines()
         if status1 == 0:
-            self._print("INFO", "Redone")
+            self._print("INFO", self.str_redone)
         else:
-            self._print("WARNING", "Already the latest location!")
+            self._print("WARNING", self.str_latest)
 
     def redraw_lines(self):
         status1 = self.main.redraw_photoline()
         self.update_all_lines()
         if status1 == 0:
-            self._print("INFO", "Line Re-drawn")
+            self._print("INFO", self.str_redrawn)
         else:
-            self._print("WARNING", "No lines to re-draw!")
+            self._print("WARNING", self.str_no_line)
 
     def record_x1_screen(self):
         if self.main.line.last_point:
@@ -949,9 +1049,9 @@ class PyLine:
                 self.x1_real = float(self.entry_x1.get())
                 self._print("INFO", f"X1: {self.x1_real}")
             else:
-                self._print("ERROR", "Enter the coordinate values ​​first!")
+                self._print("ERROR", self.str_set_coordinates_first)
         else:
-            self._print("ERROR", "Pick a point first ! ! !")
+            self._print("ERROR", self.str_no_point_picked)
 
     def record_x2_screen(self):
         if self.main.line.last_point:
@@ -962,9 +1062,10 @@ class PyLine:
                 self.x2_real = float(self.entry_x2.get())
                 self._print("INFO", f"X2: {self.x2_real}")
             else:
-                self._print("ERROR", "Enter the coordinate values ​​first!")
+                self._print("ERROR", self.str_set_coordinates_first)
+
         else:
-            self._print("ERROR", "Pick a point first ! ! !")
+            self._print("ERROR", self.str_no_point_picked)
 
     def record_y1_screen(self):
         if self.main.line.last_point:
@@ -975,9 +1076,9 @@ class PyLine:
                 self.y1_real = float(self.entry_y1.get())
                 self._print("INFO", f"Y1: {self.y1_real}")
             else:
-                self._print("ERROR", "Enter the coordinate values ​​first!")
+                self._print("ERROR", self.str_set_coordinates_first)
         else:
-            self._print("ERROR", "Pick a point first ! ! !")
+            self._print("ERROR", self.str_no_point_picked)
 
     def record_y2_screen(self):
         if self.main.line.last_point:
@@ -988,15 +1089,15 @@ class PyLine:
                 self.y2_real = float(self.entry_y2.get())
                 self._print("INFO", f"Y2: {self.y2_real}")
             else:
-                self._print("ERROR", "Enter the coordinate values ​​first!")
+                self._print("ERROR", self.str_set_coordinates_first)
         else:
-            self._print("ERROR", "Pick a point first ! ! !")
+            self._print("ERROR", self.str_no_point_picked)
 
     def set_drawmode(self, event):
         self.main.drawmode = self.drawmode_combobox.current()
         self.zoom.drawmode = self.drawmode_combobox.current()
         self.update_all_lines()
-        self._print("INFO", f"Draw Mode: {self.drawmode_option.get()}")
+        self._print("INFO", self.str_draw_mode + f": {self.drawmode_option.get()}")
 
     def set_line_color(self):
         color = colorchooser.askcolor()[1]
@@ -1004,76 +1105,96 @@ class PyLine:
             self.main.line.set_line_color(color)
             self.zoom.line.set_line_color(color)
             self.update_all_lines()
-            self._print("INFO", f"Line color: {color}")
+            self._print("INFO", self.str_line_color + f": {color}")
 
     def set_line_width(self):
         width = simpledialog.askinteger(
-            "Set Line Width",
-            f"Input Line Width (1-10, default {self.default_line_width})：",
+            self.str_set + self.str_line_width,
+            self.str_input
+            + self.str_line_width
+            + "(1-10, "
+            + self.str_default
+            + f"{self.default_line_width})：",
             minvalue=1,
             maxvalue=10,
         )
         if width:
             self.main.line.set_line_width(width)
-            self.zoom.line.set_line_width(min(10, width * self.scale_factor))
+            self.zoom.line.set_line_width(min(10, width * self.zoom_scale_factor))
             self.update_all_lines()
-            self._print("INFO", f"Line width: {width}")
+            self._print("INFO", self.str_line_width + f": {width}")
 
     def set_point_interval(self):
         interval = simpledialog.askinteger(
-            "Set Point Interval",
-            f"Input Point Interval (1-50, default {self.default_point_interval})：",
+            self.str_set + self.str_point_interval,
+            self.str_input
+            + self.str_point_interval
+            + "(1-50, "
+            + self.str_default
+            + f"{self.default_point_interval})：",
             minvalue=1,
             maxvalue=50,
         )
         if interval:
             self.main.line.set_point_interval(interval)
-            self._print("INFO", f"Point interval: {interval}")
+            self._print("INFO", self.str_point_interval + f": {interval}")
 
     def set_mouse_sensitivity(self):
         sensitivity = simpledialog.askinteger(
-            "Set Mouse Sensitivity",
-            "Input Mouse Sensitivity (1-20),\n or turn up/down by Ctrl+Shift+A/D：",
+            self.str_set + self.str_mouse_sensitivity,
+            self.str_input
+            + self.str_mouse_sensitivity
+            + "(1-20, "
+            + self.str_default
+            + f"{self.mouse_set.original_sensitivity})：",
             minvalue=1,
             maxvalue=20,
         )
         if sensitivity:
             self.mouse_set.set_mouse_sensitivity(sensitivity)
-            self._print("INFO", f"Mouse sensitivity: {sensitivity}")
+            self._print("INFO", self.str_mouse_sensitivity + f": {sensitivity}")
 
     def set_zoom_scale(self):
         factor = simpledialog.askinteger(
-            "Set Zoom Scale Factor",
-            f"Input Zoom Scale Factor (1-10, default {self.default_scale_factor})：",
+            self.str_set + self.str_zoom_scale,
+            self.str_input
+            + self.str_zoom_scale
+            + "(1-10, "
+            + self.str_default
+            + f"{self.default_zoom_scale_factor})：",
             minvalue=1,
             maxvalue=10,
         )
         if factor:
-            self.scale_factor = factor
+            self.zoom_scale_factor = factor
             self.zoom.line.set_line_width(
-                min(10, self.zoom.line.line_width * self.scale_factor)
+                min(10, self.zoom.line.line_width * self.zoom_scale_factor)
             )
             # self.update_zoom_image(event)
             self.update_all_lines()
-            self._print("INFO", f"Zoom Scale factor: {factor}")
+            self._print("INFO", self.str_zoom_scale + f": {factor}")
 
     def set_zoom_scale_by_mouse_wheel(self, event):
         if event.delta > 0:
-            self.scale_factor += 1
+            self.zoom_scale_factor += 1
         else:
-            self.scale_factor -= 1
-        self.scale_factor = max(1, min(self.scale_factor, 10))
+            self.zoom_scale_factor -= 1
+        self.zoom_scale_factor = max(1, min(self.zoom_scale_factor, 10))
         self.zoom.line.set_line_width(
-            min(10, self.main.line.line_width * self.scale_factor)
+            min(10, self.main.line.line_width * self.zoom_scale_factor)
         )
         self.update_zoom_image(event)
         self.update_all_lines()
-        self._print("INFO", f"Zoom Scale factor: {self.scale_factor}")
+        self._print("INFO", self.str_zoom_scale + f": {self.zoom_scale_factor}")
 
     def set_point_scale(self):
         factor = simpledialog.askfloat(
-            "Set Point Scale Factor",
-            f"Input Point Scale Factor (0.1-10, default {self.default_point_scale})：",
+            self.str_set + self.str_point_scale,
+            self.str_input
+            + self.str_point_scale
+            + "(0.1-10, "
+            + self.str_default
+            + f"{self.default_point_scale_factor})：",
             minvalue=0.1,
             maxvalue=10,
         )
@@ -1081,23 +1202,28 @@ class PyLine:
             self.main.line.set_point_scale(factor)
             self.zoom.line.set_point_scale(factor)
             self.update_all_lines()
-            self._print("INFO", f"Point scale Factor: {factor}")
+            self._print("INFO", self.str_point_scale + f": {factor}")
 
     def up_mouse_sensitivity(self):
         self.mouse_set.up_mouse_sensitivity()
         self._print(
-            "INFO", f"Mouse sensitivity: {self.mouse_set.get_mouse_sensitivity()}"
+            "INFO",
+            self.str_mouse_sensitivity + f": {self.mouse_set.get_mouse_sensitivity()}",
         )
 
     def down_mouse_sensitivity(self):
         self.mouse_set.down_mouse_sensitivity()
         self._print(
-            "INFO", f"Mouse sensitivity: {self.mouse_set.get_mouse_sensitivity()}"
+            "INFO",
+            self.str_mouse_sensitivity + f": {self.mouse_set.get_mouse_sensitivity()}",
         )
 
     def reset_mouse_sensitivity(self):
         self.mouse_set.reset_mouse_sensitivity()
-        self._print("INFO", f"Mouse sensitivity: {self.mouse_set.original_sensitivity}")
+        self._print(
+            "INFO",
+            self.str_mouse_sensitivity + f": {self.mouse_set.original_sensitivity}",
+        )
 
     def on_closing(self):
         self.mouse_set.reset_mouse_sensitivity()
