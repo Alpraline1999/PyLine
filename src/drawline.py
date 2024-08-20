@@ -6,7 +6,8 @@ import copy
 class DrawLine:
     def __init__(self):
         self.tools = Tools()
-        self.line_segments = deque()
+        # self.line_segments = deque()
+        self.line_segments = []
         self.line_all_points = []
         max_len_of_undo_redo = 100
         self.redo_stack = deque(maxlen=max_len_of_undo_redo)
@@ -100,7 +101,8 @@ class DrawLine:
     def _split_into_segments(self, points):
         if not points:
             return deque()
-        segments = deque()
+        # segments = deque()
+        segments = []
         current_segment = [points[0]]
         for p1, p2 in zip(points, points[1:]):
             if p1 == current_segment[-1]:
@@ -111,6 +113,13 @@ class DrawLine:
         if current_segment:
             segments.append(current_segment)
         return segments
+
+    def delete_last_point(self):
+        if self.line_segments:
+            self.last_point = []
+            self.line_segments[-1].pop()
+            if self.line_segments[-1] == []:
+                self.line_segments.pop()
 
     def set_line_color(self, color):
         self.line_color = color

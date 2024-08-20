@@ -15,8 +15,8 @@ class PyLine:
 
         self.root = root
         self.root.title("PyLine")
-        self.root.geometry("1170x720")
-        self.root.minsize(1170, 720)
+        self.root.state("zoomed")
+        self.root.minsize(self.root_min_width, self.root_min_height)
         self.root.resizable(True, True)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.config(bg=self.root_color)
@@ -28,6 +28,7 @@ class PyLine:
         self._create_frame()
         self._create_canvas()
         self._create_menu()
+        self._create_datatree()
         self._creat_settings()
         self._creat_toolbar()
         self._creat_operations()
@@ -38,6 +39,8 @@ class PyLine:
     def _init_variables(self):
         # default language
         self.language = "zh"
+        self.root_min_width = 1350
+        self.root_min_height = 780
 
         # image file
         self.image_file = None
@@ -58,7 +61,7 @@ class PyLine:
         self.toolbar_padx, self.toolbar_pady = 2, 0  # padding for toolbar widgets
         self.setting_padx, self.setting_pady = 5, 2  # padding for settings widgets
         self.operation_padx, self.operation_pady = (
-            5,
+            4,
             2,
         )  # padding for operation buttons
 
@@ -78,7 +81,7 @@ class PyLine:
         self.main_height = 600  # main canvas height
 
         self.zoom_scale_factor = self.default_zoom_scale_factor  # scale factor for zoom
-        self.zoom_size = 300  # zoom canvas size
+        self.zoom_size = 320  # zoom canvas size
         self.zoom_cursor_size = 12  # zoom cursor size
 
         # real axis and screen axis
@@ -122,6 +125,9 @@ class PyLine:
             self.str_draw_mode = "绘图模式"
             self.str_mode_point = "点"
             self.str_mode_point_line = "点-线"
+            self.str_auto_mode = "识别模式"
+            self.str_auto_mode_1 = "欧氏距离"
+            self.str_auto_mode_2 = "CIE76"
             self.str_pick_color = "选取颜色"
             self.str_assisted_pick_points = "辅助取点"
             self.str_set = "设置"
@@ -133,6 +139,8 @@ class PyLine:
             self.str_no_point_picked = "无选取点"
             self.str_image_files = "图片文件"
             self.str_open_image = "打开图片"
+            self.str_data_file = "数据文件"
+            self.str_save_data = "导出数据"
 
             self.str_set_coordinates_first = "未设置坐标"
             self.str_line_saved = "已保存曲线数据"
@@ -143,6 +151,12 @@ class PyLine:
             self.str_oldest = "已位于最旧位置"
             self.str_latest = "已位于最新位置"
             self.str_redrawn = "已重绘曲线"
+            self.str_set_ref_color_first = "未设置参考色"
+            self.str_auto_draw = "自动取点"
+            self.str_auto_drawing = "自动取点中..."
+            self.str_auto_drawn = "已完成自动取点"
+            self.str_erase_range = "橡皮大小"
+
         elif self.language == "en":
             self.str_language = "语言"
             self.str_select_language = "简体中文/英文 (zh/en): "
@@ -168,6 +182,9 @@ class PyLine:
             self.str_draw_mode = "Draw Mode"
             self.str_mode_point = "Point"
             self.str_mode_point_line = "Point_Line"
+            self.str_auto_mode = "Auto Mode"
+            self.str_auto_mode_1 = "Distance"
+            self.str_auto_mode_2 = "CIE76"
             self.str_pick_color = "Pick Color"
             self.str_assisted_pick_points = "Assisted Pick Points"
             self.str_set = "Set "
@@ -179,6 +196,8 @@ class PyLine:
             self.str_no_point_picked = "No Point Picked"
             self.str_image_files = "Image Files"
             self.str_open_image = "Open Image"
+            self.str_data_file = "Data File"
+            self.str_save_data = "Save Data"
 
             self.str_set_coordinates_first = "Set Coordinates First"
             self.str_line_saved = "Line data has been saved"
@@ -189,6 +208,11 @@ class PyLine:
             self.str_oldest = "Already the oldest location"
             self.str_latest = "Already the latest location"
             self.str_redrawn = "Line Re-drawn"
+            self.str_set_ref_color_first = "Set Reference Color First"
+            self.str_auto_draw = "Auto Draw"
+            self.str_auto_drawing = "Auto Drawing ..."
+            self.str_auto_drawn = "Auto Draw Finished"
+            self.str_erase_range = "Eraser Size"
 
     def _create_frame(self):
         self.frame_toolbar = tk.Frame(
@@ -216,11 +240,17 @@ class PyLine:
             relief=tk.RAISED,
             bg=self.frame_color,
         )
+        self.frame_datatree = tk.Frame(
+            self.root,
+            bd=1,
+            relief=tk.RAISED,
+            bg=self.frame_color,
+        )
 
         self.frame_toolbar.grid(
             row=0,
             column=0,
-            columnspan=2,
+            columnspan=3,
             sticky='NEW',
             padx=self.frame_padx,
             pady=self.frame_pady,
@@ -239,6 +269,14 @@ class PyLine:
             column=1,
             sticky='NSEW',
             rowspan=3,
+            padx=self.frame_padx,
+            pady=self.frame_pady,
+        )
+        self.frame_datatree.grid(
+            row=1,
+            column=2,
+            rowspan=3,
+            sticky='NSEW',
             padx=self.frame_padx,
             pady=self.frame_pady,
         )
@@ -450,6 +488,17 @@ class PyLine:
             side=tk.RIGHT, padx=self.toolbar_padx, pady=self.toolbar_padx
         )
 
+    def _create_datatree(self):
+        datatree_width = 80
+        self.datatree = ttk.Treeview(
+            self.frame_datatree, columns=("X", "Y"), show="headings"
+        )
+        self.datatree.heading("X", text="X")
+        self.datatree.heading("Y", text="Y")
+        self.datatree.pack(fill=tk.BOTH, expand=True)
+        self.datatree.column("#1", anchor='w', width=datatree_width)
+        self.datatree.column("#2", anchor="w", width=datatree_width)
+
     def _creat_settings(self):  # create axis settings
         label_width = 7
         tk.Label(
@@ -596,6 +645,7 @@ class PyLine:
         )
 
     def _creat_operations(self):  # create operation buttons
+        combo_width = 7
         # combobox for draw mode
         tk.Label(
             self.frame_operations,
@@ -607,29 +657,64 @@ class PyLine:
             column=0,
             padx=self.operation_padx,
             pady=self.operation_pady,
-            sticky='W',
+            sticky='EW',
         )
 
-        self.drawmode_option = tk.StringVar()
-        self.drawmode_combobox = ttk.Combobox(
+        self.draw_mode_option = tk.StringVar()
+        self.draw_mode_combobox = ttk.Combobox(
             self.frame_operations,
-            textvariable=self.drawmode_option,
+            textvariable=self.draw_mode_option,
             state="readonly",
+            width=combo_width,
         )
-        self.drawmode_combobox.grid(
+        self.draw_mode_combobox.grid(
             row=0,
             column=1,
-            columnspan=2,
             padx=self.operation_padx,
             pady=self.operation_pady,
             sticky='EW',
         )
-        self.drawmode_combobox['values'] = (
+        self.draw_mode_combobox['values'] = (
             self.str_mode_point,
             self.str_mode_point_line,
         )
-        self.drawmode_combobox.current(0)
-        self.drawmode_combobox.bind("<<ComboboxSelected>>", self.set_drawmode)
+        self.draw_mode_combobox.current(0)
+        self.draw_mode_combobox.bind("<<ComboboxSelected>>", self.set_draw_mode)
+
+        # combobox for auto mode
+        tk.Label(
+            self.frame_operations,
+            text=self.str_auto_mode + ": ",
+            relief=tk.RAISED,
+            bg=self.label_color,
+        ).grid(
+            row=0,
+            column=2,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.auto_mode_option = tk.StringVar()
+        self.auto_mode_combobox = ttk.Combobox(
+            self.frame_operations,
+            textvariable=self.auto_mode_option,
+            state="readonly",
+            width=combo_width,
+        )
+        self.auto_mode_combobox.grid(
+            row=0,
+            column=3,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+        self.auto_mode_combobox['values'] = (
+            self.str_auto_mode_1,
+            self.str_auto_mode_2,
+        )
+        self.auto_mode_combobox.current(0)
+        self.auto_mode_combobox.bind("<<ComboboxSelected>>", self.set_auto_mode)
 
         # pick color
         self.ref_color_label = tk.Label(
@@ -646,7 +731,7 @@ class PyLine:
             column=0,
             padx=self.operation_padx,
             pady=self.operation_pady,
-            sticky='W',
+            sticky='EW',
         )
 
         self.pick_color_button = tk.Button(
@@ -677,7 +762,56 @@ class PyLine:
             column=2,
             padx=self.operation_padx,
             pady=self.operation_pady,
-            sticky='E',
+            sticky='EW',
+        )
+
+        self.auto_draw_button = tk.Button(
+            self.frame_operations,
+            text=self.str_auto_draw,
+            command=self.auto_draw,
+            relief=tk.RAISED,
+            bg=self.button_color,
+        )
+        self.auto_draw_button.grid(
+            row=1,
+            column=3,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.erase_range_label = tk.Label(
+            self.frame_operations,
+            text=self.str_erase_range + ": ",
+            relief=tk.RAISED,
+            bg=self.label_color,
+        )
+        self.erase_range_label.grid(
+            row=2,
+            column=0,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.erase_range_scale = tk.Scale(
+            self.frame_operations,
+            from_=1,
+            to=100,
+            orient=tk.HORIZONTAL,
+            bg=self.button_color,
+            command=self.set_erase_range,
+        )
+        self.erase_range_scale.set(
+            self.main.assisted_point.erase_range
+        )  # initiate the value of the erase range scale
+        self.erase_range_scale.grid(
+            row=2,
+            column=1,
+            columnspan=3,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
         )
 
     def set_assisted_point(self):
@@ -690,6 +824,9 @@ class PyLine:
         self.assisted_option.set(1 - self.assisted_option.get())
         self.set_assisted_point()
 
+    def set_erase_range(self, value):
+        self.main.assisted_point.set_erase_range(int(value))
+
     def _pick_color(self):
         if not self.main.image:
             self._print("ERROR", self.str_no_image_loaded)
@@ -699,6 +836,9 @@ class PyLine:
             self.main.assisted_point.set_ref_color(
                 self.main.image, self.main.line.last_point
             )
+            # delete last point
+            self.main.line.delete_last_point()
+            self.update_all_lines()
             ref_color = self.rgb_to_hex(self.main.assisted_point.ref_color)
             self.ref_color_label.config(
                 background=ref_color,
@@ -729,6 +869,12 @@ class PyLine:
         self.main.canvas.bind("<ButtonRelease-1>", self.stop_draw)
         self.main.canvas.bind("<Motion>", self.update_zoom_image)
         self.main.canvas.bind("<Motion>", self.draw_line, add='+')
+        self.main.canvas.bind("<B3-Motion>", self.update_zoom_image)
+        self.main.canvas.bind("<B3-Motion>", self.draw_line, add='+')
+        self.main.canvas.bind("<B3-Motion>", self.delete_points, add='+')
+        self.main.canvas.bind("<ButtonPress-3>", self.start_delete)
+        self.main.canvas.bind("<ButtonPress-3>", self.delete_points, add='+')
+        self.main.canvas.bind("<ButtonRelease-3>", self.stop_delete)
 
     def _create_hotkeys(self):
         self.root.bind('<F1>', lambda event: self.show_hotkeys())
@@ -940,8 +1086,116 @@ class PyLine:
 
     def stop_draw(self, event):
         # stop draw line and update lines
-        self.main.stop_draw_photoline(event)
+        status = self.main.stop_draw_photoline(event)
+        if status == -1:  # if not set reference color, output warning
+            self._print("WARNING", self.str_set_ref_color_first)
+
         self.update_all_lines()
+
+    def auto_draw(self):
+        if not self.main.image:
+            self._print("ERROR", self.str_no_image_loaded)
+            return
+
+        self._print("INFO", self.str_auto_drawing)
+        self.root.update_idletasks()
+
+        # auto draw line
+        status = self.main.auto_draw()
+        if status < 0:  # if not set reference color, output warning
+            self._print("WARNING", self.str_set_ref_color_first)
+        else:
+            self._print("INFO", self.str_auto_drawn)
+
+        self.update_all_lines()
+
+    def start_delete(self, event):
+        self.deleted = -1
+        self.main.line._backup_line()
+
+    def stop_delete(self, event):
+        if (
+            self.deleted == 0
+        ):  # if changed, clear redo stack and back up line_segments for undo/redo
+            self.main.line.redo_stack.clear()
+        else:  # if not changed, clear undo stack and cancel back up
+            self.main.line.undo_stack.pop()
+        self.update_all_lines()
+
+    def delete_points(self, event):
+        if self.main.image:
+            self.deleted = self.deleted * self.main.erase_points(event)
+            self.update_all_lines()
+            self.update_erase(event)
+
+    def update_erase(self, event):
+        erase_range = self.main.assisted_point.erase_range
+        self.main.canvas.create_line(
+            event.x - erase_range,
+            event.y - erase_range,
+            event.x + erase_range,
+            event.y - erase_range,
+            fill=self.main.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.main.canvas.create_line(
+            event.x + erase_range,
+            event.y - erase_range,
+            event.x + erase_range,
+            event.y + erase_range,
+            fill=self.main.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.main.canvas.create_line(
+            event.x + erase_range,
+            event.y + erase_range,
+            event.x - erase_range,
+            event.y + erase_range,
+            fill=self.main.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.main.canvas.create_line(
+            event.x - erase_range,
+            event.y + erase_range,
+            event.x - erase_range,
+            event.y - erase_range,
+            fill=self.main.line.line_color,
+            width=self.main.line.line_width,
+        )
+
+        zoom_erase_range = erase_range * self.zoom_scale_factor
+        self.zoom.canvas.create_line(
+            self.zoom_cursor[0] - zoom_erase_range,
+            self.zoom_cursor[1] - zoom_erase_range,
+            self.zoom_cursor[0] + zoom_erase_range,
+            self.zoom_cursor[1] - zoom_erase_range,
+            fill=self.zoom.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.zoom.canvas.create_line(
+            self.zoom_cursor[0] + zoom_erase_range,
+            self.zoom_cursor[1] - zoom_erase_range,
+            self.zoom_cursor[0] + zoom_erase_range,
+            self.zoom_cursor[1] + zoom_erase_range,
+            fill=self.zoom.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.zoom.canvas.create_line(
+            self.zoom_cursor[0] + zoom_erase_range,
+            self.zoom_cursor[1] + zoom_erase_range,
+            self.zoom_cursor[0] - zoom_erase_range,
+            self.zoom_cursor[1] + zoom_erase_range,
+            fill=self.zoom.line.line_color,
+            width=self.main.line.line_width,
+        )
+        self.zoom.canvas.create_line(
+            self.zoom_cursor[0] - zoom_erase_range,
+            self.zoom_cursor[1] + zoom_erase_range,
+            self.zoom_cursor[0] - zoom_erase_range,
+            self.zoom_cursor[1] - zoom_erase_range,
+            fill=self.zoom.line.line_color,
+            width=self.main.line.line_width,
+        )
 
     def draw_line(self, event):
         # draw line in main image
@@ -950,11 +1204,6 @@ class PyLine:
 
     def save_main_line(self):
         if self.main.line.line_segments:
-            output_file = filedialog.asksaveasfilename(
-                defaultextension=".dat",
-                filetypes=[("DAT files", "*.dat")],
-                title="Save the line data to a file",
-            )
             all_points = [
                 point for segment in self.main.line.line_segments for point in segment
             ]
@@ -987,6 +1236,11 @@ class PyLine:
                     for x, y in all_points
                 ]
 
+            output_file = filedialog.asksaveasfilename(
+                defaultextension=".dat",
+                filetypes=[(self.str_data_file, "*.dat")],
+                title=self.str_save_data,
+            )
             if output_file:
                 with open(output_file, 'w') as f:
                     for point in converted_points:
@@ -996,10 +1250,54 @@ class PyLine:
             self._print("ERROR", self.str_no_line)
 
     def update_all_lines(self):
-        self.update_zoom_line()
-        self.main.update_photoline()
-        self.zoom.update_photoline()
-        self.update_zoom_cursor()
+        if self.main.image:
+            self.update_zoom_line()
+            self.main.update_photoline()
+            self.zoom.update_photoline()
+            self.update_zoom_cursor()
+
+            self.update_datatree()
+
+    def update_datatree(self):
+        self.datatree.delete(*self.datatree.get_children())
+        if self.main.line.line_all_points:
+            all_points = [
+                point for segment in self.main.line.line_segments for point in segment
+            ]
+
+            if (
+                self.x1_screen is None
+                or self.x2_screen is None
+                or self.x1_real is None
+                or self.x2_real is None
+                or self.y1_screen is None
+                or self.y2_screen is None
+                or self.y1_real is None
+                or self.y2_real is None
+            ):  # if not set coordinates, output all points without conversion
+                converted_points = all_points
+            else:  # if set coordinates, convert points to real coordinates
+                x_scale = (self.x2_real - self.x1_real) / (
+                    self.x2_screen - self.x1_screen
+                )
+                y_scale = (self.y2_real - self.y1_real) / (
+                    self.y2_screen - self.y1_screen
+                )
+
+                x_offset = self.x1_real - self.x1_screen * x_scale
+                y_offset = self.y1_real - self.y1_screen * y_scale
+
+                converted_points = [
+                    (x * x_scale + x_offset, y * y_scale + y_offset)
+                    for x, y in all_points
+                ]
+
+            for point in converted_points:
+                self.datatree.insert(
+                    "",
+                    "end",
+                    values=(point[0], point[1]),
+                )
 
     def update_all_photos(self):
         status1 = self.main.update_photo()
@@ -1044,8 +1342,8 @@ class PyLine:
         if self.main.line.last_point:
             if self.entry_x1.get():
                 self.x1_screen = self.main.line.last_point[0]
-                self.clear_all_linedatas()
-                self.main.line.last_point = []
+                self.main.line.delete_last_point()
+                self.update_all_lines()
                 self.x1_real = float(self.entry_x1.get())
                 self._print("INFO", f"X1: {self.x1_real}")
             else:
@@ -1057,8 +1355,8 @@ class PyLine:
         if self.main.line.last_point:
             if self.entry_x2.get():
                 self.x2_screen = self.main.line.last_point[0]
-                self.clear_all_linedatas()
-                self.main.line.last_point = []
+                self.main.line.delete_last_point()
+                self.update_all_lines()
                 self.x2_real = float(self.entry_x2.get())
                 self._print("INFO", f"X2: {self.x2_real}")
             else:
@@ -1071,8 +1369,8 @@ class PyLine:
         if self.main.line.last_point:
             if self.entry_y1.get():
                 self.y1_screen = self.main.line.last_point[1]
-                self.clear_all_linedatas()
-                self.main.line.last_point = []
+                self.main.line.delete_last_point()
+                self.update_all_lines()
                 self.y1_real = float(self.entry_y1.get())
                 self._print("INFO", f"Y1: {self.y1_real}")
             else:
@@ -1084,8 +1382,8 @@ class PyLine:
         if self.main.line.last_point:
             if self.entry_y2.get():
                 self.y2_screen = self.main.line.last_point[1]
-                self.clear_all_linedatas()
-                self.main.line.last_point = []
+                self.main.line.delete_last_point()
+                self.update_all_lines()
                 self.y2_real = float(self.entry_y2.get())
                 self._print("INFO", f"Y2: {self.y2_real}")
             else:
@@ -1093,11 +1391,15 @@ class PyLine:
         else:
             self._print("ERROR", self.str_no_point_picked)
 
-    def set_drawmode(self, event):
-        self.main.drawmode = self.drawmode_combobox.current()
-        self.zoom.drawmode = self.drawmode_combobox.current()
+    def set_draw_mode(self, event):
+        self.main.draw_mode = self.draw_mode_combobox.current()
+        self.zoom.draw_mode = self.draw_mode_combobox.current()
         self.update_all_lines()
-        self._print("INFO", self.str_draw_mode + f": {self.drawmode_option.get()}")
+        self._print("INFO", self.str_draw_mode + f": {self.draw_mode_option.get()}")
+
+    def set_auto_mode(self, event):
+        self.main.assisted_point.auto_mode = self.auto_mode_combobox.current()
+        self._print("INFO", self.str_auto_mode + f": {self.auto_mode_option.get()}")
 
     def set_line_color(self):
         color = colorchooser.askcolor()[1]
