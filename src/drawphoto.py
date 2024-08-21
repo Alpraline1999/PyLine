@@ -224,7 +224,7 @@ class DrawPhoto:
 class AssistedPoint:
     def __init__(self):
         self.recog_range = 1.0  # the initial range of the recognition
-        self.erase_range = 20  # the initial range of the eraser
+        self.erase_range = 15  # the initial range of the eraser
         self.checkrange = drawline.CheckRange()
         self.ref_color = None  # the reference color
         self.auto_mode = 0  # 0: Distance 1: CIE76

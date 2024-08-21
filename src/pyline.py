@@ -330,9 +330,6 @@ class PyLine:
         self.zoom.line.set_line_color(self.default_line_color)
         self.zoom.line.set_line_width(self.zoom_scale_factor * self.default_line_width)
         self.main.line.set_point_scale(self.default_point_scale_factor)
-        self.zoom.line.set_point_interval(
-            self.zoom_scale_factor * self.default_point_interval
-        )
 
     def _create_menu(self):
         menu_bar = Menu(self.root)
@@ -1245,7 +1242,7 @@ class PyLine:
             self.zoom_cursor[0] + self.zoom_cursor_size,
             self.zoom_cursor[1],
             fill=self.zoom.line.line_color,
-            width=self.zoom.line.line_width,
+            width=self.main.line.line_width,
         )
         self.zoom.canvas.create_line(
             self.zoom_cursor[0],
@@ -1253,7 +1250,7 @@ class PyLine:
             self.zoom_cursor[0],
             self.zoom_cursor[1] + self.zoom_cursor_size,
             fill=self.zoom.line.line_color,
-            width=self.zoom.line.line_width,
+            width=self.main.line.line_width,
         )
 
     def start_draw(self, event):
@@ -1670,16 +1667,16 @@ class PyLine:
             self.zoom.line.set_line_width(
                 min(10, self.zoom.line.line_width * self.zoom_scale_factor)
             )
-            # self.update_zoom_image(event)
             self.update_all_lines()
             self._print("INFO", self.str_zoom_scale + f": {factor}")
 
     def set_zoom_scale_by_mouse_wheel(self, event):
+        delta_scale = 0.5
         if event.delta > 0:
-            self.zoom_scale_factor += 1
+            self.zoom_scale_factor += delta_scale
         else:
-            self.zoom_scale_factor -= 1
-        self.zoom_scale_factor = max(1, min(self.zoom_scale_factor, 10))
+            self.zoom_scale_factor -= delta_scale
+        self.zoom_scale_factor = max(1.5, min(self.zoom_scale_factor, 10))
         self.zoom.line.set_line_width(
             min(10, self.main.line.line_width * self.zoom_scale_factor)
         )
