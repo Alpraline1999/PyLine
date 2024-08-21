@@ -1,15 +1,23 @@
 # PyLine
 一个用于提取图像中曲线数据的工具。
 
-A tool used for picking points/lines data from images.
+# 功能和样例
 
-## What can PyLine do?
-一系列的功能用于从图像中提取曲线数据，包括设置曲线类型，绘制方法和**自动辅助提取点**功能。
+## 基本功能
 
-A series of functions are used to extract data points from the curve on images, including setting the line type, drawing method and the key **auxiliary automatic picking points** function.
+- 手动取点/绘线(鼠标左键)
+- 删除点(鼠标右键)
+- 撤销/重做(Ctrl+Z, Ctrl+Y)
+- 清除画布(Ctrl+D)
+- 重绘/预览曲线
+- 线型选择
+- 其他设置
 
-## A simple demo
+![demo](./images/demo_1.gif)
 
-[Demo Vedio](./images/demo.mp4)
+## 辅助/自动取点
 
-![demo](./images/demo.gif)
+- 辅助取点
+- 自动取点
+
+![demo](./images/demo_2.gif)

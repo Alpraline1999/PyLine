@@ -111,13 +111,13 @@ class PyLine:
             self.str_menu_hotkeys = "快捷键 (F1)"
             self.str_hotkeys_list = "快捷键列表"
             self.str_open = "打开"
-            self.str_save = "导出"
+            self.str_export = "导出"
             self.str_quit = "退出"
             self.str_redraw = "重绘"
             self.str_undo = "撤销"
             self.str_redo = "重做"
-            self.str_clean = "清除"
             self.str_preview = "预览"
+            self.str_clean = "清除"
             self.str_line_color = "颜色"
             self.str_line_width = "线宽"
             self.str_point_interval = "点间距"
@@ -135,6 +135,8 @@ class PyLine:
             self.str_set = "设置"
             self.str_input = "输入"
             self.str_default = "默认为"
+            self.str_reset = "重置"
+            self.str_functions = "功能"
 
             self.str_no_image_loaded = "无加载图片"
             self.str_ref_color = "参考色"
@@ -142,10 +144,10 @@ class PyLine:
             self.str_image_files = "图片文件"
             self.str_open_image = "打开图片"
             self.str_data_file = "数据文件"
-            self.str_save_data = "导出数据"
+            self.str_export_data = "导出数据"
 
             self.str_set_coordinates_first = "未设置坐标"
-            self.str_line_saved = "已保存曲线数据"
+            self.str_line_exported = "已保存曲线数据"
             self.str_no_line = "无曲线数据"
             self.str_clear_all = "已清除所有点"
             self.str_undone = "已撤销"
@@ -158,6 +160,7 @@ class PyLine:
             self.str_auto_drawing = "自动取点中..."
             self.str_auto_drawn = "已完成自动取点"
             self.str_erase_range = "橡皮大小"
+            self.str_mouse_wheel = "滚轮"
 
         elif self.language == "en":
             self.str_language = "语言"
@@ -169,13 +172,13 @@ class PyLine:
             self.str_menu_hotkeys = "HotKeys (F1)"
             self.str_hotkeys_list = "HotKeys List"
             self.str_open = "Open"
-            self.str_save = "Export"
+            self.str_export = "Export"
             self.str_quit = "Quit"
             self.str_redraw = "Redraw"
             self.str_undo = "Undo"
             self.str_redo = "Redo"
-            self.str_clean = "Clean"
             self.str_preview = "Preview"
+            self.str_clean = "Clean"
             self.str_line_color = "Line Color"
             self.str_line_width = "Line Width"
             self.str_point_interval = "Point Interval"
@@ -193,6 +196,8 @@ class PyLine:
             self.str_set = "Set "
             self.str_input = "Input "
             self.str_default = "default "
+            self.str_reset = "Reset "
+            self.str_functions = "Functions"
 
             self.str_no_image_loaded = "No Image Loaded"
             self.str_ref_color = "Reference Color"
@@ -200,10 +205,10 @@ class PyLine:
             self.str_image_files = "Image Files"
             self.str_open_image = "Open Image"
             self.str_data_file = "Data File"
-            self.str_save_data = "Save Data"
+            self.str_export_data = "Save Data"
 
             self.str_set_coordinates_first = "Set Coordinates First"
-            self.str_line_saved = "Line data has been saved"
+            self.str_line_exported = "Line data has been saved"
             self.str_no_line = "No lines"
             self.str_clear_all = "All line datas cleared"
             self.str_undone = "Undone"
@@ -216,6 +221,7 @@ class PyLine:
             self.str_auto_drawing = "Auto Drawing ..."
             self.str_auto_drawn = "Auto Draw Finished"
             self.str_erase_range = "Eraser Size"
+            self.str_mouse_wheel = "Mouse Wheel"
 
     def _create_frame(self):
         self.frame_toolbar = tk.Frame(
@@ -333,7 +339,7 @@ class PyLine:
         file_menu = Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label=self.str_menu_file, menu=file_menu)
         file_menu.add_command(label=self.str_open, command=self.open_main_image)
-        file_menu.add_command(label=self.str_save, command=self.save_main_line)
+        file_menu.add_command(label=self.str_export, command=self.save_main_line)
         file_menu.add_separator()
         file_menu.add_command(label=self.str_quit, command=self.on_closing)
 
@@ -381,13 +387,13 @@ class PyLine:
             side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
         )
 
-        self.save_button = tk.Button(
+        self.export_button = tk.Button(
             self.frame_toolbar,
-            text=self.str_save,
+            text=self.str_export,
             command=self.save_main_line,
             bg=self.button_color,
         )
-        self.save_button.pack(
+        self.export_button.pack(
             side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
         )
 
@@ -421,16 +427,6 @@ class PyLine:
             side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
         )
 
-        self.clean_button = tk.Button(
-            self.frame_toolbar,
-            text=self.str_clean,
-            command=self.clear_all_linedatas,
-            bg=self.button_color,
-        )
-        self.clean_button.pack(
-            side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
-        )
-
         self.preview_button = tk.Button(
             self.frame_toolbar,
             text=self.str_preview,
@@ -438,6 +434,16 @@ class PyLine:
             bg=self.button_color,
         )
         self.preview_button.pack(
+            side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
+        )
+
+        self.clean_button = tk.Button(
+            self.frame_toolbar,
+            text=self.str_clean,
+            command=self.clear_all_linedatas,
+            bg=self.button_color,
+        )
+        self.clean_button.pack(
             side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
         )
 
@@ -926,34 +932,147 @@ class PyLine:
     def show_hotkeys(self):
         hotkeys_window = tk.Toplevel(self.root)
         hotkeys_window.title("Hotkeys")
-        hotkeys_window.geometry("450x500")
-        hotkeys_text = tk.Text(
-            hotkeys_window, wrap=tk.WORD, state=tk.NORMAL, font=("Consolas", 11)
+        hotkeys_window.geometry("400x500")
+        hotkeys_tree_width = 150
+        self.hotkeys_tree = ttk.Treeview(
+            hotkeys_window, columns=("X", "Y"), show="headings"
         )
-        hotkeys_text.pack(expand=True, fill=tk.BOTH)
-        hotkeys_text.insert(tk.END, "Hotkeys List:                  F1\n")
-        hotkeys_text.insert(tk.END, "Open image:                    Ctrl + O\n")
-        hotkeys_text.insert(tk.END, "Export line data:              Ctrl + S\n")
-        hotkeys_text.insert(tk.END, "Quit:                          Ctrl + Q\n")
-        hotkeys_text.insert(tk.END, "Redraw:                        Ctrl + R\n")
-        hotkeys_text.insert(tk.END, "Undo:                          Ctrl + Z\n")
-        hotkeys_text.insert(tk.END, "Redo:                          Ctrl + Y\n")
-        hotkeys_text.insert(tk.END, "Clean:                         Ctrl + D\n")
-        hotkeys_text.insert(tk.END, "Pick reference color:          Ctrl + P\n")
-        hotkeys_text.insert(tk.END, "Set line color:                Ctrl + Shift + C\n")
-        hotkeys_text.insert(tk.END, "Set line width:                Ctrl + Shift + W\n")
-        hotkeys_text.insert(tk.END, "Set point interval:            Ctrl + Shift + I\n")
-        hotkeys_text.insert(tk.END, "Set zoom scale:                Ctrl + Shift + Z\n")
-        hotkeys_text.insert(tk.END, "Set point scale:               Ctrl + Shift + P\n")
-        hotkeys_text.insert(tk.END, "Set mouse sensitivity:         Ctrl + Shift + M\n")
-        hotkeys_text.insert(tk.END, "Change assisted state:         Ctrl + Shift + A\n")
-        hotkeys_text.insert(tk.END, "Decrease mouse sensitivity:    Ctrl + 1\n")
-        hotkeys_text.insert(tk.END, "Increase mouse sensitivity:    Ctrl + 2\n")
-        hotkeys_text.insert(tk.END, "Reset mouse sensitivity:       Ctrl + 3\n")
-        hotkeys_text.insert(
-            tk.END, "Decrease/Increase zoom scale:  Ctrl + Mouse Wheel\n"
+        self.hotkeys_tree.pack(side="left", fill=tk.BOTH, expand=True)
+        self.hotkeys_tree.heading("X", text=self.str_hotkeys_list)
+        self.hotkeys_tree.heading("Y", text=self.str_functions)
+        self.hotkeys_tree.column("#1", anchor='w', width=hotkeys_tree_width // 2)
+        self.hotkeys_tree.column("#2", anchor="w", width=hotkeys_tree_width)
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + O", self.str_open_image),
         )
-        hotkeys_text.config(state=tk.DISABLED)
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + S", self.str_export_data),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Q", self.str_quit),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + R", self.str_redraw),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Z", self.str_undo),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Y", self.str_redo),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + D", self.str_clean),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + P", self.str_pick_color),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + C", self.str_line_color),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + W", self.str_line_width),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + I", self.str_point_interval),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + Z", self.str_zoom_scale),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + P", self.str_point_scale),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + M", self.str_mouse_sensitivity),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + Shift + A", self.str_assisted_pick_points),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + 1", self.str_mouse_sensitivity + " + 1"),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + 2", self.str_mouse_sensitivity + " - 1"),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + 3", self.str_reset + self.str_mouse_sensitivity),
+        )
+        self.hotkeys_tree.insert(
+            "",
+            "end",
+            values=("Ctrl + " + self.str_mouse_wheel, self.str_zoom_scale + " +/- 1"),
+        )
+        # hotkeys_text = tk.Text(
+        #     hotkeys_window, wrap=tk.WORD, state=tk.NORMAL, font=("Consolas", 11)
+        # )
+        # hotkeys_text.pack(expand=True, fill=tk.BOTH)
+        # hotkeys_text.insert(tk.END, "F1: " + self.str_hotkeys_list + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + O: " + self.str_open_image + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + S: " + self.str_export_data + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Q: " + self.str_quit + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + R: " + self.str_redraw + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Z: " + self.str_undo + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Y: " + self.str_redo + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + D: " + self.str_clean + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + P: " + self.str_pick_color + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Shift + C: " + self.str_line_color + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Shift + W: " + self.str_line_width + "\n")
+        # hotkeys_text.insert(
+        #     tk.END, "Ctrl + Shift + I: " + self.str_point_interval + "\n"
+        # )
+        # hotkeys_text.insert(tk.END, "Ctrl + Shift + Z: " + self.str_zoom_scale + "\n")
+        # hotkeys_text.insert(tk.END, "Ctrl + Shift + P: " + self.str_point_scale + "\n")
+        # hotkeys_text.insert(
+        #     tk.END, "Ctrl + Shift + M: " + self.str_mouse_sensitivity + "\n"
+        # )
+        # hotkeys_text.insert(
+        #     tk.END, "Ctrl + Shift + A: " + self.str_assisted_pick_points + "\n"
+        # )
+        # hotkeys_text.insert(tk.END, "Ctrl + 1: " + self.str_mouse_sensitivity + " + \n")
+        # hotkeys_text.insert(tk.END, "Ctrl + 2: " + self.str_mouse_sensitivity + " - \n")
+        # hotkeys_text.insert(
+        #     tk.END, "Ctrl + 3: " + self.str_reset + self.str_mouse_sensitivity + "\n"
+        # )
+        # hotkeys_text.insert(
+        #     tk.END,
+        #     "Ctrl + " + self.str_mouse_wheel + ": " + self.str_zoom_scale + " +/- \n",
+        # )
+        # hotkeys_text.config(state=tk.DISABLED)
 
     def _create_print_types(self):
         font_type = 'Consolas'
@@ -1234,13 +1353,13 @@ class PyLine:
             output_file = filedialog.asksaveasfilename(
                 defaultextension=".dat",
                 filetypes=[(self.str_data_file, "*.dat")],
-                title=self.str_save_data,
+                title=self.str_export_data,
             )
             if output_file:
                 with open(output_file, 'w') as f:
                     for point in self.converted_points:
                         f.write(f"{point[0]} {point[1]}\n")
-                self._print("INFO", self.str_line_saved + f": {output_file}")
+                self._print("INFO", self.str_line_exported + f": {output_file}")
         else:
             self._print("ERROR", self.str_no_line)
 
@@ -1329,6 +1448,11 @@ class PyLine:
                 x = [point[0] for point in self.converted_points]
                 y = [point[1] for point in self.converted_points]
                 plt.plot(x, y)
+                plt.xlim(self.x1_real, self.x2_real)
+                plt.ylim(self.y1_real, self.y2_real)
+                plt.title("Preview")
+                plt.xlabel("X")
+                plt.ylabel("Y")
                 plt.show()
             else:
                 self._print("WARNING", self.str_set_coordinates_first)
@@ -1349,6 +1473,7 @@ class PyLine:
                 or self.y2_real is None
             ):  # if not set coordinates, output all points without conversion
                 self.axis_setted = True
+                self.update_all_lines()
 
     def record_x1_screen(self):
         if self.main.line.last_point:
