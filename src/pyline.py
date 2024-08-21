@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import filedialog, colorchooser, simpledialog, Menu, ttk
 from PIL import Image
+from matplotlib import pyplot as plt
 import mouseset
 import drawphoto
 
@@ -116,6 +117,7 @@ class PyLine:
             self.str_undo = "撤销"
             self.str_redo = "重做"
             self.str_clean = "清除"
+            self.str_preview = "预览"
             self.str_line_color = "颜色"
             self.str_line_width = "线宽"
             self.str_point_interval = "点间距"
@@ -173,6 +175,7 @@ class PyLine:
             self.str_undo = "Undo"
             self.str_redo = "Redo"
             self.str_clean = "Clean"
+            self.str_preview = "Preview"
             self.str_line_color = "Line Color"
             self.str_line_width = "Line Width"
             self.str_point_interval = "Point Interval"
@@ -428,6 +431,16 @@ class PyLine:
             side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
         )
 
+        self.preview_button = tk.Button(
+            self.frame_toolbar,
+            text=self.str_preview,
+            command=self.preview_line,
+            bg=self.button_color,
+        )
+        self.preview_button.pack(
+            side=tk.LEFT, padx=self.toolbar_padx, pady=self.toolbar_pady
+        )
+
         self.zoom_scale_button = tk.Button(
             self.frame_toolbar,
             text=self.str_zoom_scale,
@@ -493,11 +506,17 @@ class PyLine:
         self.datatree = ttk.Treeview(
             self.frame_datatree, columns=("X", "Y"), show="headings"
         )
+        self.datatree.pack(side="left", fill=tk.BOTH, expand=True)
         self.datatree.heading("X", text="X")
         self.datatree.heading("Y", text="Y")
-        self.datatree.pack(fill=tk.BOTH, expand=True)
         self.datatree.column("#1", anchor='w', width=datatree_width)
         self.datatree.column("#2", anchor="w", width=datatree_width)
+
+        self.datatree_vsp = tk.Scrollbar(
+            self.frame_datatree, orient=tk.VERTICAL, command=self.datatree.yview
+        )
+        self.datatree_vsp.pack(side="right", fill=tk.Y)
+        self.datatree.configure(yscrollcommand=self.datatree_vsp.set)
 
     def _creat_settings(self):  # create axis settings
         label_width = 7
@@ -983,6 +1002,8 @@ class PyLine:
             if self.main.line.line_segments:
                 self.clear_all_linedatas()
 
+            self.axis_setted = False  # if axis is setted
+
     def update_zoom_image(self, event):
         if self.main.image:
             x, y = event.x, event.y
@@ -1204,37 +1225,11 @@ class PyLine:
 
     def save_main_line(self):
         if self.main.line.line_segments:
-            all_points = [
-                point for segment in self.main.line.line_segments for point in segment
-            ]
-
+            self.update_all_lines()
             if (
-                self.x1_screen is None
-                or self.x2_screen is None
-                or self.x1_real is None
-                or self.x2_real is None
-                or self.y1_screen is None
-                or self.y2_screen is None
-                or self.y1_real is None
-                or self.y2_real is None
-            ):  # if not set coordinates, output all points without conversion
+                not self.axis_setted
+            ):  # if not set coordinates, output without conversion
                 self._print("WARNING", self.str_set_coordinates_first)
-                converted_points = all_points
-            else:  # if set coordinates, convert points to real coordinates
-                x_scale = (self.x2_real - self.x1_real) / (
-                    self.x2_screen - self.x1_screen
-                )
-                y_scale = (self.y2_real - self.y1_real) / (
-                    self.y2_screen - self.y1_screen
-                )
-
-                x_offset = self.x1_real - self.x1_screen * x_scale
-                y_offset = self.y1_real - self.y1_screen * y_scale
-
-                converted_points = [
-                    (x * x_scale + x_offset, y * y_scale + y_offset)
-                    for x, y in all_points
-                ]
 
             output_file = filedialog.asksaveasfilename(
                 defaultextension=".dat",
@@ -1243,7 +1238,7 @@ class PyLine:
             )
             if output_file:
                 with open(output_file, 'w') as f:
-                    for point in converted_points:
+                    for point in self.converted_points:
                         f.write(f"{point[0]} {point[1]}\n")
                 self._print("INFO", self.str_line_saved + f": {output_file}")
         else:
@@ -1261,21 +1256,10 @@ class PyLine:
     def update_datatree(self):
         self.datatree.delete(*self.datatree.get_children())
         if self.main.line.line_all_points:
-            all_points = [
-                point for segment in self.main.line.line_segments for point in segment
-            ]
-
             if (
-                self.x1_screen is None
-                or self.x2_screen is None
-                or self.x1_real is None
-                or self.x2_real is None
-                or self.y1_screen is None
-                or self.y2_screen is None
-                or self.y1_real is None
-                or self.y2_real is None
-            ):  # if not set coordinates, output all points without conversion
-                converted_points = all_points
+                not self.axis_setted
+            ):  # if not set coordinates, output without conversion
+                self.converted_points = self.main.line.line_all_points
             else:  # if set coordinates, convert points to real coordinates
                 x_scale = (self.x2_real - self.x1_real) / (
                     self.x2_screen - self.x1_screen
@@ -1287,12 +1271,12 @@ class PyLine:
                 x_offset = self.x1_real - self.x1_screen * x_scale
                 y_offset = self.y1_real - self.y1_screen * y_scale
 
-                converted_points = [
+                self.converted_points = [
                     (x * x_scale + x_offset, y * y_scale + y_offset)
-                    for x, y in all_points
+                    for x, y in self.main.line.line_all_points
                 ]
 
-            for point in converted_points:
+            for point in self.converted_points:
                 self.datatree.insert(
                     "",
                     "end",
@@ -1338,6 +1322,34 @@ class PyLine:
         else:
             self._print("WARNING", self.str_no_line)
 
+    def preview_line(self):
+        if self.main.line.line_segments:
+            if self.axis_setted:
+                self.update_all_lines()
+                x = [point[0] for point in self.converted_points]
+                y = [point[1] for point in self.converted_points]
+                plt.plot(x, y)
+                plt.show()
+            else:
+                self._print("WARNING", self.str_set_coordinates_first)
+
+        else:
+            self._print("ERROR", self.str_no_line)
+
+    def _check_axis(self):
+        if self.main.image:
+            if not (
+                self.x1_screen is None
+                or self.x2_screen is None
+                or self.x1_real is None
+                or self.x2_real is None
+                or self.y1_screen is None
+                or self.y2_screen is None
+                or self.y1_real is None
+                or self.y2_real is None
+            ):  # if not set coordinates, output all points without conversion
+                self.axis_setted = True
+
     def record_x1_screen(self):
         if self.main.line.last_point:
             if self.entry_x1.get():
@@ -1346,6 +1358,7 @@ class PyLine:
                 self.update_all_lines()
                 self.x1_real = float(self.entry_x1.get())
                 self._print("INFO", f"X1: {self.x1_real}")
+                self._check_axis()
             else:
                 self._print("ERROR", self.str_set_coordinates_first)
         else:
@@ -1359,6 +1372,7 @@ class PyLine:
                 self.update_all_lines()
                 self.x2_real = float(self.entry_x2.get())
                 self._print("INFO", f"X2: {self.x2_real}")
+                self._check_axis()
             else:
                 self._print("ERROR", self.str_set_coordinates_first)
 
@@ -1373,6 +1387,7 @@ class PyLine:
                 self.update_all_lines()
                 self.y1_real = float(self.entry_y1.get())
                 self._print("INFO", f"Y1: {self.y1_real}")
+                self._check_axis()
             else:
                 self._print("ERROR", self.str_set_coordinates_first)
         else:
@@ -1386,6 +1401,7 @@ class PyLine:
                 self.update_all_lines()
                 self.y2_real = float(self.entry_y2.get())
                 self._print("INFO", f"Y2: {self.y2_real}")
+                self._check_axis()
             else:
                 self._print("ERROR", self.str_set_coordinates_first)
         else:
