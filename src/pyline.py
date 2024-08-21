@@ -130,7 +130,7 @@ class PyLine:
             self.str_auto_mode = "识别模式"
             self.str_auto_mode_1 = "欧氏距离"
             self.str_auto_mode_2 = "CIE76"
-            self.str_pick_color = "选取颜色"
+            self.str_pick_color = "参考颜色"
             self.str_assisted_pick_points = "辅助取点"
             self.str_set = "设置"
             self.str_input = "输入"
@@ -160,6 +160,7 @@ class PyLine:
             self.str_auto_drawing = "自动取点中..."
             self.str_auto_drawn = "已完成自动取点"
             self.str_erase_range = "橡皮大小"
+            self.str_recog_range = "识别范围"
             self.str_mouse_wheel = "滚轮"
 
         elif self.language == "en":
@@ -192,7 +193,7 @@ class PyLine:
             self.str_auto_mode_1 = "Distance"
             self.str_auto_mode_2 = "CIE76"
             self.str_pick_color = "Pick Color"
-            self.str_assisted_pick_points = "Assisted Pick Points"
+            self.str_assisted_pick_points = "Assisted Pick"
             self.str_set = "Set "
             self.str_input = "Input "
             self.str_default = "default "
@@ -221,6 +222,7 @@ class PyLine:
             self.str_auto_drawing = "Auto Drawing ..."
             self.str_auto_drawn = "Auto Draw Finished"
             self.str_erase_range = "Eraser Size"
+            self.str_recog_range = "Recognition Range"
             self.str_mouse_wheel = "Mouse Wheel"
 
     def _create_frame(self):
@@ -348,6 +350,7 @@ class PyLine:
         edit_menu.add_command(label=self.str_redraw, command=self.redraw_lines)
         edit_menu.add_command(label=self.str_undo, command=self.undo_last_action)
         edit_menu.add_command(label=self.str_redo, command=self.redo_last_action)
+        edit_menu.add_command(label=self.str_preview, command=self.preview_line)
         edit_menu.add_command(label=self.str_clean, command=self.clear_all_linedatas)
 
         options_menu = Menu(menu_bar, tearoff=0)
@@ -752,7 +755,7 @@ class PyLine:
             relief=tk.RAISED,
         )
         self.ref_color_label.grid(
-            row=1,
+            row=2,
             column=0,
             padx=self.operation_padx,
             pady=self.operation_pady,
@@ -767,7 +770,7 @@ class PyLine:
             bg=self.button_color,
         )
         self.pick_color_button.grid(
-            row=1,
+            row=2,
             column=1,
             padx=self.operation_padx,
             pady=self.operation_pady,
@@ -783,7 +786,7 @@ class PyLine:
             relief=tk.RAISED,
         )
         self.assisted_checkbox.grid(
-            row=1,
+            row=2,
             column=2,
             padx=self.operation_padx,
             pady=self.operation_pady,
@@ -798,6 +801,56 @@ class PyLine:
             bg=self.button_color,
         )
         self.auto_draw_button.grid(
+            row=2,
+            column=3,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.recog_range_label = tk.Label(
+            self.frame_operations,
+            text=self.str_recog_range + ": ",
+            relief=tk.RAISED,
+            bg=self.label_color,
+        )
+        self.recog_range_label.grid(
+            row=1,
+            column=0,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.recog_range_scale = tk.Scale(
+            self.frame_operations,
+            from_=0.1,
+            to=10,
+            resolution=0.1,
+            orient=tk.HORIZONTAL,
+            bg=self.button_color,
+            showvalue=False,
+            command=self.set_recog_range,
+        )
+        self.recog_range_scale.set(
+            self.main.assisted_point.recog_range
+        )  # initiate the value of the recog range scale
+        self.recog_range_scale.grid(
+            row=1,
+            column=1,
+            columnspan=2,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.recog_range_value_label = tk.Label(
+            self.frame_operations,
+            text=self.main.assisted_point.recog_range,
+            relief=tk.RAISED,
+            bg=self.label_color,
+        )
+        self.recog_range_value_label.grid(
             row=1,
             column=3,
             padx=self.operation_padx,
@@ -812,7 +865,7 @@ class PyLine:
             bg=self.label_color,
         )
         self.erase_range_label.grid(
-            row=2,
+            row=3,
             column=0,
             padx=self.operation_padx,
             pady=self.operation_pady,
@@ -825,15 +878,30 @@ class PyLine:
             to=100,
             orient=tk.HORIZONTAL,
             bg=self.button_color,
+            showvalue=False,
             command=self.set_erase_range,
         )
         self.erase_range_scale.set(
             self.main.assisted_point.erase_range
         )  # initiate the value of the erase range scale
         self.erase_range_scale.grid(
-            row=2,
+            row=3,
             column=1,
-            columnspan=3,
+            columnspan=2,
+            padx=self.operation_padx,
+            pady=self.operation_pady,
+            sticky='EW',
+        )
+
+        self.erase_range_value_label = tk.Label(
+            self.frame_operations,
+            text=self.main.assisted_point.erase_range,
+            relief=tk.RAISED,
+            bg=self.label_color,
+        )
+        self.erase_range_value_label.grid(
+            row=3,
+            column=3,
             padx=self.operation_padx,
             pady=self.operation_pady,
             sticky='EW',
@@ -849,8 +917,13 @@ class PyLine:
         self.assisted_option.set(1 - self.assisted_option.get())
         self.set_assisted_point()
 
+    def set_recog_range(self, value):
+        self.main.assisted_point.set_recog_range(float(value))
+        self.recog_range_value_label.config(text=value)
+
     def set_erase_range(self, value):
         self.main.assisted_point.set_erase_range(int(value))
+        self.erase_range_value_label.config(text=value)
 
     def _pick_color(self):
         if not self.main.image:
@@ -985,32 +1058,32 @@ class PyLine:
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + C", self.str_line_color),
+            values=("Ctrl + Shift + C", self.str_set + self.str_line_color),
         )
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + W", self.str_line_width),
+            values=("Ctrl + Shift + W", self.str_set + self.str_line_width),
         )
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + I", self.str_point_interval),
+            values=("Ctrl + Shift + I", self.str_set + self.str_point_interval),
         )
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + Z", self.str_zoom_scale),
+            values=("Ctrl + Shift + P", self.str_set + self.str_point_scale),
         )
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + P", self.str_point_scale),
+            values=("Ctrl + Shift + M", self.str_set + self.str_mouse_sensitivity),
         )
         self.hotkeys_tree.insert(
             "",
             "end",
-            values=("Ctrl + Shift + M", self.str_mouse_sensitivity),
+            values=("Ctrl + Shift + Z", self.str_set + self.str_zoom_scale),
         )
         self.hotkeys_tree.insert(
             "",
@@ -1037,42 +1110,6 @@ class PyLine:
             "end",
             values=("Ctrl + " + self.str_mouse_wheel, self.str_zoom_scale + " +/- 1"),
         )
-        # hotkeys_text = tk.Text(
-        #     hotkeys_window, wrap=tk.WORD, state=tk.NORMAL, font=("Consolas", 11)
-        # )
-        # hotkeys_text.pack(expand=True, fill=tk.BOTH)
-        # hotkeys_text.insert(tk.END, "F1: " + self.str_hotkeys_list + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + O: " + self.str_open_image + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + S: " + self.str_export_data + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Q: " + self.str_quit + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + R: " + self.str_redraw + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Z: " + self.str_undo + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Y: " + self.str_redo + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + D: " + self.str_clean + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + P: " + self.str_pick_color + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Shift + C: " + self.str_line_color + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Shift + W: " + self.str_line_width + "\n")
-        # hotkeys_text.insert(
-        #     tk.END, "Ctrl + Shift + I: " + self.str_point_interval + "\n"
-        # )
-        # hotkeys_text.insert(tk.END, "Ctrl + Shift + Z: " + self.str_zoom_scale + "\n")
-        # hotkeys_text.insert(tk.END, "Ctrl + Shift + P: " + self.str_point_scale + "\n")
-        # hotkeys_text.insert(
-        #     tk.END, "Ctrl + Shift + M: " + self.str_mouse_sensitivity + "\n"
-        # )
-        # hotkeys_text.insert(
-        #     tk.END, "Ctrl + Shift + A: " + self.str_assisted_pick_points + "\n"
-        # )
-        # hotkeys_text.insert(tk.END, "Ctrl + 1: " + self.str_mouse_sensitivity + " + \n")
-        # hotkeys_text.insert(tk.END, "Ctrl + 2: " + self.str_mouse_sensitivity + " - \n")
-        # hotkeys_text.insert(
-        #     tk.END, "Ctrl + 3: " + self.str_reset + self.str_mouse_sensitivity + "\n"
-        # )
-        # hotkeys_text.insert(
-        #     tk.END,
-        #     "Ctrl + " + self.str_mouse_wheel + ": " + self.str_zoom_scale + " +/- \n",
-        # )
-        # hotkeys_text.config(state=tk.DISABLED)
 
     def _create_print_types(self):
         font_type = 'Consolas'

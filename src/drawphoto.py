@@ -223,10 +223,14 @@ class DrawPhoto:
 
 class AssistedPoint:
     def __init__(self):
-        self.erase_range = 10  # the range of the eraser
+        self.recog_range = 1.0  # the initial range of the recognition
+        self.erase_range = 20  # the initial range of the eraser
         self.checkrange = drawline.CheckRange()
         self.ref_color = None  # the reference color
         self.auto_mode = 0  # 0: Distance 1: CIE76
+
+    def set_recog_range(self, range):
+        self.recog_range = range
 
     def set_erase_range(self, range):
         self.erase_range = range
@@ -266,7 +270,7 @@ class AssistedPoint:
                     continue
                 if self.checkrange.check_range((x, y)):
                     point_color = self.get_color(image, (x, y))
-                    if self.if_color_close(point_color, self.ref_color, 1):
+                    if self.if_color_close(point_color, self.ref_color, self.auto_mode):
                         temp.append(y)
             if len(temp) > 0:
                 y_average = int(np.average(temp))
@@ -291,9 +295,11 @@ class AssistedPoint:
 
     def if_color_close(self, color1, color2, type=0):
         if type == 0:
-            return self.if_color_close_distance(color1, color2)
+            threshold = 30 * self.recog_range
+            return self.if_color_close_distance(color1, color2, threshold)
         elif type == 1:
-            return self.if_color_close_cie76(color1, color2)
+            threshold = 3.33 * self.recog_range
+            return self.if_color_close_cie76(color1, color2, threshold)
         elif type == 2:
             return self.if_color_close_hsv(color1, color2)
         elif type == 3:
