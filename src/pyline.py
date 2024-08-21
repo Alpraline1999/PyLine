@@ -1480,19 +1480,39 @@ class PyLine:
 
     def preview_line(self):
         if self.main.line.line_segments:
-            if self.axis_setted:
-                self.update_all_lines()
-                x = [point[0] for point in self.converted_points]
-                y = [point[1] for point in self.converted_points]
-                plt.plot(x, y)
+            # set preview
+            plt.rcParams['font.sans-serif'] = ['MicroSoft YaHei']
+            plt_linewidth = 1
+            plt_marksize = 2
+            plt_alpha = 0.8
+
+            # plot
+            x = [point[0] for point in self.converted_points]
+            y = [point[1] for point in self.converted_points]
+            plt.plot(
+                x,
+                y,
+                linestyle='-',
+                linewidth=plt_linewidth,
+                color='blue',
+                markersize=plt_marksize,
+                marker='o',
+                markerfacecolor='red',
+                markeredgecolor='red',
+                alpha=plt_alpha,
+            )
+            plt.title(self.str_preview)
+            plt.xlabel("X")
+            plt.ylabel("Y")
+
+            if self.axis_setted:  # if set coordinates, preview with conversion
                 plt.xlim(self.x1_real, self.x2_real)
                 plt.ylim(self.y1_real, self.y2_real)
-                plt.title("Preview")
-                plt.xlabel("X")
-                plt.ylabel("Y")
-                plt.show()
-            else:
+            else:  # if not set coordinates, preview without conversion
                 self._print("WARNING", self.str_set_coordinates_first)
+                plt.xlim(0, self.main.image.width)
+                plt.ylim(self.main.image.height, 0)
+            plt.show()
 
         else:
             self._print("ERROR", self.str_no_line)
