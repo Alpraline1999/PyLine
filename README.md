@@ -13,11 +13,11 @@
 - 线型选择
 - 其他设置
 
-![demo](./images/demo_1.gif)
+![demo-1](./images/demo-1.gif)
 
 ## 辅助/自动取点
 
 - 辅助取点
 - 自动取点
 
-![demo](./images/demo_2.gif)
+![demo-2](./images/demo-2.gif)
