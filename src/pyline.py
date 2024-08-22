@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import filedialog, colorchooser, simpledialog, Menu, ttk
 from PIL import Image
 from matplotlib import pyplot as plt
+import math
 import mouseset
 import drawphoto
 
@@ -60,7 +61,7 @@ class PyLine:
         #################################################
         self.frame_padx, self.frame_pady = 5, 3  # padding for frames
         self.toolbar_padx, self.toolbar_pady = 2, 0  # padding for toolbar widgets
-        self.setting_padx, self.setting_pady = 5, 2  # padding for settings widgets
+        self.setting_padx, self.setting_pady = 4, 2  # padding for settings widgets
         self.operation_padx, self.operation_pady = (
             4,
             2,
@@ -88,6 +89,10 @@ class PyLine:
         # real axis and screen axis
         self.x1_real = self.x2_real = self.y1_real = self.y2_real = None
         self.x1_screen = self.x2_screen = self.y1_screen = self.y2_screen = None
+
+        self.axis_setted = False  # if axis is setted
+        self.axis_x_mode = 0  # mode of x/y axis
+        self.axis_y_mode = 0
 
     def _change_language(self):
         self.language = simpledialog.askstring(
@@ -132,6 +137,8 @@ class PyLine:
             self.str_auto_mode_2 = "CIE76"
             self.str_pick_color = "参考颜色"
             self.str_assisted_pick_points = "辅助取点"
+            self.str_axis_mode = "坐标类型"
+            self.str_axis_linear = "线性"
             self.str_set = "设置"
             self.str_input = "输入"
             self.str_default = "默认为"
@@ -194,6 +201,8 @@ class PyLine:
             self.str_auto_mode_2 = "CIE76"
             self.str_pick_color = "Pick Color"
             self.str_assisted_pick_points = "Assisted Pick"
+            self.str_axis_mode = "Axis Mode"
+            self.str_axis_linear = "Linear"
             self.str_set = "Set "
             self.str_input = "Input "
             self.str_default = "default "
@@ -525,7 +534,10 @@ class PyLine:
         self.datatree.configure(yscrollcommand=self.datatree_vsp.set)
 
     def _creat_settings(self):  # create axis settings
-        label_width = 7
+        label_width = 10
+        combo_width = 7
+        entry_width = 10
+        button_width = 10
         tk.Label(
             self.frame_settings,
             width=label_width,
@@ -537,7 +549,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='EW',
         )
         tk.Label(
             self.frame_settings,
@@ -550,7 +562,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='EW',
         )
         tk.Label(
             self.frame_settings,
@@ -563,7 +575,7 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='EW',
         )
         tk.Label(
             self.frame_settings,
@@ -576,28 +588,103 @@ class PyLine:
             column=0,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='W',
+            sticky='EW',
         )
 
-        self.entry_x1 = tk.Entry(self.frame_settings, relief=tk.RAISED)
+        self.entry_x1 = tk.Entry(
+            self.frame_settings,
+            width=entry_width,
+            relief=tk.RAISED,
+        )
         self.entry_x1.grid(
-            row=0, column=1, padx=self.setting_padx, pady=self.setting_pady
+            row=0,
+            column=1,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
         )
-        self.entry_x2 = tk.Entry(self.frame_settings, relief=tk.RAISED)
+        self.entry_x2 = tk.Entry(
+            self.frame_settings,
+            width=entry_width,
+            relief=tk.RAISED,
+        )
         self.entry_x2.grid(
-            row=1, column=1, padx=self.setting_padx, pady=self.setting_pady
+            row=1,
+            column=1,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
         )
-        self.entry_y1 = tk.Entry(self.frame_settings, relief=tk.RAISED)
+        self.entry_y1 = tk.Entry(
+            self.frame_settings,
+            width=entry_width,
+            relief=tk.RAISED,
+        )
         self.entry_y1.grid(
-            row=2, column=1, padx=self.setting_padx, pady=self.setting_pady
+            row=2,
+            column=1,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
         )
-        self.entry_y2 = tk.Entry(self.frame_settings, relief=tk.RAISED)
+        self.entry_y2 = tk.Entry(
+            self.frame_settings,
+            width=entry_width,
+            relief=tk.RAISED,
+        )
         self.entry_y2.grid(
-            row=3, column=1, padx=self.setting_padx, pady=self.setting_pady
+            row=3,
+            column=1,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
         )
+
+        self.axis_x_option = tk.StringVar()
+        self.axis_x_combobox = ttk.Combobox(
+            self.frame_settings,
+            width=combo_width,
+            values=[
+                self.str_axis_linear,
+                "log10",
+                "ln",
+            ],
+            state="readonly",
+        )
+        self.axis_x_combobox.grid(
+            row=0,
+            column=2,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
+        )
+        self.axis_x_combobox.current(0)
+        self.axis_x_combobox.bind("<<ComboboxSelected>>", self.set_axis_x)
+
+        self.axis_y_option = tk.StringVar()
+        self.axis_y_combobox = ttk.Combobox(
+            self.frame_settings,
+            width=combo_width,
+            values=[
+                self.str_axis_linear,
+                "log10",
+                "ln",
+            ],
+            state="readonly",
+        )
+        self.axis_y_combobox.grid(
+            row=2,
+            column=2,
+            padx=self.setting_padx,
+            pady=self.setting_pady,
+            sticky='EW',
+        )
+        self.axis_y_combobox.current(0)
+        self.axis_y_combobox.bind("<<ComboboxSelected>>", self.set_axis_y)
 
         self.button_x1 = tk.Button(
             self.frame_settings,
+            width=button_width,
             text=self.str_set + "X1",
             command=self.record_x1_screen,
             relief=tk.RAISED,
@@ -605,13 +692,14 @@ class PyLine:
         )
         self.button_x1.grid(
             row=0,
-            column=2,
+            column=3,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='EW',
         )
         self.button_x2 = tk.Button(
             self.frame_settings,
+            width=button_width,
             text=self.str_set + "X2",
             command=self.record_x2_screen,
             relief=tk.RAISED,
@@ -619,13 +707,14 @@ class PyLine:
         )
         self.button_x2.grid(
             row=1,
-            column=2,
+            column=3,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='EW',
         )
         self.button_y1 = tk.Button(
             self.frame_settings,
+            width=button_width,
             text=self.str_set + "Y1",
             command=self.record_y1_screen,
             relief=tk.RAISED,
@@ -633,13 +722,14 @@ class PyLine:
         )
         self.button_y1.grid(
             row=2,
-            column=2,
+            column=3,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='EW',
         )
         self.button_y2 = tk.Button(
             self.frame_settings,
+            width=button_width,
             text=self.str_set + "Y2",
             command=self.record_y2_screen,
             relief=tk.RAISED,
@@ -647,10 +737,10 @@ class PyLine:
         )
         self.button_y2.grid(
             row=3,
-            column=2,
+            column=3,
             padx=self.setting_padx,
             pady=self.setting_pady,
-            sticky='E',
+            sticky='EW',
         )
 
         self.output_text = tk.Text(
@@ -663,17 +753,20 @@ class PyLine:
         self.output_text.grid(
             row=4,
             column=0,
-            columnspan=3,
+            columnspan=4,
             padx=self.setting_padx,
             pady=self.setting_pady,
             sticky='EW',
         )
 
     def _creat_operations(self):  # create operation buttons
+        label_width = 10
         combo_width = 7
+        button_width = 7
         # combobox for draw mode
         tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.str_draw_mode + ": ",
             relief=tk.RAISED,
             bg=self.label_color,
@@ -685,12 +778,14 @@ class PyLine:
             sticky='EW',
         )
 
-        self.draw_mode_option = tk.StringVar()
         self.draw_mode_combobox = ttk.Combobox(
             self.frame_operations,
-            textvariable=self.draw_mode_option,
-            state="readonly",
             width=combo_width,
+            values=[
+                self.str_mode_point,
+                self.str_mode_point_line,
+            ],
+            state="readonly",
         )
         self.draw_mode_combobox.grid(
             row=0,
@@ -699,16 +794,13 @@ class PyLine:
             pady=self.operation_pady,
             sticky='EW',
         )
-        self.draw_mode_combobox['values'] = (
-            self.str_mode_point,
-            self.str_mode_point_line,
-        )
         self.draw_mode_combobox.current(0)
         self.draw_mode_combobox.bind("<<ComboboxSelected>>", self.set_draw_mode)
 
         # combobox for auto mode
         tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.str_auto_mode + ": ",
             relief=tk.RAISED,
             bg=self.label_color,
@@ -720,12 +812,14 @@ class PyLine:
             sticky='EW',
         )
 
-        self.auto_mode_option = tk.StringVar()
         self.auto_mode_combobox = ttk.Combobox(
             self.frame_operations,
-            textvariable=self.auto_mode_option,
-            state="readonly",
             width=combo_width,
+            values=[
+                self.str_auto_mode_1,
+                self.str_auto_mode_2,
+            ],
+            state="readonly",
         )
         self.auto_mode_combobox.grid(
             row=0,
@@ -734,17 +828,13 @@ class PyLine:
             pady=self.operation_pady,
             sticky='EW',
         )
-        self.auto_mode_combobox['values'] = (
-            self.str_auto_mode_1,
-            self.str_auto_mode_2,
-        )
         self.auto_mode_combobox.current(0)
         self.auto_mode_combobox.bind("<<ComboboxSelected>>", self.set_auto_mode)
 
         # pick color
         self.ref_color_label = tk.Label(
             self.frame_operations,
-            width=10,
+            width=label_width,
             height=1,
             background="white",
             foreground="black",
@@ -761,6 +851,7 @@ class PyLine:
 
         self.pick_color_button = tk.Button(
             self.frame_operations,
+            width=button_width,
             text=self.str_pick_color,
             command=self._pick_color,
             relief=tk.RAISED,
@@ -777,6 +868,7 @@ class PyLine:
         self.assisted_option = tk.IntVar()
         self.assisted_checkbox = tk.Checkbutton(
             self.frame_operations,
+            width=combo_width,
             text=self.str_assisted_pick_points,
             variable=self.assisted_option,
             command=self.set_assisted_point,
@@ -792,6 +884,7 @@ class PyLine:
 
         self.auto_draw_button = tk.Button(
             self.frame_operations,
+            width=button_width,
             text=self.str_auto_draw,
             command=self.auto_draw,
             relief=tk.RAISED,
@@ -807,6 +900,7 @@ class PyLine:
 
         self.recog_range_label = tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.str_recog_range + ": ",
             relief=tk.RAISED,
             bg=self.label_color,
@@ -843,6 +937,7 @@ class PyLine:
 
         self.recog_range_value_label = tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.main.assisted_point.recog_range,
             relief=tk.RAISED,
             bg=self.label_color,
@@ -857,6 +952,7 @@ class PyLine:
 
         self.erase_range_label = tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.str_erase_range + ": ",
             relief=tk.RAISED,
             bg=self.label_color,
@@ -892,6 +988,7 @@ class PyLine:
 
         self.erase_range_value_label = tk.Label(
             self.frame_operations,
+            width=label_width,
             text=self.main.assisted_point.erase_range,
             relief=tk.RAISED,
             bg=self.label_color,
@@ -1429,6 +1526,27 @@ class PyLine:
                     for x, y in self.main.line.line_all_points
                 ]
 
+            # if axis is logarithmic, convert points to log scale
+            self.log_converted_points = self.converted_points
+            if self.axis_setted:
+                if self.axis_x_mode == 1:
+                    self.converted_points = [
+                        (10**x, y) for x, y in self.log_converted_points
+                    ]
+                elif self.axis_x_mode == 2:
+                    self.converted_points = [
+                        (math.exp(x), y) for x, y in self.log_converted_points
+                    ]
+
+                if self.axis_y_mode == 1:
+                    self.converted_points = [
+                        (x, 10**y) for x, y in self.converted_points
+                    ]
+                elif self.axis_y_mode == 2:
+                    self.converted_points = [
+                        (x, math.exp(y)) for x, y in self.converted_points
+                    ]
+
             for point in self.converted_points:
                 self.datatree.insert(
                     "",
@@ -1484,8 +1602,8 @@ class PyLine:
             plt_alpha = 0.8
 
             # plot
-            x = [point[0] for point in self.converted_points]
-            y = [point[1] for point in self.converted_points]
+            x = [point[0] for point in self.log_converted_points]
+            y = [point[1] for point in self.log_converted_points]
             plt.plot(
                 x,
                 y,
@@ -1499,8 +1617,20 @@ class PyLine:
                 alpha=plt_alpha,
             )
             plt.title(self.str_preview)
-            plt.xlabel("X")
-            plt.ylabel("Y")
+
+            # set axis according to axis mode: 0: linear, 1: logarithmic
+            if self.axis_x_mode == 1:
+                plt.xlabel('log10 X')
+            elif self.axis_x_mode == 2:
+                plt.xlabel("ln X")
+            else:
+                plt.xlabel("X")
+            if self.axis_y_mode == 1:
+                plt.ylabel('log10 Y')
+            elif self.axis_y_mode == 2:
+                plt.ylabel("ln Y")
+            else:
+                plt.ylabel("Y")
 
             if self.axis_setted:  # if set coordinates, preview with conversion
                 plt.xlim(self.x1_real, self.x2_real)
@@ -1590,11 +1720,21 @@ class PyLine:
         self.main.draw_mode = self.draw_mode_combobox.current()
         self.zoom.draw_mode = self.draw_mode_combobox.current()
         self.update_all_lines()
-        self._print("INFO", self.str_draw_mode + f": {self.draw_mode_option.get()}")
+        self._print("INFO", self.str_draw_mode + f": {self.draw_mode_combobox.get()}")
 
     def set_auto_mode(self, event):
         self.main.assisted_point.auto_mode = self.auto_mode_combobox.current()
-        self._print("INFO", self.str_auto_mode + f": {self.auto_mode_option.get()}")
+        self._print("INFO", self.str_auto_mode + f": {self.auto_mode_combobox.get()}")
+
+    def set_axis_x(self, event):
+        self.axis_x_mode = self.axis_x_combobox.current()
+        self.update_all_lines()
+        self._print("INFO", self.str_axis_mode + f" X: {self.axis_x_combobox.get()}")
+
+    def set_axis_y(self, event):
+        self.axis_y_mode = self.axis_y_combobox.current()
+        self.update_all_lines()
+        self._print("INFO", self.str_axis_mode + f" Y: {self.axis_y_combobox.get()}")
 
     def set_line_color(self):
         color = colorchooser.askcolor()[1]
