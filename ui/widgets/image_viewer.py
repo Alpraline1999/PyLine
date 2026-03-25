@@ -384,31 +384,51 @@ class ImageViewer(QWidget):
         if self._calibration.x_start is None:
             return
 
+        # 获取图片尺寸用于绘制延伸到边缘的线
+        if self._pixmap is None:
+            return
+
+        img_width = self._pixmap.width()
+        img_height = self._pixmap.height()
+
+        # X轴：垂直线 (取x坐标)
+        pen_x = QPen(QColor("#4CAF50"))
+        pen_x.setWidthF(2.0 / self._scale)
+        painter.setPen(pen_x)
+
+        # X轴起点垂直线
+        x1 = self._calibration.x_start.x()
+        painter.drawLine(QPointF(x1, 0), QPointF(x1, img_height))
+
+        # X轴终点垂直线
+        if self._calibration.x_end:
+            x2 = self._calibration.x_end.x()
+            painter.drawLine(QPointF(x2, 0), QPointF(x2, img_height))
+
+        # Y轴：水平线 (取y坐标)
+        pen_y = QPen(QColor("#2196F3"))
+        pen_y.setWidthF(2.0 / self._scale)
+        painter.setPen(pen_y)
+
+        # Y轴起点水平线
+        if self._calibration.y_start:
+            y1 = self._calibration.y_start.y()
+            painter.drawLine(QPointF(0, y1), QPointF(img_width, y1))
+
+        # Y轴终点水平线
+        if self._calibration.y_end:
+            y2 = self._calibration.y_end.y()
+            painter.drawLine(QPointF(0, y2), QPointF(img_width, y2))
+
+        # 绘制校准点标记
         r = self._point_size / self._scale
-
-        # X轴起点
         self._draw_point_marker(painter, self._calibration.x_start, "#FF5722", "Xs")
-
-        # X轴终点
         if self._calibration.x_end:
             self._draw_point_marker(painter, self._calibration.x_end, "#4CAF50", "Xe")
-            pen = QPen(QColor("#4CAF50"))
-            pen.setWidthF(2.0 / self._scale)
-            painter.setPen(pen)
-            painter.drawLine(self._calibration.x_start, self._calibration.x_end)
-
-        # Y轴起点
         if self._calibration.y_start:
             self._draw_point_marker(painter, self._calibration.y_start, "#9C27B0", "Ys")
-
-        # Y轴终点
         if self._calibration.y_end:
             self._draw_point_marker(painter, self._calibration.y_end, "#2196F3", "Ye")
-            if self._calibration.y_start:
-                pen = QPen(QColor("#2196F3"))
-                pen.setWidthF(2.0 / self._scale)
-                painter.setPen(pen)
-                painter.drawLine(self._calibration.y_start, self._calibration.y_end)
 
     def _draw_point_marker(self, painter: QPainter, pos: QPointF, color: str, label: str):
         """绘制点标记"""

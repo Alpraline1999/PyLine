@@ -662,6 +662,32 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
             if curve:
                 self._display_curve_on_image(curve)
+                # 设置校准覆盖层
+                if curve.calibration:
+                    calib_overlay = self._create_calibration_overlay(curve.calibration)
+                    self._image_viewer.set_calibration(calib_overlay)
+                else:
+                    # 重置校准
+                    self._image_viewer.get_calibration().reset()
+                    self._image_viewer.update()
+
+    def _create_calibration_overlay(self, calib_data):
+        """从 CalibrationData 创建 CalibrationOverlay"""
+        from PySide6.QtCore import QPointF
+        overlay = self._image_viewer.get_calibration()
+        overlay.reset()
+        if calib_data.x_start:
+            overlay.x_start = QPointF(calib_data.x_start[0], calib_data.x_start[1])
+        if calib_data.x_end:
+            overlay.x_end = QPointF(calib_data.x_end[0], calib_data.x_end[1])
+        if calib_data.y_start:
+            overlay.y_start = QPointF(calib_data.y_start[0], calib_data.y_start[1])
+        if calib_data.y_end:
+            overlay.y_end = QPointF(calib_data.y_end[0], calib_data.y_end[1])
+        overlay.x_range = calib_data.x_range
+        overlay.y_range = calib_data.y_range
+        overlay.coord_type = calib_data.coord_type
+        return overlay
 
     def _on_new_project(self):
         name, ok = QInputDialog.getText(self, "新建项目", "请输入项目名称:")
@@ -747,16 +773,25 @@ class WorkspacePage(QWidget):
         if img is None:
             return
 
+        # 继承同一图片中上一条曲线的校准数据
+        calib = None
+        if img.curves:
+            prev_curve = img.curves[-1]
+            calib = prev_curve.calibration
+
         # 创建新曲线
         curve = project_manager.add_curve_to_image(
             self._current_image_id,
             x_data=[],
             y_data=[],
-            name=f"曲线 {len(img.curves) + 1}"
+            name=f"曲线 {len(img.curves) + 1}",
+            calibration=calib
         )
 
         if curve:
             self._current_curve_id = curve.id
+            self._display_current_curve_on_image()
+            self._update_curve_table()
             self._refresh_project_tree()
             self.project_modified.emit()
 
@@ -801,11 +836,27 @@ class WorkspacePage(QWidget):
                 coord_type=data["coord_type"]
             )
 
+            # 更新校准
             project_manager.update_curve_calibration(self._current_curve_id, calib_data)
+
+            # 重新计算实际坐标
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve and curve.x_data:
+                x_actual = []
+                y_actual = []
+                for px, py in zip(curve.x_data, curve.y_data):
+                    x, y = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                    x_actual.append(x)
+                    y_actual.append(y)
+                curve.x_actual = x_actual
+                curve.y_actual = y_actual
+
             self._deactivate_all_tools()
             self._active_tool = None
             self._image_viewer.set_select_mode()
             self._status_label.setText("校准完成！")
+            self._display_current_curve_on_image()
+            self._update_curve_table()
             self._refresh_project_tree()
             self.project_modified.emit()
 
