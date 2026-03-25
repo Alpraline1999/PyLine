@@ -18,8 +18,10 @@ class CalibrationData(BaseModel):
 class Curve(BaseModel):
     id: str = ""
     name: str = ""
-    x_data: List[float] = []
-    y_data: List[float] = []
+    x_data: List[float] = []  # 像素坐标X
+    y_data: List[float] = []  # 像素坐标Y
+    x_actual: List[float] = []  # 实际坐标X（校准后）
+    y_actual: List[float] = []  # 实际坐标Y（校准后）
     color: str = "#0078D4"
     source_image_id: Optional[str] = None
     calibration: Optional[CalibrationData] = None  # 曲线专属的校准数据

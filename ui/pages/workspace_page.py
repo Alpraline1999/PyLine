@@ -339,18 +339,31 @@ class WorkspacePage(QWidget):
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve and curve.x_data:
+                # 判断是否有实际坐标（校准后）
+                has_actual = curve.x_actual and curve.y_actual and len(curve.x_actual) == len(curve.x_data)
+                # 更新表头
+                if has_actual:
+                    self._curve_table.setHorizontalHeaderLabels(["X (实际)", "Y (实际)"])
+                else:
+                    self._curve_table.setHorizontalHeaderLabels(["X (像素)", "Y (像素)"])
+
                 for i in range(len(curve.x_data)):
                     row = self._curve_table.rowCount()
                     self._curve_table.insertRow(row)
 
-                    x_item = QTableWidgetItem(f"{curve.x_data[i]:.4f}")
-                    y_item = QTableWidgetItem(f"{curve.y_data[i]:.4f}")
+                    if has_actual:
+                        x_item = QTableWidgetItem(f"{curve.x_actual[i]:.4f}")
+                        y_item = QTableWidgetItem(f"{curve.y_actual[i]:.4f}")
+                    else:
+                        x_item = QTableWidgetItem(f"{curve.x_data[i]:.4f}")
+                        y_item = QTableWidgetItem(f"{curve.y_data[i]:.4f}")
                     self._curve_table.setItem(row, 0, x_item)
                     self._curve_table.setItem(row, 1, y_item)
         elif self._current_image_id:
             # 如果没有选中曲线但有选中图片，显示该图片所有曲线的数据预览
             img = project_manager.get_image(self._current_image_id)
             if img:
+                self._curve_table.setHorizontalHeaderLabels(["X", "Y"])
                 for curve in img.curves:
                     for i in range(len(curve.x_data)):
                         row = self._curve_table.rowCount()
@@ -825,22 +838,40 @@ class WorkspacePage(QWidget):
 
         x_data = []
         y_data = []
+        x_actual = []
+        y_actual = []
 
         # 直接存储像素坐标（用于显示）
+        # 如果曲线有校准数据，也计算实际坐标
+        curve = None
+        if self._current_curve_id:
+            curve = project_manager.get_curve(self._current_curve_id)
+
+        calib = curve.calibration if curve else None
+
         for px, py in self._current_curve_points:
             x_data.append(px)
             y_data.append(py)
+            if calib:
+                x, y = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+            else:
+                x, y = px, py
+            x_actual.append(x)
+            y_actual.append(y)
 
         # 如果有选中曲线，更新该曲线；否则创建新曲线
-        if self._current_curve_id:
-            curve = project_manager.get_curve(self._current_curve_id)
-            if curve:
-                curve.x_data = x_data
-                curve.y_data = y_data
+        if self._current_curve_id and curve:
+            curve.x_data = x_data
+            curve.y_data = y_data
+            curve.x_actual = x_actual
+            curve.y_actual = y_actual
         else:
             curve = project_manager.add_curve_to_image(
                 self._current_image_id, x_data, y_data, name=f"曲线 {len(img.curves) + 1}"
             )
+            if curve and calib:
+                # add_curve_to_image already computes actual coords if calibration is passed
+                pass
 
         if curve:
             self._deactivate_all_tools()
@@ -850,8 +881,6 @@ class WorkspacePage(QWidget):
             self._status_label.setText("曲线已保存！")
             self._display_current_curve_on_image()
             self._update_curve_table()
-            self._refresh_project_tree()
-            self.project_modified.emit()
             self._refresh_project_tree()
             self.project_modified.emit()
 

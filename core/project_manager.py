@@ -149,11 +149,24 @@ class ProjectManager:
         if image is None:
             return None
 
+        # 计算实际坐标
+        x_actual = []
+        y_actual = []
+        for px, py in zip(x_data, y_data):
+            if calibration:
+                x, y = self._compute_actual_coords(calibration, px, py)
+            else:
+                x, y = px, py
+            x_actual.append(x)
+            y_actual.append(y)
+
         curve = Curve(
             id=str(uuid.uuid4()),
             name=name,
             x_data=x_data,
             y_data=y_data,
+            x_actual=x_actual,
+            y_actual=y_actual,
             color=color,
             source_image_id=image_id,
             calibration=calibration
@@ -162,45 +175,8 @@ class ProjectManager:
         self.current_project.is_modified = True
         return curve
 
-    def get_curve(self, curve_id: str) -> Optional[Curve]:
-        """根据ID获取曲线"""
-        if self.current_project is None:
-            return None
-        for img in self.current_project.images:
-            for curve in img.curves:
-                if curve.id == curve_id:
-                    return curve
-        for curve in self.current_project.imported_curves:
-            if curve.id == curve_id:
-                return curve
-        return None
-
-    def update_curve_calibration(self, curve_id: str, calibration: CalibrationData):
-        """更新曲线的校准数据"""
-        if self.current_project is None:
-            return
-
-        curve = self.get_curve(curve_id)
-        if curve is None:
-            return
-
-        curve.calibration = calibration
-        self.current_project.is_modified = True
-
-    def pixel_to_actual_coords(self, curve_id: str, px: float, py: float) -> Tuple[float, float]:
-        """将像素坐标转换为实际坐标
-
-        校准使用4点：
-        - x_start, x_end 定义X轴
-        - y_start, y_end 定义Y轴
-        如果曲线没有校准数据，返回像素坐标
-        """
-        curve = self.get_curve(curve_id)
-        if curve is None or curve.calibration is None:
-            return (px, py)
-
-        calib = curve.calibration
-
+    def _compute_actual_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
+        """将像素坐标转换为实际坐标"""
         # X轴计算：点在线段x_start到x_end上的比例
         x_start = calib.x_start
         x_end = calib.x_end
@@ -240,6 +216,45 @@ class ProjectManager:
         y_actual = calib.y_range[1] - t_y * (calib.y_range[1] - calib.y_range[0])  # Y轴反转
 
         return (x_actual, y_actual)
+
+    def get_curve(self, curve_id: str) -> Optional[Curve]:
+        """根据ID获取曲线"""
+        if self.current_project is None:
+            return None
+        for img in self.current_project.images:
+            for curve in img.curves:
+                if curve.id == curve_id:
+                    return curve
+        for curve in self.current_project.imported_curves:
+            if curve.id == curve_id:
+                return curve
+        return None
+
+    def update_curve_calibration(self, curve_id: str, calibration: CalibrationData):
+        """更新曲线的校准数据"""
+        if self.current_project is None:
+            return
+
+        curve = self.get_curve(curve_id)
+        if curve is None:
+            return
+
+        curve.calibration = calibration
+        self.current_project.is_modified = True
+
+    def pixel_to_actual_coords(self, curve_id: str, px: float, py: float) -> Tuple[float, float]:
+        """将像素坐标转换为实际坐标
+
+        校准使用4点：
+        - x_start, x_end 定义X轴
+        - y_start, y_end 定义Y轴
+        如果曲线没有校准数据，返回像素坐标
+        """
+        curve = self.get_curve(curve_id)
+        if curve is None or curve.calibration is None:
+            return (px, py)
+
+        return self._compute_actual_coords(curve.calibration, px, py)
 
 
 # 全局单例

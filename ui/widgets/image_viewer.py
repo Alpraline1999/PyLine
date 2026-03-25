@@ -91,15 +91,18 @@ class CalibrationOverlay:
             self.y_end = pos
 
     def nudge_current_point(self, dx: float, dy: float):
-        """微调当前点"""
-        if self.y_end is not None:
-            self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
-        elif self.y_start is not None:
-            self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
-        elif self.x_end is not None:
-            self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
-        elif self.x_start is not None:
+        """微调当前正在设置的点"""
+        if self.x_start is None:
+            pass
+        elif self.x_end is None:
             self.x_start = QPointF(self.x_start.x() + dx, self.x_start.y() + dy)
+        elif self.y_start is None:
+            self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
+        elif self.y_end is None:
+            self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
+        else:
+            self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
+
 
 
 class ImageViewer(QWidget):
@@ -566,4 +569,3 @@ class ImageViewer(QWidget):
         super().resizeEvent(event)
         if self._pixmap:
             self.fit_to_window()
-        self.update()
