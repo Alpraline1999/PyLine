@@ -58,9 +58,10 @@ class WorkspacePage(QWidget):
         # 图片查看器工具栏 - 固定在底部靠右
         viewer_toolbar = QWidget(center_panel)
         viewer_toolbar_layout = QHBoxLayout(viewer_toolbar)
-        viewer_toolbar_layout.setContentsMargins(0, 0, 5, 5)
+        viewer_toolbar_layout.setContentsMargins(0, 0, 5, 0)
         viewer_toolbar_layout.setSpacing(3)
-        viewer_toolbar.setFixedHeight(32)
+        viewer_toolbar.setFixedHeight(28)
+        viewer_toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self._show_curves_btn = ToolButton(FIF.VIEW, viewer_toolbar)
         self._show_curves_btn.setToolTip("显示/隐藏曲线")
@@ -252,7 +253,7 @@ class WorkspacePage(QWidget):
 
         layout.addWidget(tools_widget)
 
-        # 参数设置区域 - 纵向排列，带标签
+        # 参数设置区域 - 纵向排列，带标签和当前值
         params_label = QLabel("参数设置", tab)
         params_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
         layout.addWidget(params_label)
@@ -272,11 +273,14 @@ class WorkspacePage(QWidget):
         self._point_size_spin = SpinBox(tab)
         self._point_size_spin.setRange(1, 50)
         self._point_size_spin.setValue(8)
-        self._point_size_spin.setToolTip("点大小")
+        self._point_size_spin.setToolTip("曲线点大小")
         self._point_size_spin.setMaximumWidth(80)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         point_size_layout.addWidget(point_size_label)
         point_size_layout.addWidget(self._point_size_spin)
+        self._point_size_value_label = QLabel("8 px", tab)
+        self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
+        point_size_layout.addWidget(self._point_size_value_label)
         point_size_layout.addStretch()
         params_layout.addWidget(point_size_row)
 
@@ -290,13 +294,37 @@ class WorkspacePage(QWidget):
         self._nudge_step_spin = SpinBox(tab)
         self._nudge_step_spin.setRange(1, 20)
         self._nudge_step_spin.setValue(3)
-        self._nudge_step_spin.setToolTip("微调步长(像素)")
+        self._nudge_step_spin.setToolTip("方向键微调步长(像素)")
         self._nudge_step_spin.setMaximumWidth(80)
         self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
         nudge_step_layout.addWidget(nudge_step_label)
         nudge_step_layout.addWidget(self._nudge_step_spin)
+        self._nudge_step_value_label = QLabel("3 px", tab)
+        self._nudge_step_value_label.setStyleSheet(f"color: {placeholder_color()};")
+        nudge_step_layout.addWidget(self._nudge_step_value_label)
         nudge_step_layout.addStretch()
         params_layout.addWidget(nudge_step_row)
+
+        # 橡皮大小
+        eraser_size_row = QWidget(tab)
+        eraser_size_layout = QHBoxLayout(eraser_size_row)
+        eraser_size_layout.setContentsMargins(0, 0, 0, 0)
+        eraser_size_layout.setSpacing(5)
+        eraser_size_label = QLabel("橡皮大小:", tab)
+        eraser_size_label.setFixedWidth(60)
+        self._eraser_size_spin = SpinBox(tab)
+        self._eraser_size_spin.setRange(1, 100)
+        self._eraser_size_spin.setValue(20)
+        self._eraser_size_spin.setToolTip("橡皮擦大小")
+        self._eraser_size_spin.setMaximumWidth(80)
+        self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
+        eraser_size_layout.addWidget(eraser_size_label)
+        eraser_size_layout.addWidget(self._eraser_size_spin)
+        self._eraser_size_value_label = QLabel("20 px", tab)
+        self._eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
+        eraser_size_layout.addWidget(self._eraser_size_value_label)
+        eraser_size_layout.addStretch()
+        params_layout.addWidget(eraser_size_row)
 
         layout.addWidget(params_widget)
 
@@ -451,9 +479,14 @@ class WorkspacePage(QWidget):
 
     def _on_point_size_changed(self, value):
         self._image_viewer.set_point_size(float(value))
+        self._point_size_value_label.setText(f"{value} px")
 
     def _on_nudge_step_changed(self, value):
         self._image_viewer.set_nudge_step(float(value))
+        self._nudge_step_value_label.setText(f"{value} px")
+
+    def _on_eraser_size_changed(self, value):
+        self._eraser_size_value_label.setText(f"{value} px")
 
     def _on_tree_item_clicked(self, item, column):
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -509,7 +542,8 @@ class WorkspacePage(QWidget):
             else:
                 self._current_image_id = None
 
-            # 在图片上显示曲线的点
+            # 清除图片上的曲线，只显示当前选中的
+            self._image_viewer.clear_curves()
             self._display_curve_on_image(curve)
             self._update_curve_table()
             self._refresh_project_tree()
@@ -681,12 +715,15 @@ class WorkspacePage(QWidget):
             self.project_modified.emit()
 
     def _on_image_loaded(self, file_path: str):
-        # 显示当前图片所有曲线的点
-        if self._current_image_id:
-            img = project_manager.get_image(self._current_image_id)
-            if img:
-                for curve in img.curves:
-                    self._display_curve_on_image(curve)
+        # 清除图片上的曲线
+        self._image_viewer.clear_curves()
+
+        # 只显示当前选中的曲线
+        if self._current_curve_id:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve:
+                self._display_curve_on_image(curve)
+
         self._update_curve_table()
         self._refresh_project_tree()
 
