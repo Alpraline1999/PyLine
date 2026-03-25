@@ -1,8 +1,9 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog
 from PySide6.QtCore import Qt
 from qfluentwidgets import CardWidget
 
 from ui.theme import text_color, secondary_color, placeholder_color
+from ui.widgets import ImageViewer
 
 
 class WorkspacePage(QWidget):
@@ -13,9 +14,10 @@ class WorkspacePage(QWidget):
         self._splitter = None
         self._left_panel = None
         self._right_panel = None
-        self._center_label = None
-        self._center_placeholder = None
+        self._image_viewer = None
         self._tool_buttons = []
+        self._image_list_label = None
+        self._curve_list_label = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -27,7 +29,7 @@ class WorkspacePage(QWidget):
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # 左侧面板（项目树/曲线列表）
-        self._left_panel = self._create_panel("项目面板", "图片列表\n---\n曲线列表", 260)
+        self._left_panel = self._create_side_panel("项目面板", self._get_left_panel_content(), 260)
         self._splitter.addWidget(self._left_panel)
 
         # 中间区域（图片查看器）
@@ -36,14 +38,13 @@ class WorkspacePage(QWidget):
         center_layout = QVBoxLayout(center_panel)
         center_layout.setContentsMargins(10, 10, 10, 10)
 
-        self._center_label = QLabel("图片查看器", center_panel)
-        self._center_label.setStyleSheet(f"font-weight: bold; padding: 5px; color: {text_color()};")
-        center_layout.addWidget(self._center_label)
+        center_label = QLabel("图片查看器", center_panel)
+        center_label.setStyleSheet(f"font-weight: bold; padding: 5px; color: {text_color()};")
+        center_layout.addWidget(center_label)
 
-        self._center_placeholder = QLabel("拖放图片到此处\n或使用 文件 > 打开", center_panel)
-        self._center_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._center_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
-        center_layout.addWidget(self._center_placeholder)
+        # 图片查看器
+        self._image_viewer = ImageViewer(center_panel)
+        center_layout.addWidget(self._image_viewer)
 
         # 底部工具栏占位
         toolbar = QFrame(center_panel)
@@ -64,17 +65,30 @@ class WorkspacePage(QWidget):
         self._splitter.addWidget(center_panel)
 
         # 右侧面板（属性）
-        self._right_panel = self._create_panel("属性面板", "当前选中项\n属性", 260)
+        self._right_panel = self._create_side_panel("属性面板", "当前选中项\n属性", 260)
         self._splitter.addWidget(self._right_panel)
 
         # 设置分割比例：左侧1，中间3，右侧1
         self._splitter.setSizes([1, 3, 1])
-        self._splitter.setStretchFactor(1, 1)  # 中间面板可伸展
+        self._splitter.setStretchFactor(1, 1)
 
         main_layout.addWidget(self._splitter)
 
-    def _create_panel(self, title, placeholder, width):
-        """创建面板，使用 CardWidget 以支持主题适配"""
+    def _get_left_panel_content(self) -> str:
+        """获取左侧面板内容"""
+        from core.project_manager import project_manager
+        if project_manager.current_project is None:
+            return "请先创建或打开项目"
+        if not project_manager.current_project.images:
+            return "暂无图片\n\n拖放图片到查看器"
+        # 显示图片列表
+        lines = ["图片列表:"]
+        for img in project_manager.current_project.images:
+            lines.append(f"• {img.name}")
+        return "\n".join(lines)
+
+    def _create_side_panel(self, title: str, placeholder: str, width: int) -> CardWidget:
+        """创建侧边面板"""
         panel = CardWidget(self)
         panel.setFixedWidth(width)
         panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
@@ -88,28 +102,20 @@ class WorkspacePage(QWidget):
 
         placeholder_label = QLabel(placeholder, panel)
         placeholder_label.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
+        placeholder_label.setWordWrap(True)
         layout.addWidget(placeholder_label)
 
         layout.addStretch()
         return panel
 
+    def load_image(self, file_path: str) -> bool:
+        """加载图片到查看器"""
+        if self._image_viewer:
+            return self._image_viewer.load_image(file_path)
+        return False
+
     def update_theme_colors(self):
         """更新主题颜色（供外部调用）"""
-        self._center_label.setStyleSheet(f"font-weight: bold; padding: 5px; color: {text_color()};")
-        self._center_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
-
         # 更新工具栏按钮颜色
         for btn in self._tool_buttons:
             btn.setStyleSheet(f"padding: 5px 10px; color: {text_color()}; background-color: {secondary_color()}; border-radius: 3px;")
-
-        # 重新创建面板以更新颜色
-        if self._left_panel:
-            self._splitter.widget(0).deleteLater()
-            self._left_panel = self._create_panel("项目面板", "图片列表\n---\n曲线列表", 260)
-            self._splitter.insertWidget(0, self._left_panel)
-
-        if self._right_panel:
-            idx = self._splitter.count() - 1
-            self._splitter.widget(idx).deleteLater()
-            self._right_panel = self._create_panel("属性面板", "当前选中项\n属性", 260)
-            self._splitter.insertWidget(idx, self._right_panel)
