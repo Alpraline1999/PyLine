@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont
 from qfluentwidgets import CardWidget, ToolButton, LineEdit, SpinBox
@@ -32,6 +32,7 @@ class WorkspacePage(QWidget):
         self._current_curve_id = None
         self._current_curve_points = []
         self._active_tool = None  # 当前激活的工具按钮
+        self._hidden_curves = set()  # 隐藏的曲线ID集合
         self.setup_ui()
         self._setup_viewer_signals()
 
@@ -54,24 +55,6 @@ class WorkspacePage(QWidget):
         self._image_viewer = ImageViewer(center_panel)
         self._image_viewer.image_loaded.connect(self._on_image_loaded)
         center_layout.addWidget(self._image_viewer)
-
-        # 图片查看器工具栏 - 固定在底部靠右
-        viewer_toolbar = QWidget(center_panel)
-        viewer_toolbar_layout = QHBoxLayout(viewer_toolbar)
-        viewer_toolbar_layout.setContentsMargins(0, 0, 5, 0)
-        viewer_toolbar_layout.setSpacing(3)
-        viewer_toolbar.setFixedHeight(28)
-        viewer_toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        self._show_curves_btn = ToolButton(FIF.VIEW, viewer_toolbar)
-        self._show_curves_btn.setToolTip("显示/隐藏曲线")
-        self._show_curves_btn.setCheckable(True)
-        self._show_curves_btn.setChecked(True)
-        self._show_curves_btn.clicked.connect(self._on_show_curves_toggled)
-        self._show_curves_btn.setFixedSize(28, 28)
-        viewer_toolbar_layout.addWidget(self._show_curves_btn)
-
-        center_layout.addWidget(viewer_toolbar, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
 
         self._splitter.addWidget(center_panel)
 
@@ -147,6 +130,8 @@ class WorkspacePage(QWidget):
         self._project_tree.setIndentation(15)
         self._project_tree.setFont(QFont("Microsoft YaHei", 10))
         self._project_tree.setIconSize(QSize(20, 20))
+        self._project_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._project_tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         self._project_tree.itemClicked.connect(self._on_tree_item_clicked)
         self._project_tree.itemDoubleClicked.connect(self._on_tree_item_double_clicked)
         self._refresh_project_tree()
@@ -272,13 +257,13 @@ class WorkspacePage(QWidget):
         point_size_label.setFixedWidth(60)
         self._point_size_spin = SpinBox(tab)
         self._point_size_spin.setRange(1, 50)
-        self._point_size_spin.setValue(8)
+        self._point_size_spin.setValue(3)
         self._point_size_spin.setToolTip("曲线点大小")
         self._point_size_spin.setMaximumWidth(80)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         point_size_layout.addWidget(point_size_label)
         point_size_layout.addWidget(self._point_size_spin)
-        self._point_size_value_label = QLabel("8 px", tab)
+        self._point_size_value_label = QLabel("3 px", tab)
         self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
         point_size_layout.addWidget(self._point_size_value_label)
         point_size_layout.addStretch()
@@ -410,7 +395,11 @@ class WorkspacePage(QWidget):
                 # 图片的曲线作为图片的子节点
                 for curve in img.curves:
                     curve_item = QTreeWidgetItem(img_item)
-                    curve_item.setText(0, f"📈 {curve.name}")
+                    # 如果曲线被隐藏，使用不同的图标
+                    if curve.id in self._hidden_curves:
+                        curve_item.setText(0, f"🔵 {curve.name} (已隐藏)")
+                    else:
+                        curve_item.setText(0, f"📈 {curve.name}")
                     curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id, img.id))
                     if curve.id == current_curve_id:
                         from PySide6.QtGui import QBrush, QColor
@@ -420,7 +409,10 @@ class WorkspacePage(QWidget):
             # 项目级别的导入曲线
             for curve in project.imported_curves:
                 curve_item = QTreeWidgetItem(project_item)
-                curve_item.setText(0, f"📈 {curve.name}")
+                if curve.id in self._hidden_curves:
+                    curve_item.setText(0, f"🔵 {curve.name} (已隐藏)")
+                else:
+                    curve_item.setText(0, f"📈 {curve.name}")
                 curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id))
                 if curve.id == current_curve_id:
                     from PySide6.QtGui import QBrush, QColor
@@ -516,7 +508,13 @@ class WorkspacePage(QWidget):
                         self._image_viewer.load_image(img.image_path)
                         self._current_image_item = item
                         self._current_image_id = img_id
-                        self._current_curve_id = None
+                        # 自动选择该图片的第一条曲线
+                        if img.curves:
+                            self._current_curve_id = img.curves[0].id
+                            self._display_current_curve_on_image()
+                        else:
+                            self._current_curve_id = None
+                            self._image_viewer.clear_curves()
                         self._update_curve_table()
                         self._refresh_project_tree()
                         self.current_image_changed.emit(img)
@@ -551,71 +549,106 @@ class WorkspacePage(QWidget):
     def _on_tree_item_double_clicked(self, item, column):
         pass
 
-    def _on_show_curves_toggled(self, checked):
-        """显示/隐藏曲线切换"""
-        if checked:
-            self._image_viewer.set_curves_visible(True)
-            self._show_curves_btn.setIcon(FIF.VIEW)
+    def _on_tree_context_menu(self, pos):
+        """显示项目树右键菜单"""
+        item = self._project_tree.itemAt(pos)
+        if item is None:
+            return
+
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if data is None or data[0] != "curve":
+            return
+
+        menu = QMenu(self)
+
+        curve_id = data[1]
+        is_hidden = curve_id in self._hidden_curves if hasattr(self, '_hidden_curves') else False
+
+        # 显示/隐藏曲线
+        if is_hidden:
+            show_action = menu.addAction("显示曲线")
+            show_action.triggered.connect(lambda: self._toggle_curve_visibility(curve_id, True))
         else:
-            self._image_viewer.set_curves_visible(False)
-            self._show_curves_btn.setIcon(FIF.HIDE)
+            hide_action = menu.addAction("隐藏曲线")
+            hide_action.triggered.connect(lambda: self._toggle_curve_visibility(curve_id, False))
+
+        # 删除曲线
+        delete_action = menu.addAction("删除曲线")
+        delete_action.triggered.connect(lambda: self._delete_curve(curve_id))
+
+        menu.exec(self._project_tree.mapToGlobal(pos))
+
+    def _toggle_curve_visibility(self, curve_id: str, hidden: bool):
+        """切换曲线可见性"""
+        if not hasattr(self, '_hidden_curves'):
+            self._hidden_curves = set()
+
+        if hidden:
+            self._hidden_curves.add(curve_id)
+        else:
+            self._hidden_curves.discard(curve_id)
+
+        # 如果当前显示的是这条曲线，更新显示
+        if self._current_curve_id == curve_id:
+            if hidden:
+                self._image_viewer.clear_curves()
+            else:
+                self._display_current_curve_on_image()
+
+        self._refresh_project_tree()
+
+    def _delete_curve(self, curve_id: str):
+        """删除曲线"""
+        reply = QMessageBox.question(
+            self, "确认删除", "确定要删除这条曲线吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        curve = project_manager.get_curve(curve_id)
+        if curve is None:
+            return
+
+        # 从对应的图片中移除
+        if curve.source_image_id:
+            img = project_manager.get_image(curve.source_image_id)
+            if img:
+                img.curves = [c for c in img.curves if c.id != curve_id]
+        else:
+            project = project_manager.current_project
+            if project:
+                project.imported_curves = [c for c in project.imported_curves if c.id != curve_id]
+
+        if self._current_curve_id == curve_id:
+            self._current_curve_id = None
+            self._image_viewer.clear_curves()
+
+        self._refresh_project_tree()
+        self._update_curve_table()
+        self.project_modified.emit()
 
     def _display_curve_on_image(self, curve):
-        """在图片查看器上显示曲线的点"""
+        """在图片查看器上显示曲线的点（使用像素坐标）"""
         from ui.widgets.image_viewer import CurveOverlayItem
 
         if curve and curve.x_data and curve.y_data:
             curve_item = CurveOverlayItem(color=curve.color)
             curve_item.name = curve.name
 
-            # 获取曲线的校准数据（如果有）
-            calib = curve.calibration
-
-            # 如果有校准数据，将实际坐标转换为像素坐标显示
-            if calib:
-                # 需要反向转换：将实际坐标转回像素坐标
-                # 这需要根据校准数据计算
-                for i in range(len(curve.x_data)):
-                    x_actual = curve.x_data[i]
-                    y_actual = curve.y_data[i]
-
-                    # 计算x像素坐标
-                    x_ratio = (x_actual - calib.x_range[0]) / (calib.x_range[1] - calib.x_range[0])
-                    x_start = calib.x_start
-                    x_end = calib.x_end
-                    dx = x_end[0] - x_start[0]
-                    dy_x = x_end[1] - x_start[1]
-
-                    if abs(dx) > abs(dy_x):
-                        px = x_start[0] + x_ratio * dx
-                    else:
-                        if dy_x != 0:
-                            px = x_start[1] + x_ratio * dy_x
-                        else:
-                            px = x_start[0]
-
-                    # 计算y像素坐标
-                    y_ratio = (calib.y_range[1] - y_actual) / (calib.y_range[1] - calib.y_range[0])
-                    y_start = calib.y_start
-                    y_end = calib.y_end
-                    dx_y = y_end[0] - y_start[0]
-                    dy = y_end[1] - y_start[1]
-
-                    if abs(dx_y) > abs(dy):
-                        py = y_start[0] + y_ratio * dx_y
-                    else:
-                        if dy != 0:
-                            py = y_start[1] + y_ratio * dy
-                        else:
-                            py = y_start[1]
-
-                    curve_item.add_point(px, py)
-            else:
-                # 没有校准数据，直接使用原始数据作为像素坐标
-                for i in range(len(curve.x_data)):
-                    curve_item.add_point(curve.x_data[i], curve.y_data[i])
+            # 直接使用存储的像素坐标
+            for i in range(len(curve.x_data)):
+                curve_item.add_point(curve.x_data[i], curve.y_data[i])
 
             self._image_viewer.add_curve_item(curve_item)
+
+    def _display_current_curve_on_image(self):
+        """显示当前选中曲线到图片"""
+        self._image_viewer.clear_curves()
+        if self._current_curve_id:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve:
+                self._display_curve_on_image(curve)
 
     def _on_new_project(self):
         name, ok = QInputDialog.getText(self, "新建项目", "请输入项目名称:")
@@ -793,18 +826,12 @@ class WorkspacePage(QWidget):
         x_data = []
         y_data = []
 
-        # 如果有选中的曲线，使用该曲线的校准数据
-        curve_id = self._current_curve_id if self._current_curve_id else None
-
+        # 直接存储像素坐标（用于显示）
         for px, py in self._current_curve_points:
-            if curve_id:
-                x, y = project_manager.pixel_to_actual_coords(curve_id, px, py)
-            else:
-                x, y = px, py
-            x_data.append(x)
-            y_data.append(y)
+            x_data.append(px)
+            y_data.append(py)
 
-        # 如果有选中曲线，添加到该曲线；否则创建新曲线
+        # 如果有选中曲线，更新该曲线；否则创建新曲线
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve:
@@ -821,7 +848,10 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_select_mode()
             self._current_curve_points = []
             self._status_label.setText("曲线已保存！")
+            self._display_current_curve_on_image()
             self._update_curve_table()
+            self._refresh_project_tree()
+            self.project_modified.emit()
             self._refresh_project_tree()
             self.project_modified.emit()
 
