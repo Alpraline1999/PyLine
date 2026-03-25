@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, Signal, QPointF
 from PySide6.QtGui import QPixmap, QPainter, QWheelEvent, QMouseEvent, QResizeEvent
 
@@ -17,7 +17,6 @@ class ImageViewer(QWidget):
         self._pan = False
         self._pan_start = QPointF()
         self._offset = QPointF()
-        self._drag_pos = QPointF()
         self.setup_ui()
 
     def setup_ui(self):
@@ -38,6 +37,7 @@ class ImageViewer(QWidget):
         self._pixmap = pixmap
         self._scale = 1.0
         self._offset = QPointF()
+        self.fit_to_window()
         self.update()
         self.image_loaded.emit(file_path)
         return True

@@ -43,6 +43,8 @@ class Project(BaseModel):
     imported_curves: List[Curve] = []
     created_at: str = ""
     updated_at: str = ""
+    file_path: Optional[str] = None
+    is_modified: bool = False
 
     @classmethod
     def create_new(cls, name: str) -> "Project":
@@ -54,5 +56,7 @@ class Project(BaseModel):
             images=[],
             imported_curves=[],
             created_at=now,
-            updated_at=now
+            updated_at=now,
+            file_path=None,
+            is_modified=False
         )

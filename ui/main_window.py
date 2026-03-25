@@ -66,13 +66,13 @@ class MainWindow(FluentWindow):
     def _on_project_created(self, name: str):
         """项目创建后的处理"""
         self._update_window_title()
-        self.workspace_page._refresh_image_list()
+        self.workspace_page._refresh_project_tree()
         self.switchTo(self.workspace_page)
 
     def _on_project_opened(self, file_path: str):
         """项目打开后的处理"""
         self._update_window_title()
-        self.workspace_page._refresh_image_list()
+        self.workspace_page._refresh_project_tree()
         self.switchTo(self.workspace_page)
 
     def _on_project_modified(self):
