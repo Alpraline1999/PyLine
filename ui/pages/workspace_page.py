@@ -268,13 +268,13 @@ class WorkspacePage(QWidget):
         point_size_label.setFixedWidth(60)
         self._point_size_spin = SpinBox(tab)
         self._point_size_spin.setRange(1, 50)
-        self._point_size_spin.setValue(3)
+        self._point_size_spin.setValue(5)
         self._point_size_spin.setToolTip("曲线点大小")
         self._point_size_spin.setMaximumWidth(80)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         point_size_layout.addWidget(point_size_label)
         point_size_layout.addWidget(self._point_size_spin)
-        self._point_size_value_label = QLabel("3 px", tab)
+        self._point_size_value_label = QLabel("5 px", tab)
         self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
         point_size_layout.addWidget(self._point_size_value_label)
         point_size_layout.addStretch()
@@ -471,6 +471,10 @@ class WorkspacePage(QWidget):
                 QMessageBox.warning(self, "警告", "请先选择一张图片")
                 self._deactivate_all_tools()
                 return
+            if self._current_curve_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                self._deactivate_all_tools()
+                return
             self._activate_tool_button(self._extract_btn)
             self._image_viewer.set_extract_mode()
             self._active_tool = tool_name
@@ -591,14 +595,14 @@ class WorkspacePage(QWidget):
         # 显示/隐藏曲线
         if is_hidden:
             show_action = menu.addAction("显示曲线")
-            show_action.triggered.connect(lambda: self._toggle_curve_visibility(curve_id, True))
+            show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
         else:
             hide_action = menu.addAction("隐藏曲线")
-            hide_action.triggered.connect(lambda: self._toggle_curve_visibility(curve_id, False))
+            hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
 
         # 删除曲线
         delete_action = menu.addAction("删除曲线")
-        delete_action.triggered.connect(lambda: self._delete_curve(curve_id))
+        delete_action.triggered.connect(lambda checked, cid=curve_id: self._delete_curve(cid))
 
         menu.exec(self._project_tree.mapToGlobal(pos))
 
@@ -644,9 +648,15 @@ class WorkspacePage(QWidget):
             if project:
                 project.imported_curves = [c for c in project.imported_curves if c.id != curve_id]
 
+        # 从隐藏集合中移除
+        self._hidden_curves.discard(curve_id)
+
         if self._current_curve_id == curve_id:
             self._current_curve_id = None
             self._image_viewer.clear_curves()
+            # 重置校准
+            calib = self._image_viewer.get_calibration()
+            calib.reset()
 
         self._refresh_project_tree()
         self._update_curve_table()
