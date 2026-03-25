@@ -537,15 +537,21 @@ class WorkspacePage(QWidget):
                     if img.id == img_id:
                         self._image_viewer.load_image(img.image_path)
                         self._current_image_item = item
-                        self._current_image_id = img_id
-                        # 自动选择该图片的第一条曲线
-                        if img.curves:
-                            self._current_curve_id = img.curves[0].id
-                            self._display_current_curve_on_image()
+                        # 只有当点击不同图片时才改变曲线
+                        if self._current_image_id != img_id:
+                            self._current_image_id = img_id
+                            # 自动选择该图片的第一条曲线
+                            if img.curves:
+                                self._current_curve_id = img.curves[0].id
+                                self._display_current_curve_on_image()
+                            else:
+                                self._current_curve_id = None
+                                self._image_viewer.clear_curves()
+                            self._update_curve_table()
                         else:
-                            self._current_curve_id = None
-                            self._image_viewer.clear_curves()
-                        self._update_curve_table()
+                            # 同一图片，只刷新校准显示
+                            if self._current_curve_id:
+                                self._display_current_curve_on_image()
                         self._refresh_project_tree()
                         self.current_image_changed.emit(img)
                         break
@@ -621,6 +627,10 @@ class WorkspacePage(QWidget):
         if self._current_curve_id == curve_id:
             if hidden:
                 self._image_viewer.clear_curves()
+                # 隐藏时也清除校准
+                calib = self._image_viewer.get_calibration()
+                calib.reset()
+                self._image_viewer.update()
             else:
                 self._display_current_curve_on_image()
 

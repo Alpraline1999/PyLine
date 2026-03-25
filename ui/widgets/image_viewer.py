@@ -555,6 +555,17 @@ class ImageViewer(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._pan = False
 
+    def wheelEvent(self, event: QWheelEvent):
+        """鼠标滚轮缩放"""
+        if self._pixmap is None:
+            return
+
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.zoom_in()
+        elif delta < 0:
+            self.zoom_out()
+
     def _clamp_offset(self, offset: QPointF) -> QPointF:
         """限制偏移量使图片不超过窗口边界"""
         if self._pixmap is None:
