@@ -1,12 +1,16 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFileDialog, QInputDialog
+from PySide6.QtCore import Qt, Signal
 from qfluentwidgets import PrimaryPushButton
 
 from ui.theme import text_color, secondary_color, placeholder_color
+from core.project_manager import project_manager
 
 
 class HomePage(QWidget):
     """首页 - 项目列表/新建/打开"""
+
+    project_created = Signal(str)  # 项目创建/打开后信号
+    project_opened = Signal(str)  # 项目打开后信号
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -45,7 +49,7 @@ class HomePage(QWidget):
         self._new_btn.clicked.connect(self.on_new_project)
         btn_layout.addWidget(self._new_btn)
 
-        self._open_btn = QPushButton("打开项目", self)
+        self._open_btn = PrimaryPushButton("打开项目", self)
         self._open_btn.setFixedWidth(150)
         self._open_btn.clicked.connect(self.on_open_project)
         btn_layout.addWidget(self._open_btn)
@@ -83,9 +87,24 @@ class HomePage(QWidget):
         self._apply_theme_colors()
 
     def on_new_project(self):
-        # TODO: 实现新建项目
-        pass
+        """新建项目"""
+        name, ok = QInputDialog.getText(self, "新建项目", "请输入项目名称:")
+        if ok and name:
+            project_manager.create_new(name)
+            self.project_created.emit(name)
 
     def on_open_project(self):
-        # TODO: 实现打开项目
-        pass
+        """打开项目"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "打开项目",
+            "",
+            "PyLine 项目 (*.pyline);;所有文件 (*)"
+        )
+        if file_path:
+            try:
+                project_manager.open(file_path)
+                self.project_opened.emit(file_path)
+            except Exception as e:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "错误", f"无法打开项目:\n{str(e)}")
