@@ -1,6 +1,8 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 from PySide6.QtCore import Qt
-from qfluentwidgets import PrimaryPushButton, isDarkTheme, FluentStyleSheet
+from qfluentwidgets import PrimaryPushButton
+
+from ui.theme import text_color, secondary_color, placeholder_color
 
 
 class HomePage(QWidget):
@@ -10,18 +12,6 @@ class HomePage(QWidget):
         super().__init__(parent)
         self.setup_ui()
 
-    def _get_text_color(self):
-        """获取适合当前主题的文字颜色"""
-        return "#ffffff" if isDarkTheme() else "#000000"
-
-    def _get_secondary_color(self):
-        """获取副标题颜色"""
-        return "#a0a0a0" if isDarkTheme() else "#808080"
-
-    def _get_placeholder_color(self):
-        """获取占位符颜色"""
-        return "#808080" if isDarkTheme() else "#a0a0a0"
-
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
@@ -29,14 +19,12 @@ class HomePage(QWidget):
 
         # 标题
         title = QLabel("PyLine", self)
-        title.setObjectName("homeTitle")
-        title.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {self._get_text_color()};")
+        title.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {text_color()};")
         layout.addWidget(title, alignment=Qt.AlignCenter)
 
         # 副标题
         subtitle = QLabel("曲线提取与数据可视化工具", self)
-        subtitle.setObjectName("homeSubtitle")
-        subtitle.setStyleSheet(f"font-size: 18px; color: {self._get_secondary_color()};")
+        subtitle.setStyleSheet(f"font-size: 18px; color: {secondary_color()};")
         layout.addWidget(subtitle, alignment=Qt.AlignCenter)
 
         layout.addSpacing(40)
@@ -61,13 +49,11 @@ class HomePage(QWidget):
         # 最近项目（预留）
         layout.addSpacing(60)
         recent_label = QLabel("最近项目", self)
-        recent_label.setObjectName("recentLabel")
-        recent_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {self._get_text_color()};")
+        recent_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {text_color()};")
         layout.addWidget(recent_label, alignment=Qt.AlignLeft)
 
         no_recent = QLabel("暂无最近项目", self)
-        no_recent.setObjectName("noRecentLabel")
-        no_recent.setStyleSheet(f"color: {self._get_placeholder_color()}; font-style: italic;")
+        no_recent.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
         layout.addWidget(no_recent, alignment=Qt.AlignLeft)
 
         layout.addStretch()

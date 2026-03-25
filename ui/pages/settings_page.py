@@ -1,6 +1,8 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, QTimer
-from qfluentwidgets import ComboBox, setTheme, Theme, isDarkTheme, CardWidget
+from qfluentwidgets import ComboBox, setTheme, Theme, CardWidget
+
+from ui.theme import text_color, secondary_color, placeholder_color
 
 
 class SettingsPage(QWidget):
@@ -10,20 +12,13 @@ class SettingsPage(QWidget):
         super().__init__(parent)
         self._title_label = None
         self._theme_label = None
+        self._appearance_title = None
         self._lang_title = None
         self._lang_placeholder = None
         self._appearance_card = None
         self._lang_card = None
+        self.theme_combo = None
         self.setup_ui()
-
-    def _get_text_color(self):
-        return "#ffffff" if isDarkTheme() else "#000000"
-
-    def _get_secondary_color(self):
-        return "#a0a0a0" if isDarkTheme() else "#808080"
-
-    def _get_placeholder_color(self):
-        return "#808080" if isDarkTheme() else "#a0a0a0"
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -32,22 +27,21 @@ class SettingsPage(QWidget):
 
         # 标题
         self._title_label = QLabel("设置", self)
-        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {self._get_text_color()};")
+        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {text_color()};")
         layout.addWidget(self._title_label)
 
         # 外观设置卡片
         self._appearance_card = CardWidget(self)
-
         appearance_layout = QVBoxLayout(self._appearance_card)
 
-        appearance_title = QLabel("外观", self._appearance_card)
-        appearance_title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        appearance_layout.addWidget(appearance_title)
+        self._appearance_title = QLabel("外观", self._appearance_card)
+        self._appearance_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
+        appearance_layout.addWidget(self._appearance_title)
 
         # 主题设置
         theme_layout = QVBoxLayout()
         self._theme_label = QLabel("主题", self)
-        self._theme_label.setStyleSheet(f"color: {self._get_text_color()};")
+        self._theme_label.setStyleSheet(f"color: {text_color()};")
         theme_layout.addWidget(self._theme_label)
 
         self.theme_combo = ComboBox(self)
@@ -61,15 +55,14 @@ class SettingsPage(QWidget):
 
         # 语言设置（预留）
         self._lang_card = CardWidget(self)
-
         lang_layout = QVBoxLayout(self._lang_card)
 
         self._lang_title = QLabel("语言", self._lang_card)
-        self._lang_title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self._lang_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
         lang_layout.addWidget(self._lang_title)
 
         self._lang_placeholder = QLabel("语言设置（预留）", self)
-        self._lang_placeholder.setStyleSheet(f"color: {self._get_placeholder_color()}; font-style: italic;")
+        self._lang_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
         lang_layout.addWidget(self._lang_placeholder)
 
         layout.addWidget(self._lang_card)
@@ -84,6 +77,8 @@ class SettingsPage(QWidget):
 
     def _update_colors(self):
         """更新界面颜色以适应新主题"""
-        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {self._get_text_color()};")
-        self._theme_label.setStyleSheet(f"color: {self._get_text_color()};")
-        self._lang_placeholder.setStyleSheet(f"color: {self._get_placeholder_color()}; font-style: italic;")
+        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {text_color()};")
+        self._appearance_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
+        self._theme_label.setStyleSheet(f"color: {text_color()};")
+        self._lang_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
+        self._lang_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
