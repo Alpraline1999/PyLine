@@ -35,6 +35,8 @@ class WorkspacePage(QWidget):
         self._hidden_curves = set()  # 隐藏的曲线ID集合
         self.setup_ui()
         self._setup_viewer_signals()
+        # 初始化点大小
+        self._image_viewer.set_point_size(self._point_size_spin.value())
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -568,9 +570,8 @@ class WorkspacePage(QWidget):
             else:
                 self._current_image_id = None
 
-            # 清除图片上的曲线，只显示当前选中的
-            self._image_viewer.clear_curves()
-            self._display_curve_on_image(curve)
+            # 清除图片上的曲线，显示当前选中的曲线和校准
+            self._display_current_curve_on_image()
             self._update_curve_table()
             self._refresh_project_tree()
 
