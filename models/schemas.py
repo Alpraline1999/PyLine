@@ -5,9 +5,11 @@ import uuid
 
 
 class CalibrationData(BaseModel):
-    origin: Tuple[float, float] = (0.0, 0.0)
-    x_axis_end: Tuple[float, float] = (1.0, 0.0)
-    y_axis_end: Tuple[float, float] = (0.0, 1.0)
+    """校准数据 - 使用4点校准"""
+    x_start: Tuple[float, float] = (0.0, 0.0)  # X轴起点
+    x_end: Tuple[float, float] = (1.0, 0.0)      # X轴终点
+    y_start: Tuple[float, float] = (0.0, 0.0)  # Y轴起点
+    y_end: Tuple[float, float] = (0.0, 1.0)      # Y轴终点
     x_range: Tuple[float, float] = (0.0, 1.0)
     y_range: Tuple[float, float] = (0.0, 1.0)
     coord_type: str = "linear"
@@ -20,6 +22,7 @@ class Curve(BaseModel):
     y_data: List[float] = []
     color: str = "#0078D4"
     source_image_id: Optional[str] = None
+    calibration: Optional[CalibrationData] = None  # 曲线专属的校准数据
 
 
 class MaskData(BaseModel):
@@ -33,7 +36,6 @@ class ImageWork(BaseModel):
     image_path: str = ""
     curves: List[Curve] = []
     mask: Optional[MaskData] = None
-    calibration: Optional[CalibrationData] = None
 
 
 class Project(BaseModel):
