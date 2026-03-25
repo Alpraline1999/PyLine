@@ -352,10 +352,10 @@ class WorkspacePage(QWidget):
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve and curve.x_data:
-                # 判断是否有实际坐标（校准后）
-                has_actual = curve.x_actual and curve.y_actual and len(curve.x_actual) == len(curve.x_data)
+                # 如果曲线有校准数据，显示实际坐标；否则显示像素坐标
+                has_calibration = curve.calibration is not None
                 # 更新表头
-                if has_actual:
+                if has_calibration:
                     self._curve_table.setHorizontalHeaderLabels(["X (实际)", "Y (实际)"])
                 else:
                     self._curve_table.setHorizontalHeaderLabels(["X (像素)", "Y (像素)"])
@@ -364,7 +364,7 @@ class WorkspacePage(QWidget):
                     row = self._curve_table.rowCount()
                     self._curve_table.insertRow(row)
 
-                    if has_actual:
+                    if has_calibration and curve.x_actual and curve.y_actual:
                         x_item = QTableWidgetItem(f"{curve.x_actual[i]:.4f}")
                         y_item = QTableWidgetItem(f"{curve.y_actual[i]:.4f}")
                     else:
@@ -601,11 +601,13 @@ class WorkspacePage(QWidget):
 
         # 显示/隐藏曲线
         if is_hidden:
+            # 曲线已隐藏，点击应该显示
             show_action = menu.addAction("显示曲线")
-            show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
+            show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
         else:
+            # 曲线已显示，点击应该隐藏
             hide_action = menu.addAction("隐藏曲线")
-            hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
+            hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
 
         # 删除曲线
         delete_action = menu.addAction("删除曲线")
