@@ -66,8 +66,6 @@ class MainWindow(FluentWindow):
 
     def _update_all_pages_theme(self):
         """更新所有页面的主题颜色"""
-        # 重新创建各页面以应用新主题
-        # 由于页面较简单，直接重建比遍历更新所有组件更简洁
-        self.home_page.setup_ui()
-        self.settings_page.setup_ui()
+        self.home_page.update_theme()
+        self.settings_page._update_colors()
         self.workspace_page.update_theme_colors()
