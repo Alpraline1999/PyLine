@@ -1,0 +1,24 @@
+import sys
+from PySide6.QtWidgets import QApplication
+from qfluentwidgets.common.config import qconfig, Theme
+from qfluentwidgets.common.style_sheet import setTheme
+
+from ui.main_window import MainWindow
+
+
+def main():
+    app = QApplication(sys.argv)
+
+    # 设置默认主题（跟随系统）
+    setTheme(Theme.AUTO)
+
+    # 创建并显示主窗口
+    window = MainWindow()
+    window.resize(1200, 800)
+    window.show()
+
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
