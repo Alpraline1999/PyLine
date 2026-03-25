@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QPointF
-from PySide6.QtGui import QPixmap, QImage, QPainter, QWheelEvent, QMouseEvent, QResizeEvent
+from PySide6.QtGui import QPixmap, QPainter, QWheelEvent, QMouseEvent, QResizeEvent
 
 
 class ImageViewer(QWidget):
@@ -24,12 +24,11 @@ class ImageViewer(QWidget):
         """初始化界面"""
         self.setAcceptDrops(True)
         self.setMinimumSize(400, 300)
-        self.setStyleSheet("background-color: #2d2d2d;" if self._is_dark_mode() else "background-color: #f5f5f5;")
 
-    def _is_dark_mode(self):
-        """检测是否为深色模式"""
+    def _bg_color(self):
+        """获取背景颜色"""
         from qfluentwidgets import isDarkTheme
-        return isDarkTheme()
+        return "#2d2d2d" if isDarkTheme() else "#f5f5f5"
 
     def load_image(self, file_path: str) -> bool:
         """加载图片"""
@@ -83,23 +82,26 @@ class ImageViewer(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # 填充背景
-        bg_color = "#2d2d2d" if self._is_dark_mode() else "#f5f5f5"
-        painter.fillRect(self.rect(), bg_color)
+        painter.fillRect(self.rect(), self._bg_color())
 
         if self._pixmap is None:
             # 显示占位文字
             painter.setPen(Qt.GlobalColor.gray)
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "拖放图片到此处\n或使用 文件 > 打开")
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "拖放图片到此处\n或使用上方「添加图片」按钮")
+            painter.end()
             return
 
         # 保存 painter 状态
         painter.save()
 
-        # 移动到中心并应用缩放
+        # 计算偏移后的中心点
         center = self.rect().center()
-        painter.translate(center + self._offset)
+        offset_x = center.x() + self._offset.x()
+        offset_y = center.y() + self._offset.y()
+
+        painter.translate(offset_x, offset_y)
         painter.scale(self._scale, self._scale)
-        painter.translate(-self._pixmap.rect().center())
+        painter.translate(-self._pixmap.rect().center().x(), -self._pixmap.rect().center().y())
 
         # 绘制图片
         painter.drawPixmap(self._pixmap.rect(), self._pixmap)
@@ -110,6 +112,8 @@ class ImageViewer(QWidget):
         scale_text = f"{int(self._scale * 100)}%"
         painter.setPen(Qt.GlobalColor.gray)
         painter.drawText(self.rect().adjusted(0, 0, -10, -10), Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight, scale_text)
+
+        painter.end()
 
     def wheelEvent(self, event: QWheelEvent):
         """鼠标滚轮缩放"""
@@ -129,7 +133,6 @@ class ImageViewer(QWidget):
             self._pan = True
             self._pan_start = event.position() - self._offset
         elif event.button() == Qt.MouseButton.RightButton:
-            # 右键菜单预留
             pass
 
     def mouseMoveEvent(self, event: QMouseEvent):
