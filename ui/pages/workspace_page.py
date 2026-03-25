@@ -49,28 +49,28 @@ class WorkspacePage(QWidget):
         center_panel.setFrameShape(QFrame.Shape.StyledPanel)
         center_layout = QVBoxLayout(center_panel)
         center_layout.setContentsMargins(5, 5, 5, 5)
-        center_layout.setSpacing(2)
+        center_layout.setSpacing(0)
 
-        # 图片查看器工具栏
+        self._image_viewer = ImageViewer(center_panel)
+        self._image_viewer.image_loaded.connect(self._on_image_loaded)
+        center_layout.addWidget(self._image_viewer)
+
+        # 图片查看器工具栏 - 固定在底部靠右
         viewer_toolbar = QWidget(center_panel)
         viewer_toolbar_layout = QHBoxLayout(viewer_toolbar)
-        viewer_toolbar_layout.setContentsMargins(0, 0, 0, 0)
-        viewer_toolbar_layout.setSpacing(5)
+        viewer_toolbar_layout.setContentsMargins(0, 0, 5, 5)
+        viewer_toolbar_layout.setSpacing(3)
+        viewer_toolbar.setFixedHeight(32)
 
         self._show_curves_btn = ToolButton(FIF.VIEW, viewer_toolbar)
         self._show_curves_btn.setToolTip("显示/隐藏曲线")
         self._show_curves_btn.setCheckable(True)
         self._show_curves_btn.setChecked(True)
         self._show_curves_btn.clicked.connect(self._on_show_curves_toggled)
+        self._show_curves_btn.setFixedSize(28, 28)
         viewer_toolbar_layout.addWidget(self._show_curves_btn)
 
-        viewer_toolbar_layout.addStretch()
-
-        center_layout.addWidget(viewer_toolbar)
-
-        self._image_viewer = ImageViewer(center_panel)
-        self._image_viewer.image_loaded.connect(self._on_image_loaded)
-        center_layout.addWidget(self._image_viewer)
+        center_layout.addWidget(viewer_toolbar, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
 
         self._splitter.addWidget(center_panel)
 
@@ -128,10 +128,15 @@ class WorkspacePage(QWidget):
         line.setStyleSheet(f"background-color: {self._border_color()};")
         toolbar_layout.addWidget(line)
 
-        self._add_image_btn = ToolButton(FIF.CAMERA, toolbar_widget)
+        self._add_image_btn = ToolButton(FIF.IMAGE_EXPORT, toolbar_widget)
         self._add_image_btn.setToolTip("添加图片到当前项目")
         self._add_image_btn.clicked.connect(self._on_add_image)
         toolbar_layout.addWidget(self._add_image_btn)
+
+        self._add_curve_btn = ToolButton(FIF.PIE_SINGLE, toolbar_widget)
+        self._add_curve_btn.setToolTip("添加新曲线到选中图片")
+        self._add_curve_btn.clicked.connect(self._on_add_curve)
+        toolbar_layout.addWidget(self._add_curve_btn)
 
         toolbar_layout.addStretch()
         layout.addWidget(toolbar_widget)
@@ -649,6 +654,29 @@ class WorkspacePage(QWidget):
             self._current_image_id = image_work.id
             self._current_curve_id = None
             self._image_viewer.load_image(file_path)
+            self._refresh_project_tree()
+            self.project_modified.emit()
+
+    def _on_add_curve(self):
+        """为当前选中图片添加新曲线"""
+        if self._current_image_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            return
+
+        img = project_manager.get_image(self._current_image_id)
+        if img is None:
+            return
+
+        # 创建新曲线
+        curve = project_manager.add_curve_to_image(
+            self._current_image_id,
+            x_data=[],
+            y_data=[],
+            name=f"曲线 {len(img.curves) + 1}"
+        )
+
+        if curve:
+            self._current_curve_id = curve.id
             self._refresh_project_tree()
             self.project_modified.emit()
 
