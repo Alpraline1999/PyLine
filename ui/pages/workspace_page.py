@@ -236,6 +236,17 @@ class WorkspacePage(QWidget):
         self._finish_curve_btn.clicked.connect(self._on_tool_finish_curve)
         tools_layout.addWidget(self._finish_curve_btn)
 
+        # 排序按钮
+        self._sort_x_btn = ToolButton(FIF.UP, tools_widget)
+        self._sort_x_btn.setToolTip("按X坐标排序")
+        self._sort_x_btn.clicked.connect(self._on_sort_by_x)
+        tools_layout.addWidget(self._sort_x_btn)
+
+        self._sort_y_btn = ToolButton(FIF.DOWN, tools_widget)
+        self._sort_y_btn.setToolTip("按Y坐标排序")
+        self._sort_y_btn.clicked.connect(self._on_sort_by_y)
+        tools_layout.addWidget(self._sort_y_btn)
+
         layout.addWidget(tools_widget)
 
         # 参数设置区域 - 纵向排列，带标签和当前值
@@ -661,15 +672,32 @@ class WorkspacePage(QWidget):
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve:
+                # 显示曲线点
                 self._display_curve_on_image(curve)
-                # 设置校准覆盖层
+                # 设置校准覆盖层（无论曲线是否有数据都要显示校准）
                 if curve.calibration:
-                    calib_overlay = self._create_calibration_overlay(curve.calibration)
-                    self._image_viewer.set_calibration(calib_overlay)
+                    self._apply_calibration_to_viewer(curve.calibration)
                 else:
-                    # 重置校准
-                    self._image_viewer.get_calibration().reset()
-                    self._image_viewer.update()
+                    calib = self._image_viewer.get_calibration()
+                    calib.reset()
+                self._image_viewer.update()
+
+    def _apply_calibration_to_viewer(self, calib_data):
+        """将校准数据应用到图片查看器"""
+        from PySide6.QtCore import QPointF
+        calib = self._image_viewer.get_calibration()
+        calib.reset()
+        if calib_data.x_start:
+            calib.x_start = QPointF(calib_data.x_start[0], calib_data.x_start[1])
+        if calib_data.x_end:
+            calib.x_end = QPointF(calib_data.x_end[0], calib_data.x_end[1])
+        if calib_data.y_start:
+            calib.y_start = QPointF(calib_data.y_start[0], calib_data.y_start[1])
+        if calib_data.y_end:
+            calib.y_end = QPointF(calib_data.y_end[0], calib_data.y_end[1])
+        calib.x_range = calib_data.x_range
+        calib.y_range = calib_data.y_range
+        calib.coord_type = calib_data.coord_type
 
     def _create_calibration_overlay(self, calib_data):
         """从 CalibrationData 创建 CalibrationOverlay"""
@@ -887,42 +915,45 @@ class WorkspacePage(QWidget):
         if img is None:
             return
 
-        x_data = []
-        y_data = []
-        x_actual = []
-        y_actual = []
-
-        # 直接存储像素坐标（用于显示）
-        # 如果曲线有校准数据，也计算实际坐标
         curve = None
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
 
         calib = curve.calibration if curve else None
 
-        for px, py in self._current_curve_points:
-            x_data.append(px)
-            y_data.append(py)
-            if calib:
-                x, y = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
-            else:
-                x, y = px, py
-            x_actual.append(x)
-            y_actual.append(y)
-
-        # 如果有选中曲线，更新该曲线；否则创建新曲线
+        # 如果有选中曲线，追加点；否则创建新曲线
         if self._current_curve_id and curve:
-            curve.x_data = x_data
-            curve.y_data = y_data
-            curve.x_actual = x_actual
-            curve.y_actual = y_actual
+            for px, py in self._current_curve_points:
+                curve.x_data.append(px)
+                curve.y_data.append(py)
+                if calib:
+                    x, y = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                    curve.x_actual.append(x)
+                    curve.y_actual.append(y)
+                else:
+                    curve.x_actual.append(px)
+                    curve.y_actual.append(py)
         else:
+            x_data = []
+            y_data = []
+            x_actual = []
+            y_actual = []
+            for px, py in self._current_curve_points:
+                x_data.append(px)
+                y_data.append(py)
+                if calib:
+                    x, y = project_manager.pixel_to_actual_coords(None, px, py)
+                    x_actual.append(x)
+                    y_actual.append(y)
+                else:
+                    x_actual.append(px)
+                    y_actual.append(py)
             curve = project_manager.add_curve_to_image(
                 self._current_image_id, x_data, y_data, name=f"曲线 {len(img.curves) + 1}"
             )
             if curve and calib:
-                # add_curve_to_image already computes actual coords if calibration is passed
-                pass
+                curve.x_actual = x_actual
+                curve.y_actual = y_actual
 
         if curve:
             self._deactivate_all_tools()
@@ -934,6 +965,48 @@ class WorkspacePage(QWidget):
             self._update_curve_table()
             self._refresh_project_tree()
             self.project_modified.emit()
+
+    def _on_sort_by_x(self):
+        """按X坐标排序当前曲线"""
+        if self._current_curve_id is None:
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None or not curve.x_data:
+            return
+
+        # 获取排序后的索引
+        indices = sorted(range(len(curve.x_data)), key=lambda i: curve.x_data[i])
+
+        curve.x_data = [curve.x_data[i] for i in indices]
+        curve.y_data = [curve.y_data[i] for i in indices]
+        if curve.x_actual and curve.y_actual:
+            curve.x_actual = [curve.x_actual[i] for i in indices]
+            curve.y_actual = [curve.y_actual[i] for i in indices]
+
+        self._display_current_curve_on_image()
+        self._update_curve_table()
+        self.project_modified.emit()
+
+    def _on_sort_by_y(self):
+        """按Y坐标排序当前曲线"""
+        if self._current_curve_id is None:
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None or not curve.y_data:
+            return
+
+        # 获取排序后的索引
+        indices = sorted(range(len(curve.y_data)), key=lambda i: curve.y_data[i])
+
+        curve.x_data = [curve.x_data[i] for i in indices]
+        curve.y_data = [curve.y_data[i] for i in indices]
+        if curve.x_actual and curve.y_actual:
+            curve.x_actual = [curve.x_actual[i] for i in indices]
+            curve.y_actual = [curve.y_actual[i] for i in indices]
+
+        self._display_current_curve_on_image()
+        self._update_curve_table()
+        self.project_modified.emit()
 
 
 # 需要导入 FIF
