@@ -542,7 +542,31 @@ class WorkspacePage(QWidget):
 
     def _on_tool_clicked(self, tool_name: str):
         """处理工具按钮点击"""
+        # 如果已经激活了同一个工具，检查是否需要完成校准
         if self._active_tool == tool_name:
+            # 校准模式下，检查是否已完成点设置
+            if tool_name == "calibrate":
+                calib = self._image_viewer.get_calibration()
+                if calib.is_complete():
+                    # 校准点已设置完成，弹出对话框完成校准
+                    self._on_calibration_complete(calib)
+                    return
+                else:
+                    # 校准未完成，提示用户
+                    next_type = calib.next_point_type()
+                    hints = {
+                        "x_start": "请先完成X轴起点的设置",
+                        "x_end": "请先完成X轴终点的设置",
+                        "y_start": "请先完成Y轴起点的设置",
+                        "y_end": "请先完成Y轴终点的设置",
+                        "origin": "请先完成原点的设置",
+                        "angle_point1": "请先完成A点(角度θ1)的设置",
+                        "angle_point2": "请先完成B点(角度θ2)的设置",
+                        "radius_point": "请先完成C点(极径r1)的设置",
+                        "complete": "校准点已设置完成，请再次点击校准按钮",
+                    }
+                    self._status_label.setText(hints.get(next_type, "请继续设置校准点"))
+                    return
             # 取消当前工具
             if self._active_tool == "extract" and self._current_curve_points:
                 # 提取模式下取消，自动保存曲线
@@ -563,28 +587,6 @@ class WorkspacePage(QWidget):
             # 校准需要选中一个曲线
             if self._current_curve_id is None:
                 QMessageBox.warning(self, "警告", "请先选择一个曲线进行校准")
-                return
-
-            # 如果已经在校准模式
-            if self._active_tool == "calibrate":
-                calib = self._image_viewer.get_calibration()
-                if calib.is_complete():
-                    # 校准点已设置完成，弹出对话框完成校准
-                    self._on_calibration_complete(calib)
-                else:
-                    next_type = calib.next_point_type()
-                    hints = {
-                        "x_start": "请先完成X轴起点的设置",
-                        "x_end": "请先完成X轴终点的设置",
-                        "y_start": "请先完成Y轴起点的设置",
-                        "y_end": "请先完成Y轴终点的设置",
-                        "origin": "请先完成原点的设置",
-                        "angle_point1": "请先完成A点(角度θ1)的设置",
-                        "angle_point2": "请先完成B点(角度θ2)的设置",
-                        "radius_point": "请先完成C点(极径r1)的设置",
-                        "complete": "校准点已设置完成，请再次点击校准按钮",
-                    }
-                    self._status_label.setText(hints.get(next_type, "请继续设置校准点"))
                 return
 
             # 检查是否有现有校准坐标
