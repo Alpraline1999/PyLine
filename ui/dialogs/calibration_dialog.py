@@ -1,13 +1,13 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox, QPushButton, QWidget, QFormLayout
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout
 
 
 class CalibrationDialog(QDialog):
-    """校准配置对话框"""
+    """线性/对数校准配置对话框"""
 
-    def __init__(self, calibration, parent=None):
+    def __init__(self, calibration, coord_type="linear", parent=None):
         super().__init__(parent)
         self._calibration = calibration
+        self._coord_type = coord_type
         self.setup_ui()
 
     def setup_ui(self):
@@ -51,11 +51,6 @@ class CalibrationDialog(QDialog):
         y_layout.addWidget(self._y_max_input)
         form.addRow("Y轴范围:", y_layout)
 
-        # 坐标类型
-        self._coord_type = QComboBox(self)
-        self._coord_type.addItems(["linear", "log"])
-        form.addRow("坐标类型:", self._coord_type)
-
         layout.addLayout(form)
 
         btn_layout = QHBoxLayout()
@@ -73,5 +68,5 @@ class CalibrationDialog(QDialog):
         return {
             "x_range": (float(self._x_min_input.text()), float(self._x_max_input.text())),
             "y_range": (float(self._y_min_input.text()), float(self._y_max_input.text())),
-            "coord_type": self._coord_type.currentText()
+            "coord_type": self._coord_type
         }

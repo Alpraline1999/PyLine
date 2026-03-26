@@ -1116,20 +1116,32 @@ class WorkspacePage(QWidget):
         if coord_type == "polar":
             dialog = PolarCalibrationDialog(calibration_overlay, self)
         else:
-            dialog = CalibrationDialog(calibration_overlay, self)
+            dialog = CalibrationDialog(calibration_overlay, coord_type, self)
 
         if dialog.exec():
             data = dialog.get_calibration_data()
 
-            calib_data = CalibrationData(
-                x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
-                x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
-                y_start=(calibration_overlay.y_start.x(), calibration_overlay.y_start.y()),
-                y_end=(calibration_overlay.y_end.x(), calibration_overlay.y_end.y()),
-                x_range=data["x_range"],
-                y_range=data["y_range"],
-                coord_type=data["coord_type"]
-            )
+            if coord_type == "polar":
+                calib_data = CalibrationData(
+                    x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
+                    x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
+                    y_start=(calibration_overlay.y_start.x(), calibration_overlay.y_start.y()),
+                    y_end=(calibration_overlay.y_end.x(), calibration_overlay.y_end.y()),
+                    coord_type="polar",
+                    angle1=data["angle1"],
+                    angle2=data["angle2"],
+                    radius1=data["radius1"]
+                )
+            else:
+                calib_data = CalibrationData(
+                    x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
+                    x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
+                    y_start=(calibration_overlay.y_start.x(), calibration_overlay.y_start.y()),
+                    y_end=(calibration_overlay.y_end.x(), calibration_overlay.y_end.y()),
+                    x_range=data["x_range"],
+                    y_range=data["y_range"],
+                    coord_type=data["coord_type"]
+                )
 
             # 更新校准
             project_manager.update_curve_calibration(self._current_curve_id, calib_data)

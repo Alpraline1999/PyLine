@@ -282,44 +282,51 @@ class ProjectManager:
         像素坐标 -> (r, theta)
         校准点：
         - origin: 原点(极点)
-        - angle_point1: A点(自定义角度θ1)
-        - angle_point2: B点(自定义角度θ2)
-        - radius_point: C点(自定义极径r1)
+        - x_end: 角度1点（像素坐标），对应实际角度 angle1
+        - y_start: 角度2点（像素坐标），对应实际角度 angle2
+        - y_end: 极径1点（像素坐标），对应实际极径 radius1
 
         算法：
-        - theta1和theta2是从origin到angle_point1/angle_point2的标准数学角度
-        - 角度沿顺时针方向从theta1变化到theta2
-        - 顺时针跨越的角度范围是 clockwise_span = (theta2 - theta1 + 360) % 360
-        - theta_range 定义图表上显示的角度范围 [theta_min, theta_max]
+        1. 计算P相对于原点的像素半径和像素角度方向
+        2. 计算像素角度方向相对于角度1点的方向的比例位置
+        3. 映射到实际角度 angle1 -> angle2
+        4. 半径 = (像素半径 / 极径1点的像素距离) * radius1
         """
         import math
 
         origin_x, origin_y = calib.x_start
-        angle1_x, angle1_y = calib.x_end      # angle_point1: A点(角度θ1)
-        angle2_x, angle2_y = calib.y_start    # angle_point2: B点(角度θ2)
-        radius_x, radius_y = calib.y_end      # radius_point: C点(极径r1)
+        angle1_x, angle1_y = calib.x_end      # 角度1点
+        angle2_x, angle2_y = calib.y_start    # 角度2点
+        radius1_x, radius1_y = calib.y_end     # 极径1点
+
+        # 用户输入的实际角度值
+        theta1_actual = calib.angle1  # 角度1的实际值
+        theta2_actual = calib.angle2  # 角度2的实际值
+        r1_actual = calib.radius1     # 极径1的实际值
 
         # 计算向量
         vx = px - origin_x
         vy = py - origin_y
 
-        # 计算角度θ1（angle_point1的方向角，逆时针为正）
-        theta1 = math.atan2(angle1_y - origin_y, angle1_x - origin_x) * 180 / math.pi
+        # 计算P的像素半径
+        pixel_r = math.sqrt(vx * vx + vy * vy)
 
-        # 计算角度θ2（angle_point2的方向角，逆时针为正）
-        theta2 = math.atan2(angle2_y - origin_y, angle2_x - origin_x) * 180 / math.pi
-
-        # 计算待测点的方向角θP
+        # 计算P的像素角度（标准数学角度，逆时针为正，从正x轴开始）
         theta_p = math.atan2(vy, vx) * 180 / math.pi
 
-        # 计算顺时针跨越的角度范围
-        # 顺时针从theta1到theta2: 先到0°再到theta2
-        clockwise_span = (theta2 - theta1 + 360) % 360
+        # 计算角度1点的像素方向角
+        theta1_pix = math.atan2(angle1_y - origin_y, angle1_x - origin_x) * 180 / math.pi
 
-        # 计算顺时针从theta1到theta_p的距离
-        clockwise_dist = (theta_p - theta1 + 360) % 360
+        # 计算角度2点的像素方向角
+        theta2_pix = math.atan2(angle2_y - origin_y, angle2_x - origin_x) * 180 / math.pi
 
-        # 计算比例
+        # 计算像素角度的顺时针跨度（从角度1到角度2）
+        clockwise_span = (theta2_pix - theta1_pix + 360) % 360
+
+        # 计算P相对于角度1的顺时针像素角度距离
+        clockwise_dist = (theta_p - theta1_pix + 360) % 360
+
+        # 计算比例（0到1之间）
         if clockwise_span < 1e-6:
             proportion = 0
         elif clockwise_dist <= clockwise_span:
@@ -328,27 +335,32 @@ class ProjectManager:
             # 超出范围，clamped到边界
             proportion = 1.0 if clockwise_dist > clockwise_span + 180 else 0.0
 
-        # 角度映射到[theta_min, theta_max]
-        theta_min, theta_max = calib.y_range
-        theta_mapped = theta_min + proportion * (theta_max - theta_min)
+        # 映射到实际角度
+        # 注意：实际角度可能跨越0度（如330到30），需要特殊处理
+        angle_diff = theta2_actual - theta1_actual
+        # 如果角度差为负，说明跨越了0度，需要调整
+        if angle_diff < 0:
+            angle_diff += 360
 
-        # 计算半径
-        pixel_r = math.sqrt(vx * vx + vy * vy)
+        theta_actual = theta1_actual + proportion * angle_diff
+        # 归一化到[0, 360)
+        while theta_actual < 0:
+            theta_actual += 360
+        while theta_actual >= 360:
+            theta_actual -= 360
 
-        # radius_point定义r=r_max的位置
-        ref_dx = radius_x - origin_x
-        ref_dy = radius_y - origin_y
-        reference_dist = math.sqrt(ref_dx * ref_dx + ref_dy * ref_dy)
+        # 计算极径1点的像素距离
+        r1_dx = radius1_x - origin_x
+        r1_dy = radius1_y - origin_y
+        r1_pixel_dist = math.sqrt(r1_dx * r1_dx + r1_dy * r1_dy)
 
-        # 半径映射
-        r_min, r_max = calib.x_range
-        if reference_dist > 0:
-            r_normalized = pixel_r / reference_dist
+        # 计算实际半径
+        if r1_pixel_dist > 0:
+            r_actual = (pixel_r / r1_pixel_dist) * r1_actual
         else:
-            r_normalized = 0
-        r_mapped = r_min + r_normalized * (r_max - r_min)
+            r_actual = 0
 
-        return (r_mapped, theta_mapped)
+        return (r_actual, theta_actual)
 
     def get_curve(self, curve_id: str) -> Optional[Curve]:
         """根据ID获取曲线"""

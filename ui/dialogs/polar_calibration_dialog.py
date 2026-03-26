@@ -1,9 +1,11 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout, QFormLayout
-from PySide6.QtCore import Qt
 
 
 class PolarCalibrationDialog(QDialog):
-    """极坐标校准配置对话框"""
+    """极坐标校准配置对话框
+
+    输入角度1、角度2、极径1的实际数值
+    """
 
     def __init__(self, calibration, parent=None):
         super().__init__(parent)
@@ -16,14 +18,15 @@ class PolarCalibrationDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        info_label = QLabel("请设置极坐标的实际数值范围:", self)
+        info_label = QLabel("请设置极坐标的实际数值:", self)
         layout.addWidget(info_label)
 
+        # 显示校准点信息
         info_text = QLabel(
             f"原点: ({self._calibration.x_start.x():.1f}, {self._calibration.x_start.y():.1f})\n"
-            f"A点(角度θ1): ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
-            f"B点(角度θ2): ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
-            f"C点(极径r1): ({self._calibration.y_end.x():.1f}, {self._calibration.y_end.y():.1f})",
+            f"角度1点: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
+            f"角度2点: ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
+            f"极径1点: ({self._calibration.y_end.x():.1f}, {self._calibration.y_end.y():.1f})",
             self
         )
         info_text.setStyleSheet("color: gray; padding: 10px; background: #f0f0f0; border-radius: 5px;")
@@ -31,25 +34,17 @@ class PolarCalibrationDialog(QDialog):
 
         form = QFormLayout()
 
-        # 半径范围
-        r_layout = QHBoxLayout()
-        self._r_min_input = QLineEdit("0", self)
-        self._r_max_input = QLineEdit("1", self)
-        r_layout.addWidget(QLabel("最小:", self))
-        r_layout.addWidget(self._r_min_input)
-        r_layout.addWidget(QLabel("最大:", self))
-        r_layout.addWidget(self._r_max_input)
-        form.addRow("半径范围:", r_layout)
+        # 角度1
+        self._angle1_input = QLineEdit("0", self)
+        form.addRow("角度1 (θ1):", self._angle1_input)
 
-        # 角度范围
-        theta_layout = QHBoxLayout()
-        self._theta_min_input = QLineEdit("0", self)
-        self._theta_max_input = QLineEdit("360", self)
-        theta_layout.addWidget(QLabel("最小:", self))
-        theta_layout.addWidget(self._theta_min_input)
-        theta_layout.addWidget(QLabel("最大:", self))
-        theta_layout.addWidget(self._theta_max_input)
-        form.addRow("角度范围(度):", theta_layout)
+        # 角度2
+        self._angle2_input = QLineEdit("90", self)
+        form.addRow("角度2 (θ2):", self._angle2_input)
+
+        # 极径1
+        self._radius1_input = QLineEdit("1", self)
+        form.addRow("极径1 (r1):", self._radius1_input)
 
         layout.addLayout(form)
 
@@ -66,7 +61,8 @@ class PolarCalibrationDialog(QDialog):
     def get_calibration_data(self) -> dict:
         """获取校准配置数据"""
         return {
-            "x_range": (float(self._r_min_input.text()), float(self._r_max_input.text())),
-            "y_range": (float(self._theta_min_input.text()), float(self._theta_max_input.text())),
+            "angle1": float(self._angle1_input.text()),
+            "angle2": float(self._angle2_input.text()),
+            "radius1": float(self._radius1_input.text()),
             "coord_type": "polar"
         }
