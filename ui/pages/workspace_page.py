@@ -197,32 +197,37 @@ class WorkspacePage(QWidget):
 
     def _create_common_tools_widget(self, parent) -> QWidget:
         """创建公用工具区域"""
+        from qfluentwidgets import TransparentTogglePushButton
+
         widget = QWidget(parent)
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 5, 0, 0)
         layout.setSpacing(8)
 
-        # 图标按钮行
+        # 工具按钮行
         tools_widget = QWidget(widget)
         tools_layout = QHBoxLayout(tools_widget)
         tools_layout.setContentsMargins(0, 0, 0, 0)
         tools_layout.setSpacing(5)
 
         # 橡皮擦
-        self._eraser_btn = ToolButton(FIF.ERASE_TOOL, tools_widget)
+        self._eraser_btn = TransparentTogglePushButton("橡皮擦", tools_widget)
+        self._eraser_btn.setIcon(FIF.ERASE_TOOL)
         self._eraser_btn.setToolTip("橡皮擦")
         self._eraser_btn.setCheckable(True)
         self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
         tools_layout.addWidget(self._eraser_btn)
 
         # 按X排序
-        self._sort_x_btn = ToolButton(FIF.UP, tools_widget)
+        self._sort_x_btn = TransparentTogglePushButton("按X排序", tools_widget)
+        self._sort_x_btn.setIcon(FIF.UP)
         self._sort_x_btn.setToolTip("按X坐标排序")
         self._sort_x_btn.clicked.connect(self._on_sort_by_x)
         tools_layout.addWidget(self._sort_x_btn)
 
         # 按Y排序
-        self._sort_y_btn = ToolButton(FIF.DOWN, tools_widget)
+        self._sort_y_btn = TransparentTogglePushButton("按Y排序", tools_widget)
+        self._sort_y_btn.setIcon(FIF.DOWN)
         self._sort_y_btn.setToolTip("按Y坐标排序")
         self._sort_y_btn.clicked.connect(self._on_sort_by_y)
         tools_layout.addWidget(self._sort_y_btn)
@@ -323,7 +328,6 @@ class WorkspacePage(QWidget):
         self._calibrate_btn.setIcon(FIF.ALIGNMENT)
         self._calibrate_btn.setToolTip("校准")
         self._calibrate_btn.setCheckable(True)
-        self._calibrate_btn.setFixedWidth(100)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         buttons_layout.addWidget(self._calibrate_btn)
 
@@ -332,7 +336,6 @@ class WorkspacePage(QWidget):
         self._extract_btn.setIcon(FIF.PIE_SINGLE)
         self._extract_btn.setToolTip("提取曲线")
         self._extract_btn.setCheckable(True)
-        self._extract_btn.setFixedWidth(100)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         buttons_layout.addWidget(self._extract_btn)
 
@@ -362,7 +365,6 @@ class WorkspacePage(QWidget):
         self._box_mask_btn.setIcon(FIF.LAYOUT)
         self._box_mask_btn.setToolTip("框选蒙版")
         self._box_mask_btn.setCheckable(True)
-        self._box_mask_btn.setFixedWidth(100)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
         buttons_layout.addWidget(self._box_mask_btn)
 
@@ -371,7 +373,6 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn.setIcon(FIF.BRUSH)
         self._brush_mask_btn.setToolTip("画笔蒙版")
         self._brush_mask_btn.setCheckable(True)
-        self._brush_mask_btn.setFixedWidth(100)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         buttons_layout.addWidget(self._brush_mask_btn)
 
@@ -543,7 +544,8 @@ class WorkspacePage(QWidget):
             self._activate_tool_button(self._eraser_btn)
             self._image_viewer.set_eraser_mode()
             self._active_tool = tool_name
-            self._status_label.setText("点击或拖动擦除曲线点")
+            eraser_size = int(self._eraser_size_spin.value())
+            self._status_label.setText(f"橡皮擦范围: {eraser_size}px，点击或拖动擦除")
         elif tool_name == "box_mask":
             # 框选蒙版需要先选择一张图片
             if self._current_image_id is None:
@@ -564,10 +566,6 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_brush_mask_mode()
             self._active_tool = tool_name
             self._status_label.setText("点击并拖动绘制多边形蒙版区域")
-            self._activate_tool_button(self._brush_mask_btn)
-            self._image_viewer.set_brush_mask_mode()
-            self._active_tool = tool_name
-            self._auto_status_label.setText("点击并拖动绘制多边形蒙版区域")
         else:
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -1061,7 +1059,7 @@ class WorkspacePage(QWidget):
         """蒙版改变时的处理"""
         mask = self._image_viewer.get_mask()
         if mask and mask.enabled:
-            self._auto_status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
+            self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
         self.project_modified.emit()
 
     def _save_extracted_curve(self):
