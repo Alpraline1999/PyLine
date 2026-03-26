@@ -60,21 +60,68 @@ class MaskOverlay:
         return -1
 
     def remove_polygon_at_point(self, x: float, y: float, radius: float) -> bool:
-        """删除包含指定点的蒙版多边形（用于橡皮擦），成功删除返回True"""
+        """删除与橡皮擦区域相交的多边形（用于橡皮擦），成功删除返回True"""
         if not self.enabled or not self.polygons:
             return False
 
         for idx, polygon in enumerate(self.polygons):
-            # 检查多边形是否与橡皮擦区域相交（使用多边形中心判断）
-            center_x = sum(p[0] for p in polygon) / len(polygon)
-            center_y = sum(p[1] for p in polygon) / len(polygon)
-            dx = center_x - x
-            dy = center_y - y
-            distance = (dx * dx + dy * dy) ** 0.5
-            if distance <= radius:
+            # 检查是否与橡皮擦区域相交
+            if self._polygon_circle_intersect(polygon, x, y, radius):
                 del self.polygons[idx]
                 return True
         return False
+
+    def _polygon_circle_intersect(self, polygon, cx: float, cy: float, r: float) -> bool:
+        """检查多边形是否与圆相交"""
+        # 检查是否有顶点在圆内
+        for px, py in polygon:
+            dx = px - cx
+            dy = py - cy
+            if dx * dx + dy * dy <= r * r:
+                return True
+
+        # 检查圆心是否在多边形内
+        if self._point_in_polygon(cx, cy, polygon):
+            return True
+
+        # 检查圆是否与多边形的任意边相交
+        n = len(polygon)
+        for i in range(n):
+            p1 = polygon[i]
+            p2 = polygon[(i + 1) % n]
+            if self._circle_segment_intersect(cx, cy, r, p1, p2):
+                return True
+
+        return False
+
+    def _circle_segment_intersect(self, cx: float, cy: float, r: float, p1: tuple, p2: tuple) -> bool:
+        """检查圆是否与线段相交"""
+        # 向量从p1到p2
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+
+        # 线段长度平方
+        len_sq = dx * dx + dy * dy
+        if len_sq == 0:
+            return False
+
+        # 圆心到线段起点的向量
+        fx = p1[0] - cx
+        fy = p1[1] - cy
+
+        # 计算投影
+        t = max(0, min(1, -(fx * dx + fy * dy) / len_sq))
+
+        # 最近点
+        nearest_x = p1[0] + t * dx
+        nearest_y = p1[1] + t * dy
+
+        # 圆心到最近点的距离
+        dx_n = nearest_x - cx
+        dy_n = nearest_y - cy
+        dist_sq = dx_n * dx_n + dy_n * dy_n
+
+        return dist_sq <= r * r
 
     def _point_in_polygon(self, x: float, y: float, polygon) -> bool:
         """射线法判断点是否在多边形内"""
