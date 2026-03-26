@@ -280,57 +280,73 @@ class ProjectManager:
         """极坐标转换
 
         像素坐标 -> (r, theta)
-        - origin: 原点
-        - x_axis_point: 确定0度角方向
-        - y_axis_point: 确定90度角方向
-        - angle_ref_point: 确定r=1的位置（比例尺参考点）
+        校准点：
+        - origin: 原点(极点)
+        - angle_point1: A点(自定义角度θ1)
+        - angle_point2: B点(自定义角度θ2)
+        - radius_point: C点(自定义极径r1)
+
+        算法：
+        - theta1和theta2是从origin到angle_point1/angle_point2的标准数学角度
+        - 角度沿顺时针方向从theta1变化到theta2
+        - 顺时针跨越的角度范围是 clockwise_span = (theta2 - theta1 + 360) % 360
+        - theta_range 定义图表上显示的角度范围 [theta_min, theta_max]
         """
         import math
 
         origin_x, origin_y = calib.x_start
-        x_axis_x, x_axis_y = calib.x_end
-        y_axis_x, y_axis_y = calib.y_start
-        ref_x, ref_y = calib.y_end
+        angle1_x, angle1_y = calib.x_end      # angle_point1: A点(角度θ1)
+        angle2_x, angle2_y = calib.y_start    # angle_point2: B点(角度θ2)
+        radius_x, radius_y = calib.y_end      # radius_point: C点(极径r1)
 
         # 计算向量
         vx = px - origin_x
         vy = py - origin_y
 
-        # 计算x轴方向角（弧度）- 使用x_axis_point
-        theta_x = math.atan2(x_axis_y - origin_y, x_axis_x - origin_x)
+        # 计算角度θ1（angle_point1的方向角，逆时针为正）
+        theta1 = math.atan2(angle1_y - origin_y, angle1_x - origin_x) * 180 / math.pi
 
-        # 计算点的角度（弧度转度）- 相对于x轴方向
-        theta_point = math.atan2(vy, vx)
-        theta_deg = (theta_point - theta_x) * 180 / math.pi
+        # 计算角度θ2（angle_point2的方向角，逆时针为正）
+        theta2 = math.atan2(angle2_y - origin_y, angle2_x - origin_x) * 180 / math.pi
 
-        # 归一化角度到 [0, 360)
-        while theta_deg < 0:
-            theta_deg += 360
-        while theta_deg >= 360:
-            theta_deg -= 360
+        # 计算待测点的方向角θP
+        theta_p = math.atan2(vy, vx) * 180 / math.pi
 
-        # 计算像素距离
+        # 计算顺时针跨越的角度范围
+        # 顺时针从theta1到theta2: 先到0°再到theta2
+        clockwise_span = (theta2 - theta1 + 360) % 360
+
+        # 计算顺时针从theta1到theta_p的距离
+        clockwise_dist = (theta_p - theta1 + 360) % 360
+
+        # 计算比例
+        if clockwise_span < 1e-6:
+            proportion = 0
+        elif clockwise_dist <= clockwise_span:
+            proportion = clockwise_dist / clockwise_span
+        else:
+            # 超出范围，clamped到边界
+            proportion = 1.0 if clockwise_dist > clockwise_span + 180 else 0.0
+
+        # 角度映射到[theta_min, theta_max]
+        theta_min, theta_max = calib.y_range
+        theta_mapped = theta_min + proportion * (theta_max - theta_min)
+
+        # 计算半径
         pixel_r = math.sqrt(vx * vx + vy * vy)
 
-        # 计算参考距离（r=1对应的像素距离）
-        ref_dx = ref_x - origin_x
-        ref_dy = ref_y - origin_y
+        # radius_point定义r=r_max的位置
+        ref_dx = radius_x - origin_x
+        ref_dy = radius_y - origin_y
         reference_dist = math.sqrt(ref_dx * ref_dx + ref_dy * ref_dy)
 
-        # 计算实际半径
-        if reference_dist > 0:
-            r_actual = pixel_r / reference_dist
-        else:
-            r_actual = 0
-
-        # 应用范围映射
+        # 半径映射
         r_min, r_max = calib.x_range
-        theta_min, theta_max = calib.y_range
-
-        # r_actual 是归一化后的值，需要映射到实际范围
-        # reference_dist 对应 r=1，映射到 [r_min, r_max]
-        r_mapped = r_min + r_actual * (r_max - r_min)
-        theta_mapped = theta_min + (theta_deg / 360) * (theta_max - theta_min)
+        if reference_dist > 0:
+            r_normalized = pixel_r / reference_dist
+        else:
+            r_normalized = 0
+        r_mapped = r_min + r_normalized * (r_max - r_min)
 
         return (r_mapped, theta_mapped)
 

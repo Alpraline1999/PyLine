@@ -160,15 +160,15 @@ class CalibrationOverlay:
 
     极坐标系的四个标定点：
     - origin: 原点(极点)
-    - x_axis: 正X轴方向点(确定0度角方向)
-    - y_axis: Y轴正方向点(确定90度角方向)
-    - angle_ref: 角度参考点(确定角度比例尺，r=1的位置)
+    - angle_point1: A点(自定义角度θ1)
+    - angle_point2: B点(自定义角度θ2)
+    - radius_point: C点(自定义极径r1)
     """
     def __init__(self):
-        self.x_start = None   # QPointF - X轴起点
-        self.x_end = None     # QPointF - X轴终点
-        self.y_start = None   # QPointF - Y轴起点
-        self.y_end = None     # QPointF - Y轴终点
+        self.x_start = None   # QPointF - X轴起点 或 原点(极坐标)
+        self.x_end = None     # QPointF - X轴终点 或 A点-角度θ1(极坐标)
+        self.y_start = None   # QPointF - Y轴起点 或 B点-角度θ2(极坐标)
+        self.y_end = None     # QPointF - Y轴终点 或 C点-极径r1(极坐标)
         self.x_range = (0.0, 1.0)
         self.y_range = (0.0, 1.0)
         self.coord_type = "linear"
@@ -186,15 +186,15 @@ class CalibrationOverlay:
     def next_point_type(self) -> str:
         """返回下一个要设置的点的类型"""
         if self.coord_type == "polar":
-            # 极坐标使用 origin, x_axis, y_axis, angle_ref
+            # 极坐标使用 origin, angle_point1, angle_point2, radius_point
             if self.x_start is None:
                 return "origin"
             elif self.x_end is None:
-                return "x_axis"
+                return "angle_point1"
             elif self.y_start is None:
-                return "y_axis"
+                return "angle_point2"
             elif self.y_end is None:
-                return "angle_ref"
+                return "radius_point"
             return "complete"
         else:
             # 线性/对数坐标使用 x_start, x_end, y_start, y_end
@@ -236,11 +236,11 @@ class CalibrationOverlay:
             if self.x_start is None:
                 self.x_start = pos  # origin
             elif self.x_end is None:
-                self.x_end = pos    # x_axis
+                self.x_end = pos    # angle_point1
             elif self.y_start is None:
-                self.y_start = pos  # y_axis
+                self.y_start = pos  # angle_point2
             elif self.y_end is None:
-                self.y_end = pos    # angle_ref
+                self.y_end = pos    # radius_point
         else:
             if self.x_start is None:
                 self.x_start = pos
@@ -447,9 +447,9 @@ class ImageViewer(QWidget):
             if coord_type == "polar":
                 hint_map = {
                     "origin": "点击设置原点",
-                    "x_axis": "点击设置正X轴方向点",
-                    "y_axis": "点击设置Y轴正方向点",
-                    "angle_ref": "点击设置角度参考点"
+                    "angle_point1": "点击设置A点(角度θ1)",
+                    "angle_point2": "点击设置B点(角度θ2)",
+                    "radius_point": "点击设置C点(极径r1)"
                 }
             else:
                 hint_map = {
@@ -901,20 +901,20 @@ class ImageViewer(QWidget):
         next_type = self._calibration.next_point_type()
 
         if self._calibration.coord_type == "polar":
-            # 极坐标校准点: origin, x_axis, y_axis, angle_ref
+            # 极坐标校准点: origin, angle_point1, angle_point2, radius_point
             if next_type == "origin":
                 self._calibration.x_start = img_pos
-                self._calibration_step_hint = "请点击正X轴方向点"
-                self.calibration_step.emit("x_axis")
-            elif next_type == "x_axis":
+                self._calibration_step_hint = "请点击A点(角度θ1)"
+                self.calibration_step.emit("angle_point1")
+            elif next_type == "angle_point1":
                 self._calibration.x_end = img_pos
-                self._calibration_step_hint = "请点击Y轴正方向点"
-                self.calibration_step.emit("y_axis")
-            elif next_type == "y_axis":
+                self._calibration_step_hint = "请点击B点(角度θ2)"
+                self.calibration_step.emit("angle_point2")
+            elif next_type == "angle_point2":
                 self._calibration.y_start = img_pos
-                self._calibration_step_hint = "请点击角度参考点"
-                self.calibration_step.emit("angle_ref")
-            elif next_type == "angle_ref":
+                self._calibration_step_hint = "请点击C点(极径r1)"
+                self.calibration_step.emit("radius_point")
+            elif next_type == "radius_point":
                 self._calibration.y_end = img_pos
                 self._calibration_step_hint = "校准点已设置完成，请再次点击校准按钮完成校准"
                 self.calibration_step.emit("complete")

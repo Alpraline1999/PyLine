@@ -579,9 +579,9 @@ class WorkspacePage(QWidget):
                         "y_start": "请先完成Y轴起点的设置",
                         "y_end": "请先完成Y轴终点的设置",
                         "origin": "请先完成原点的设置",
-                        "x_axis": "请先完成正X轴方向点的设置",
-                        "y_axis": "请先完成Y轴正方向点的设置",
-                        "angle_ref": "请先完成角度参考点的设置",
+                        "angle_point1": "请先完成A点(角度θ1)的设置",
+                        "angle_point2": "请先完成B点(角度θ2)的设置",
+                        "radius_point": "请先完成C点(极径r1)的设置",
                         "complete": "校准点已设置完成，请再次点击校准按钮",
                     }
                     self._status_label.setText(hints.get(next_type, "请继续设置校准点"))
@@ -617,7 +617,7 @@ class WorkspacePage(QWidget):
             elif coord_type == "log":
                 self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点（对数刻度）")
             elif coord_type == "polar":
-                self._status_label.setText("请依次点击原点、正X轴点、Y轴正方向点、角度参考点")
+                self._status_label.setText("请依次点击原点、A点(角度θ1)、B点(角度θ2)、C点(极径r1)")
         elif tool_name == "extract":
             # 提取曲线需要先选择或创建一个曲线
             if self._current_image_id is None:

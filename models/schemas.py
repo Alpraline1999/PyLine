@@ -14,17 +14,17 @@ class CalibrationData(BaseModel):
     - y_range: Y轴实际数值范围
 
     极坐标系（coord_type="polar"）：
-    - x_start: 原点/极点（像素坐标）(origin_x, origin_y)
-    - x_end: X轴正方向点（像素坐标），用于确定0度角方向
-    - y_start: Y轴正方向点（像素坐标），用于确定90度角方向
-    - y_end: 角度参考点（像素坐标），用于确定角度比例尺（r=1的位置）
+    - x_start: 原点/极点（像素坐标）
+    - x_end: A点（像素坐标），定义角度θ1
+    - y_start: B点（像素坐标），定义角度θ2
+    - y_end: C点（像素坐标），定义极径r1的位置
     - x_range: 半径范围 (min_r, max_r)
     - y_range: 角度范围 (min_theta, max_theta)，单位为度
     """
     x_start: Tuple[float, float] = (0.0, 0.0)  # X轴起点 或 原点(极坐标)
-    x_end: Tuple[float, float] = (1.0, 0.0)      # X轴终点 或 X轴方向点(极坐标)
-    y_start: Tuple[float, float] = (0.0, 0.0)  # Y轴起点 或 Y轴方向点(极坐标)
-    y_end: Tuple[float, float] = (0.0, 1.0)      # Y轴终点 或 角度参考点(极坐标)
+    x_end: Tuple[float, float] = (1.0, 0.0)      # X轴终点 或 A点-角度θ1(极坐标)
+    y_start: Tuple[float, float] = (0.0, 0.0)  # Y轴起点 或 B点-角度θ2(极坐标)
+    y_end: Tuple[float, float] = (0.0, 1.0)      # Y轴终点 或 C点-极径r1(极坐标)
     x_range: Tuple[float, float] = (0.0, 1.0)  # X轴范围 或 半径范围(极坐标)
     y_range: Tuple[float, float] = (0.0, 1.0)  # Y轴范围 或 角度范围(极坐标)
     coord_type: str = "linear"

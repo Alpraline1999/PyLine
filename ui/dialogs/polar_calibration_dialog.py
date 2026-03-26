@@ -21,9 +21,9 @@ class PolarCalibrationDialog(QDialog):
 
         info_text = QLabel(
             f"原点: ({self._calibration.x_start.x():.1f}, {self._calibration.x_start.y():.1f})\n"
-            f"X轴方向点: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
-            f"Y轴方向点: ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
-            f"角度参考点: ({self._calibration.y_end.x():.1f}, {self._calibration.y_end.y():.1f})",
+            f"A点(角度θ1): ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
+            f"B点(角度θ2): ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
+            f"C点(极径r1): ({self._calibration.y_end.x():.1f}, {self._calibration.y_end.y():.1f})",
             self
         )
         info_text.setStyleSheet("color: gray; padding: 10px; background: #f0f0f0; border-radius: 5px;")
