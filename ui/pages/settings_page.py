@@ -51,7 +51,8 @@ class SettingsPage(QWidget):
         theme_layout.addWidget(self.theme_combo)
 
         appearance_layout.addLayout(theme_layout)
-        layout.addWidget(self._appearance_card)
+        # 隐藏主题设置（深色主题有问题，后续再修复）
+        # layout.addWidget(self._appearance_card)
 
         # 语言设置（预留）
         self._lang_card = CardWidget(self)

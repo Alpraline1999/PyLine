@@ -564,6 +564,20 @@ class WorkspacePage(QWidget):
             if self._current_curve_id is None:
                 QMessageBox.warning(self, "警告", "请先选择一个曲线进行校准")
                 return
+
+            # 检查是否有现有校准坐标
+            calib = self._image_viewer.get_calibration()
+            if calib.x_start is not None:
+                reply = QMessageBox.question(
+                    self, "确认", "开始校准将清除当前的校准坐标，确定要继续吗？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+                # 重置校准坐标
+                calib.reset()
+
             self._activate_tool_button(self._calibrate_btn)
             self._image_viewer.set_calibrate_mode()
             self._active_tool = tool_name
