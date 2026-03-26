@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
 from qfluentwidgets import CardWidget, ToolButton, LineEdit, SpinBox
 
 from ui.theme import text_color, secondary_color, placeholder_color
@@ -353,12 +353,12 @@ class WorkspacePage(QWidget):
         color_label.setFixedWidth(40)
         style_layout.addWidget(color_label)
 
-        self._color_combo = QComboBox(style_row)
-        self._color_combo.addItems(["#0078D4", "#FF5722", "#4CAF50", "#9C27B0", "#FF9800", "#E91E63", "#00BCD4", "#795548"])
-        self._color_combo.setToolTip("曲线颜色")
-        self._color_combo.setFixedWidth(90)
-        self._color_combo.currentIndexChanged.connect(self._on_color_changed)
-        style_layout.addWidget(self._color_combo)
+        from qfluentwidgets import ColorPickerButton
+        self._color_btn = ColorPickerButton(QColor("#0078D4"), style_row)
+        self._color_btn.setToolTip("曲线颜色")
+        self._color_btn.setFixedSize(60, 25)
+        self._color_btn.colorChanged.connect(self._on_color_changed)
+        style_layout.addWidget(self._color_btn)
 
         # 形状选择
         shape_label = QLabel("形状:", style_row)
@@ -366,7 +366,7 @@ class WorkspacePage(QWidget):
         style_layout.addWidget(shape_label)
 
         self._shape_combo = QComboBox(style_row)
-        self._shape_combo.addItems(["圆形", "方形", "三角形"])
+        self._shape_combo.addItems(["圆形", "方形", "三角形", "菱形", "倒三角", "叉号", "星号", "五角星"])
         self._shape_combo.setToolTip("曲线点形状")
         self._shape_combo.setFixedWidth(70)
         self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
@@ -654,19 +654,22 @@ class WorkspacePage(QWidget):
         self._image_viewer.set_eraser_size(float(value))
         self._eraser_size_value_label.setText(f"{value} px")
 
-    def _on_color_changed(self, index):
+    def _on_color_changed(self, color):
         """颜色改变"""
-        color = self._color_combo.currentText()
+        if isinstance(color, QColor):
+            color_str = color.name(QColor.NameFormat.HexRgb)
+        else:
+            color_str = str(color)
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve:
-                curve.color = color
+                curve.color = color_str
                 self._display_current_curve_on_image()
                 self.project_modified.emit()
 
     def _on_shape_changed(self, index):
         """形状改变"""
-        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle"}
+        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle", "菱形": "diamond", "倒三角": "inv_triangle", "叉号": "cross", "星号": "star", "五角星": "pentagram"}
         shape = shape_map.get(self._shape_combo.currentText(), "circle")
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
@@ -863,14 +866,12 @@ class WorkspacePage(QWidget):
                 # 显示曲线点
                 self._display_curve_on_image(curve)
                 # 更新颜色和形状选择器
-                if hasattr(self, '_color_combo'):
-                    idx = self._color_combo.findText(curve.color)
-                    if idx >= 0:
-                        self._color_combo.blockSignals(True)
-                        self._color_combo.setCurrentIndex(idx)
-                        self._color_combo.blockSignals(False)
+                if hasattr(self, '_color_btn'):
+                    self._color_btn.blockSignals(True)
+                    self._color_btn.setColor(QColor(curve.color))
+                    self._color_btn.blockSignals(False)
                 if hasattr(self, '_shape_combo'):
-                    shape_map = {"circle": "圆形", "square": "方形", "triangle": "三角形"}
+                    shape_map = {"circle": "圆形", "square": "方形", "triangle": "三角形", "diamond": "菱形", "inv_triangle": "倒三角", "cross": "叉号", "star": "星号", "pentagram": "五角星"}
                     shape_text = shape_map.get(getattr(curve, 'point_shape', 'circle'), "圆形")
                     idx = self._shape_combo.findText(shape_text)
                     if idx >= 0:
@@ -1197,8 +1198,8 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
 
         calib = curve.calibration if curve else None
-        color = self._color_combo.currentText() if hasattr(self, '_color_combo') else "#0078D4"
-        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle"}
+        color = self._color_btn.color().name(QColor.NameFormat.HexRgb) if hasattr(self, '_color_btn') else "#0078D4"
+        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle", "菱形": "diamond", "倒三角": "inv_triangle", "叉号": "cross", "星号": "star", "五角星": "pentagram"}
         point_shape = shape_map.get(self._shape_combo.currentText(), "circle") if hasattr(self, '_shape_combo') else "circle"
 
         # 如果有选中曲线，追加点；否则创建新曲线

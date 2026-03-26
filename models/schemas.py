@@ -23,7 +23,7 @@ class Curve(BaseModel):
     x_actual: List[float] = []  # 实际坐标X（校准后）
     y_actual: List[float] = []  # 实际坐标Y（校准后）
     color: str = "#0078D4"
-    point_shape: str = "circle"  # 点形状: circle, square, triangle
+    point_shape: str = "circle"  # 点形状: circle, square, triangle, diamond, inv_triangle, cross, star, pentagram
     source_image_id: Optional[str] = None
     calibration: Optional[CalibrationData] = None  # 曲线专属的校准数据
 

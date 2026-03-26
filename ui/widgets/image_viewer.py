@@ -571,8 +571,52 @@ class ImageViewer(QWidget):
                 path.lineTo(px - r, py + r)
                 path.closeSubpath()
                 painter.drawPath(path)
+            elif shape == 'diamond':
+                path = QPainterPath()
+                path.moveTo(px, py - r)
+                path.lineTo(px + r, py)
+                path.lineTo(px, py + r)
+                path.lineTo(px - r, py)
+                path.closeSubpath()
+                painter.drawPath(path)
+            elif shape == 'inv_triangle':
+                path = QPainterPath()
+                path.moveTo(px, py + r)
+                path.lineTo(px + r, py - r)
+                path.lineTo(px - r, py - r)
+                path.closeSubpath()
+                painter.drawPath(path)
+            elif shape == 'cross':
+                pen_width = max(1.0, r * 0.3)
+                painter.setPen(QPen(color, pen_width))
+                painter.drawLine(QPointF(px - r, py - r), QPointF(px + r, py + r))
+                painter.drawLine(QPointF(px + r, py - r), QPointF(px - r, py + r))
+                painter.setPen(QPen(color, 2.0 / self._scale))
+            elif shape == 'star':
+                self._draw_star(painter, px, py, r, color, 5)
+            elif shape == 'pentagram':
+                self._draw_star(painter, px, py, r, color, 5)
             else:  # circle
                 painter.drawEllipse(QPointF(px, py), r, r)
+
+    def _draw_star(self, painter: QPainter, cx: float, cy: float, r: float, color: QColor, points: int = 5):
+        """绘制星形"""
+        import math
+        path = QPainterPath()
+        inner_r = r * 0.4
+        angle_offset = -math.pi / 2
+
+        for i in range(points * 2):
+            radius = r if i % 2 == 0 else inner_r
+            angle = angle_offset + (i * math.pi / points)
+            x = cx + radius * math.cos(angle)
+            y = cy + radius * math.sin(angle)
+            if i == 0:
+                path.moveTo(x, y)
+            else:
+                path.lineTo(x, y)
+        path.closeSubpath()
+        painter.drawPath(path)
 
     def _draw_mask_overlay(self, painter: QPainter):
         """绘制蒙版覆盖层"""
