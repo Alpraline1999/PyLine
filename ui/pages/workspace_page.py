@@ -317,7 +317,7 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # 按钮横向排列
+        # 第一行按钮
         buttons_widget = QWidget(tab)
         buttons_layout = QHBoxLayout(buttons_widget)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
@@ -341,6 +341,39 @@ class WorkspacePage(QWidget):
 
         buttons_layout.addStretch()
         layout.addWidget(buttons_widget)
+
+        # 第二行：颜色和形状选择
+        style_row = QWidget(tab)
+        style_layout = QHBoxLayout(style_row)
+        style_layout.setContentsMargins(0, 0, 0, 0)
+        style_layout.setSpacing(5)
+
+        # 颜色选择
+        color_label = QLabel("颜色:", style_row)
+        color_label.setFixedWidth(40)
+        style_layout.addWidget(color_label)
+
+        self._color_combo = QComboBox(style_row)
+        self._color_combo.addItems(["#0078D4", "#FF5722", "#4CAF50", "#9C27B0", "#FF9800", "#E91E63", "#00BCD4", "#795548"])
+        self._color_combo.setToolTip("曲线颜色")
+        self._color_combo.setFixedWidth(90)
+        self._color_combo.currentIndexChanged.connect(self._on_color_changed)
+        style_layout.addWidget(self._color_combo)
+
+        # 形状选择
+        shape_label = QLabel("形状:", style_row)
+        shape_label.setFixedWidth(40)
+        style_layout.addWidget(shape_label)
+
+        self._shape_combo = QComboBox(style_row)
+        self._shape_combo.addItems(["圆形", "方形", "三角形"])
+        self._shape_combo.setToolTip("曲线点形状")
+        self._shape_combo.setFixedWidth(70)
+        self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
+        style_layout.addWidget(self._shape_combo)
+
+        style_layout.addStretch()
+        layout.addWidget(style_row)
         layout.addStretch()
 
         return tab
@@ -354,7 +387,7 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # 按钮横向排列
+        # 第一行按钮
         buttons_widget = QWidget(tab)
         buttons_layout = QHBoxLayout(buttons_widget)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
@@ -376,15 +409,24 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         buttons_layout.addWidget(self._brush_mask_btn)
 
+        buttons_layout.addStretch()
+        layout.addWidget(buttons_widget)
+
+        # 第二行按钮
+        clear_widget = QWidget(tab)
+        clear_layout = QHBoxLayout(clear_widget)
+        clear_layout.setContentsMargins(0, 0, 0, 0)
+        clear_layout.setSpacing(5)
+
         # 删除所有蒙版
-        self._clear_masks_btn = PushButton("清除蒙版", buttons_widget)
+        self._clear_masks_btn = PushButton("清除蒙版", clear_widget)
         self._clear_masks_btn.setIcon(FIF.DELETE)
         self._clear_masks_btn.setToolTip("删除所有蒙版区域")
         self._clear_masks_btn.clicked.connect(self._on_clear_masks)
-        buttons_layout.addWidget(self._clear_masks_btn)
+        clear_layout.addWidget(self._clear_masks_btn)
 
-        buttons_layout.addStretch()
-        layout.addWidget(buttons_widget)
+        clear_layout.addStretch()
+        layout.addWidget(clear_widget)
         layout.addStretch()
 
         return tab
@@ -612,6 +654,27 @@ class WorkspacePage(QWidget):
         self._image_viewer.set_eraser_size(float(value))
         self._eraser_size_value_label.setText(f"{value} px")
 
+    def _on_color_changed(self, index):
+        """颜色改变"""
+        color = self._color_combo.currentText()
+        if self._current_curve_id:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve:
+                curve.color = color
+                self._display_current_curve_on_image()
+                self.project_modified.emit()
+
+    def _on_shape_changed(self, index):
+        """形状改变"""
+        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle"}
+        shape = shape_map.get(self._shape_combo.currentText(), "circle")
+        if self._current_curve_id:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve:
+                curve.point_shape = shape
+                self._display_current_curve_on_image()
+                self.project_modified.emit()
+
     def _on_tree_item_clicked(self, item, column):
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if data is None:
@@ -782,7 +845,7 @@ class WorkspacePage(QWidget):
         from ui.widgets.image_viewer import CurveOverlayItem
 
         if curve and curve.x_data and curve.y_data:
-            curve_item = CurveOverlayItem(color=curve.color)
+            curve_item = CurveOverlayItem(color=curve.color, point_shape=getattr(curve, 'point_shape', 'circle'))
             curve_item.name = curve.name
 
             # 直接使用存储的像素坐标
@@ -799,6 +862,21 @@ class WorkspacePage(QWidget):
             if curve:
                 # 显示曲线点
                 self._display_curve_on_image(curve)
+                # 更新颜色和形状选择器
+                if hasattr(self, '_color_combo'):
+                    idx = self._color_combo.findText(curve.color)
+                    if idx >= 0:
+                        self._color_combo.blockSignals(True)
+                        self._color_combo.setCurrentIndex(idx)
+                        self._color_combo.blockSignals(False)
+                if hasattr(self, '_shape_combo'):
+                    shape_map = {"circle": "圆形", "square": "方形", "triangle": "三角形"}
+                    shape_text = shape_map.get(getattr(curve, 'point_shape', 'circle'), "圆形")
+                    idx = self._shape_combo.findText(shape_text)
+                    if idx >= 0:
+                        self._shape_combo.blockSignals(True)
+                        self._shape_combo.setCurrentIndex(idx)
+                        self._shape_combo.blockSignals(False)
                 # 设置校准覆盖层（无论曲线是否有数据都要显示校准）
                 if curve.calibration:
                     self._apply_calibration_to_viewer(curve.calibration)
@@ -926,11 +1004,15 @@ class WorkspacePage(QWidget):
         if img is None:
             return
 
-        # 继承同一图片中上一条曲线的校准数据
+        # 继承同一图片中上一条曲线的校准数据、颜色和形状
         calib = None
+        color = "#0078D4"
+        point_shape = "circle"
         if img.curves:
             prev_curve = img.curves[-1]
             calib = prev_curve.calibration
+            color = prev_curve.color
+            point_shape = getattr(prev_curve, 'point_shape', 'circle')
 
         # 创建新曲线
         curve = project_manager.add_curve_to_image(
@@ -938,6 +1020,8 @@ class WorkspacePage(QWidget):
             x_data=[],
             y_data=[],
             name=f"曲线 {len(img.curves) + 1}",
+            color=color,
+            point_shape=point_shape,
             calibration=calib
         )
 
@@ -1113,6 +1197,9 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
 
         calib = curve.calibration if curve else None
+        color = self._color_combo.currentText() if hasattr(self, '_color_combo') else "#0078D4"
+        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle"}
+        point_shape = shape_map.get(self._shape_combo.currentText(), "circle") if hasattr(self, '_shape_combo') else "circle"
 
         # 如果有选中曲线，追加点；否则创建新曲线
         if self._current_curve_id and curve:
@@ -1142,7 +1229,8 @@ class WorkspacePage(QWidget):
                     x_actual.append(px)
                     y_actual.append(py)
             curve = project_manager.add_curve_to_image(
-                self._current_image_id, x_data, y_data, name=f"曲线 {len(img.curves) + 1}"
+                self._current_image_id, x_data, y_data, name=f"曲线 {len(img.curves) + 1}",
+                color=color, point_shape=point_shape
             )
             if curve and calib:
                 curve.x_actual = x_actual

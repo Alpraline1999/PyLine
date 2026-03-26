@@ -140,6 +140,7 @@ class ProjectManager:
 
     def add_curve_to_image(self, image_id: str, x_data: List[float], y_data: List[float],
                           name: str = "新曲线", color: str = "#0078D4",
+                          point_shape: str = "circle",
                           calibration: Optional[CalibrationData] = None) -> Optional[Curve]:
         """向指定图片添加曲线"""
         if self.current_project is None:
@@ -168,6 +169,7 @@ class ProjectManager:
             x_actual=x_actual,
             y_actual=y_actual,
             color=color,
+            point_shape=point_shape,
             source_image_id=image_id,
             calibration=calibration
         )

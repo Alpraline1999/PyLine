@@ -12,10 +12,11 @@ class CurvePoint:
 
 class CurveOverlayItem:
     """曲线覆盖层数据"""
-    def __init__(self, color: str = "#0078D4"):
+    def __init__(self, color: str = "#0078D4", point_shape: str = "circle"):
         self.points: list = []  # 存储 (x, y) 元组
         self.color = color
         self.name = "曲线"
+        self.point_shape = point_shape
 
     def add_point(self, x: float, y: float):
         self.points.append((x, y))
@@ -557,8 +558,21 @@ class ImageViewer(QWidget):
         painter.setPen(QPen(color, 2.0 / self._scale))
         painter.setBrush(QBrush(color))
 
+        shape = getattr(curve_item, 'point_shape', 'circle')
+
         for px, py in curve_item.points:
-            painter.drawEllipse(QPointF(px, py), r, r)
+            if shape == 'square':
+                rect = QRectF(px - r, py - r, r * 2, r * 2)
+                painter.drawRect(rect)
+            elif shape == 'triangle':
+                path = QPainterPath()
+                path.moveTo(px, py - r)
+                path.lineTo(px + r, py + r)
+                path.lineTo(px - r, py + r)
+                path.closeSubpath()
+                painter.drawPath(path)
+            else:  # circle
+                painter.drawEllipse(QPointF(px, py), r, r)
 
     def _draw_mask_overlay(self, painter: QPainter):
         """绘制蒙版覆盖层"""
