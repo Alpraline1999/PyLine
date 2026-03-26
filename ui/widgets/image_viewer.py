@@ -593,14 +593,21 @@ class ImageViewer(QWidget):
                 painter.drawLine(QPointF(px + r, py - r), QPointF(px - r, py + r))
                 painter.setPen(QPen(color, 2.0 / self._scale))
             elif shape == 'star':
-                self._draw_star(painter, px, py, r, color, 5)
+                # 绘制星号(*)形状
+                pen_width = max(1.0, r * 0.25)
+                painter.setPen(QPen(color, pen_width))
+                painter.drawLine(QPointF(px, py - r), QPointF(px, py + r))
+                painter.drawLine(QPointF(px - r, py), QPointF(px + r, py))
+                painter.drawLine(QPointF(px - r * 0.7, py - r * 0.7), QPointF(px + r * 0.7, py + r * 0.7))
+                painter.drawLine(QPointF(px + r * 0.7, py - r * 0.7), QPointF(px - r * 0.7, py + r * 0.7))
+                painter.setPen(QPen(color, 2.0 / self._scale))
             elif shape == 'pentagram':
                 self._draw_star(painter, px, py, r, color, 5)
             else:  # circle
                 painter.drawEllipse(QPointF(px, py), r, r)
 
     def _draw_star(self, painter: QPainter, cx: float, cy: float, r: float, color: QColor, points: int = 5):
-        """绘制星形"""
+        """绘制五角星"""
         import math
         path = QPainterPath()
         inner_r = r * 0.4

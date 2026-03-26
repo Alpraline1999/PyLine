@@ -235,6 +235,35 @@ class WorkspacePage(QWidget):
         tools_layout.addStretch()
         layout.addWidget(tools_widget)
 
+        # 颜色和形状行
+        style_row = QWidget(widget)
+        style_layout = QHBoxLayout(style_row)
+        style_layout.setContentsMargins(0, 0, 0, 0)
+        style_layout.setSpacing(5)
+
+        # 颜色选择
+        from qfluentwidgets import ColorPickerButton
+        self._color_btn = ColorPickerButton(QColor("#0078D4"), "颜色", widget)
+        self._color_btn.setToolTip("曲线颜色")
+        self._color_btn.setFixedSize(60, 25)
+        self._color_btn.colorChanged.connect(self._on_color_changed)
+        style_layout.addWidget(self._color_btn)
+
+        # 形状选择
+        shape_label = QLabel("形状:", style_row)
+        shape_label.setFixedWidth(40)
+        style_layout.addWidget(shape_label)
+
+        self._shape_combo = QComboBox(style_row)
+        self._shape_combo.addItems(["圆形", "方形", "三角形", "菱形", "倒三角", "叉号", "星号"])
+        self._shape_combo.setToolTip("曲线点形状")
+        self._shape_combo.setFixedWidth(70)
+        self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
+        style_layout.addWidget(self._shape_combo)
+
+        style_layout.addStretch()
+        layout.addWidget(style_row)
+
         # 参数设置列
         params_widget = QWidget(widget)
         params_layout = QVBoxLayout(params_widget)
@@ -341,39 +370,6 @@ class WorkspacePage(QWidget):
 
         buttons_layout.addStretch()
         layout.addWidget(buttons_widget)
-
-        # 第二行：颜色和形状选择
-        style_row = QWidget(tab)
-        style_layout = QHBoxLayout(style_row)
-        style_layout.setContentsMargins(0, 0, 0, 0)
-        style_layout.setSpacing(5)
-
-        # 颜色选择
-        color_label = QLabel("颜色:", style_row)
-        color_label.setFixedWidth(40)
-        style_layout.addWidget(color_label)
-
-        from qfluentwidgets import ColorPickerButton
-        self._color_btn = ColorPickerButton(QColor("#0078D4"), style_row)
-        self._color_btn.setToolTip("曲线颜色")
-        self._color_btn.setFixedSize(60, 25)
-        self._color_btn.colorChanged.connect(self._on_color_changed)
-        style_layout.addWidget(self._color_btn)
-
-        # 形状选择
-        shape_label = QLabel("形状:", style_row)
-        shape_label.setFixedWidth(40)
-        style_layout.addWidget(shape_label)
-
-        self._shape_combo = QComboBox(style_row)
-        self._shape_combo.addItems(["圆形", "方形", "三角形", "菱形", "倒三角", "叉号", "星号", "五角星"])
-        self._shape_combo.setToolTip("曲线点形状")
-        self._shape_combo.setFixedWidth(70)
-        self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
-        style_layout.addWidget(self._shape_combo)
-
-        style_layout.addStretch()
-        layout.addWidget(style_row)
         layout.addStretch()
 
         return tab
