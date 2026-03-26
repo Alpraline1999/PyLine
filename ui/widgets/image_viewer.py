@@ -49,6 +49,33 @@ class MaskOverlay:
                 break
         return inside if self.include_mode else not inside
 
+    def get_polygon_at_point(self, x: float, y: float) -> int:
+        """检查哪个蒙版多边形包含指定点，返回多边形索引，不存在返回-1"""
+        if not self.enabled or not self.polygons:
+            return -1
+
+        for idx, polygon in enumerate(self.polygons):
+            if self._point_in_polygon(x, y, polygon):
+                return idx
+        return -1
+
+    def remove_polygon_at_point(self, x: float, y: float, radius: float) -> bool:
+        """删除包含指定点的蒙版多边形（用于橡皮擦），成功删除返回True"""
+        if not self.enabled or not self.polygons:
+            return False
+
+        for idx, polygon in enumerate(self.polygons):
+            # 检查多边形是否与橡皮擦区域相交（使用多边形中心判断）
+            center_x = sum(p[0] for p in polygon) / len(polygon)
+            center_y = sum(p[1] for p in polygon) / len(polygon)
+            dx = center_x - x
+            dy = center_y - y
+            distance = (dx * dx + dy * dy) ** 0.5
+            if distance <= radius:
+                del self.polygons[idx]
+                return True
+        return False
+
     def _point_in_polygon(self, x: float, y: float, polygon) -> bool:
         """射线法判断点是否在多边形内"""
         n = len(polygon)
@@ -184,6 +211,7 @@ class ImageViewer(QWidget):
         self._min_scale = 0.1
         self._max_scale = 10.0
         self._pan = False
+        self._eraser_pressed = False
         self._pan_start = QPointF()
         self._offset = QPointF()
         self._drag_pos = QPointF()
@@ -681,7 +709,8 @@ class ImageViewer(QWidget):
         if self._mouse_image_pos is None:
             return
 
-        if self._current_tool == self.MODE_ERASER:
+        # 只在鼠标按下时绘制橡皮擦光标
+        if self._current_tool == self.MODE_ERASER and self._eraser_pressed:
             pen = QPen(QColor("#F44336"))
             pen.setWidthF(2.0 / self._scale)
             painter.setPen(pen)
@@ -736,6 +765,7 @@ class ImageViewer(QWidget):
             self._handle_extract_click(pos)
         elif self._current_tool == self.MODE_ERASER:
             if event.button() == Qt.MouseButton.LeftButton:
+                self._eraser_pressed = True
                 self._handle_eraser_click(pos)
         elif self._current_tool == self.MODE_BOX_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
@@ -819,6 +849,8 @@ class ImageViewer(QWidget):
         """鼠标释放"""
         if event.button() == Qt.MouseButton.LeftButton:
             self._pan = False
+            if self._current_tool == self.MODE_ERASER:
+                self._eraser_pressed = False
             if self._current_tool == self.MODE_BOX_MASK and self._mask_start_point:
                 # 框选蒙版完成
                 end_point = self._widget_to_image_coords(event.position())

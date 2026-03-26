@@ -1166,20 +1166,9 @@ class WorkspacePage(QWidget):
                     self.project_modified.emit()
 
         # 擦除蒙版多边形
-        if mask and mask.enabled and mask.polygons:
-            polygons_to_remove = []
-            for idx, polygon in enumerate(mask.polygons):
-                for px_poly, py_poly in polygon:
-                    dx = px_poly - px
-                    dy = py_poly - py
-                    distance = (dx * dx + dy * dy) ** 0.5
-                    if distance <= eraser_radius:
-                        polygons_to_remove.append(idx)
-                        break
-
-            if polygons_to_remove:
-                for idx in reversed(polygons_to_remove):
-                    del mask.polygons[idx]
+        if mask and mask.enabled:
+            # 使用mask的方法删除包含橡皮擦位置的蒙版多边形
+            if mask.remove_polygon_at_point(px, py, eraser_radius):
                 self._image_viewer.update()
                 self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
                 self.project_modified.emit()
