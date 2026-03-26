@@ -1,1 +1,3 @@
 from .calibration_dialog import CalibrationDialog
+from .coord_type_dialog import CoordTypeDialog
+from .polar_calibration_dialog import PolarCalibrationDialog

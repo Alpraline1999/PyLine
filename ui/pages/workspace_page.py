@@ -5,7 +5,7 @@ from qfluentwidgets import CardWidget, ToolButton, LineEdit, SpinBox
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
-from ui.dialogs import CalibrationDialog
+from ui.dialogs import CalibrationDialog, CoordTypeDialog, PolarCalibrationDialog
 from core.project_manager import project_manager
 from models.schemas import CalibrationData
 
@@ -565,9 +565,31 @@ class WorkspacePage(QWidget):
                 QMessageBox.warning(self, "警告", "请先选择一个曲线进行校准")
                 return
 
+            # 如果已经在校准模式
+            if self._active_tool == "calibrate":
+                calib = self._image_viewer.get_calibration()
+                if calib.is_complete():
+                    # 校准点已设置完成，弹出对话框完成校准
+                    self._on_calibration_complete(calib)
+                else:
+                    next_type = calib.next_point_type()
+                    hints = {
+                        "x_start": "请先完成X轴起点的设置",
+                        "x_end": "请先完成X轴终点的设置",
+                        "y_start": "请先完成Y轴起点的设置",
+                        "y_end": "请先完成Y轴终点的设置",
+                        "origin": "请先完成原点的设置",
+                        "x_axis": "请先完成正X轴方向点的设置",
+                        "y_axis": "请先完成Y轴正方向点的设置",
+                        "angle_ref": "请先完成角度参考点的设置",
+                        "complete": "校准点已设置完成，请再次点击校准按钮",
+                    }
+                    self._status_label.setText(hints.get(next_type, "请继续设置校准点"))
+                return
+
             # 检查是否有现有校准坐标
             calib = self._image_viewer.get_calibration()
-            if calib.x_start is not None:
+            if calib.is_complete():
                 reply = QMessageBox.question(
                     self, "确认", "开始校准将清除当前的校准坐标，确定要继续吗？",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -578,11 +600,24 @@ class WorkspacePage(QWidget):
                 # 重置校准坐标
                 calib.reset()
 
+            # 弹出坐标类型选择对话框
+            coord_dialog = CoordTypeDialog(self)
+            if coord_dialog.exec():
+                coord_type = coord_dialog.get_coord_type()
+            else:
+                return
+
             self._activate_tool_button(self._calibrate_btn)
-            self._image_viewer.set_calibrate_mode()
+            self._image_viewer.set_calibrate_mode(coord_type)
             self._active_tool = tool_name
             self._current_curve_points = []
-            self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点")
+
+            if coord_type == "linear":
+                self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点")
+            elif coord_type == "log":
+                self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点（对数刻度）")
+            elif coord_type == "polar":
+                self._status_label.setText("请依次点击原点、正X轴点、Y轴正方向点、角度参考点")
         elif tool_name == "extract":
             # 提取曲线需要先选择或创建一个曲线
             if self._current_image_id is None:
@@ -1074,7 +1109,13 @@ class WorkspacePage(QWidget):
         if self._current_curve_id is None:
             return
 
-        dialog = CalibrationDialog(calibration_overlay, self)
+        # 根据坐标类型选择对应的对话框
+        coord_type = calibration_overlay.coord_type
+        if coord_type == "polar":
+            dialog = PolarCalibrationDialog(calibration_overlay, self)
+        else:
+            dialog = CalibrationDialog(calibration_overlay, self)
+
         if dialog.exec():
             data = dialog.get_calibration_data()
 
@@ -1118,6 +1159,10 @@ class WorkspacePage(QWidget):
             "x_end": "请点击X轴终点",
             "y_start": "请点击Y轴起点",
             "y_end": "请点击Y轴终点",
+            "origin": "请点击原点(极点)",
+            "x_axis": "请点击正X轴方向点",
+            "y_axis": "请点击Y轴正方向点",
+            "angle_ref": "请点击角度参考点",
             "complete": "校准完成！"
         }
         self._status_label.setText(step_hints.get(step_type, ""))

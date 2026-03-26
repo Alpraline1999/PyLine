@@ -152,11 +152,17 @@ class MaskOverlay:
 class CalibrationOverlay:
     """校准点覆盖层
 
-    四个标定点：
-    - x起点: X轴起点 (对应x_range[0])
-    - x终点: X轴终点 (对应x_range[1])
-    - y起点: Y轴起点 (对应y_range[0])
-    - y终点: Y轴终点 (对应y_range[1])
+    线性/对数坐标系的四个标定点：
+    - x_start: X轴起点 (对应x_range[0])
+    - x_end: X轴终点 (对应x_range[1])
+    - y_start: Y轴起点 (对应y_range[0])
+    - y_end: Y轴终点 (对应y_range[1])
+
+    极坐标系的四个标定点：
+    - origin: 原点(极点)
+    - x_axis: 正X轴方向点(确定0度角方向)
+    - y_axis: Y轴正方向点(确定90度角方向)
+    - angle_ref: 角度参考点(确定角度比例尺，r=1的位置)
     """
     def __init__(self):
         self.x_start = None   # QPointF - X轴起点
@@ -179,51 +185,98 @@ class CalibrationOverlay:
 
     def next_point_type(self) -> str:
         """返回下一个要设置的点的类型"""
-        if self.x_start is None:
-            return "x_start"
-        elif self.x_end is None:
-            return "x_end"
-        elif self.y_start is None:
-            return "y_start"
-        elif self.y_end is None:
-            return "y_end"
-        return "complete"
+        if self.coord_type == "polar":
+            # 极坐标使用 origin, x_axis, y_axis, angle_ref
+            if self.x_start is None:
+                return "origin"
+            elif self.x_end is None:
+                return "x_axis"
+            elif self.y_start is None:
+                return "y_axis"
+            elif self.y_end is None:
+                return "angle_ref"
+            return "complete"
+        else:
+            # 线性/对数坐标使用 x_start, x_end, y_start, y_end
+            if self.x_start is None:
+                return "x_start"
+            elif self.x_end is None:
+                return "x_end"
+            elif self.y_start is None:
+                return "y_start"
+            elif self.y_end is None:
+                return "y_end"
+            return "complete"
 
     def get_current_point(self) -> QPointF:
         """获取当前正在编辑的点"""
-        if self.x_start is None:
-            return self.x_start
-        elif self.x_end is None:
-            return self.x_end
-        elif self.y_start is None:
-            return self.y_start
-        elif self.y_end is None:
-            return self.y_end
+        if self.coord_type == "polar":
+            if self.x_start is None:
+                return self.x_start
+            elif self.x_end is None:
+                return self.x_end
+            elif self.y_start is None:
+                return self.y_start
+            elif self.y_end is None:
+                return self.y_end
+        else:
+            if self.x_start is None:
+                return self.x_start
+            elif self.x_end is None:
+                return self.x_end
+            elif self.y_start is None:
+                return self.y_start
+            elif self.y_end is None:
+                return self.y_end
         return None
 
     def set_current_point(self, pos: QPointF):
         """设置当前正在编辑的点"""
-        if self.x_start is None:
-            self.x_start = pos
-        elif self.x_end is None:
-            self.x_end = pos
-        elif self.y_start is None:
-            self.y_start = pos
-        elif self.y_end is None:
-            self.y_end = pos
+        if self.coord_type == "polar":
+            if self.x_start is None:
+                self.x_start = pos  # origin
+            elif self.x_end is None:
+                self.x_end = pos    # x_axis
+            elif self.y_start is None:
+                self.y_start = pos  # y_axis
+            elif self.y_end is None:
+                self.y_end = pos    # angle_ref
+        else:
+            if self.x_start is None:
+                self.x_start = pos
+            elif self.x_end is None:
+                self.x_end = pos
+            elif self.y_start is None:
+                self.y_start = pos
+            elif self.y_end is None:
+                self.y_end = pos
 
     def nudge_current_point(self, dx: float, dy: float):
         """微调当前正在设置的点"""
-        if self.x_start is None:
-            pass
-        elif self.x_end is None:
-            self.x_start = QPointF(self.x_start.x() + dx, self.x_start.y() + dy)
-        elif self.y_start is None:
-            self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
-        elif self.y_end is None:
-            self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
+        if self.coord_type == "polar":
+            # 极坐标: origin, x_axis, y_axis, angle_ref
+            if self.x_start is None:
+                pass
+            elif self.x_end is None:
+                self.x_start = QPointF(self.x_start.x() + dx, self.x_start.y() + dy)
+            elif self.y_start is None:
+                self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
+            elif self.y_end is None:
+                self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
+            else:
+                self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
         else:
-            self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
+            # 线性/对数坐标
+            if self.x_start is None:
+                pass
+            elif self.x_end is None:
+                self.x_start = QPointF(self.x_start.x() + dx, self.x_start.y() + dy)
+            elif self.y_start is None:
+                self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
+            elif self.y_end is None:
+                self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
+            else:
+                self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
 
 
 
@@ -384,18 +437,27 @@ class ImageViewer(QWidget):
         self._current_curve = None
         self.update()
 
-    def set_calibrate_mode(self):
+    def set_calibrate_mode(self, coord_type: str = "linear"):
         """切换到校准模式"""
         self._current_tool = self.MODE_CALIBRATE
+        self._calibration.coord_type = coord_type
         # 不再进入时重置，保留当前校准坐标直到校准完成
         next_type = self._calibration.next_point_type()
         if next_type != "complete":
-            hint_map = {
-                "x_start": "点击设置 X 轴起点",
-                "x_end": "点击设置 X 轴终点",
-                "y_start": "点击设置 Y 轴起点",
-                "y_end": "点击设置 Y 轴终点"
-            }
+            if coord_type == "polar":
+                hint_map = {
+                    "origin": "点击设置原点",
+                    "x_axis": "点击设置正X轴方向点",
+                    "y_axis": "点击设置Y轴正方向点",
+                    "angle_ref": "点击设置角度参考点"
+                }
+            else:
+                hint_map = {
+                    "x_start": "点击设置 X 轴起点",
+                    "x_end": "点击设置 X 轴终点",
+                    "y_start": "点击设置 Y 轴起点",
+                    "y_end": "点击设置 Y 轴终点"
+                }
             self._calibration_step_hint = hint_map.get(next_type, "")
             self.calibration_step.emit(next_type)
         self.update()
@@ -838,23 +900,42 @@ class ImageViewer(QWidget):
         img_pos = self._widget_to_image_coords(pos)
         next_type = self._calibration.next_point_type()
 
-        if next_type == "x_start":
-            self._calibration.x_start = img_pos
-            self._calibration_step_hint = "点击设置 X 轴终点"
-            self.calibration_step.emit("x_end")
-        elif next_type == "x_end":
-            self._calibration.x_end = img_pos
-            self._calibration_step_hint = "点击设置 Y 轴起点"
-            self.calibration_step.emit("y_start")
-        elif next_type == "y_start":
-            self._calibration.y_start = img_pos
-            self._calibration_step_hint = "点击设置 Y 轴终点"
-            self.calibration_step.emit("y_end")
-        elif next_type == "y_end":
-            self._calibration.y_end = img_pos
-            self._calibration_step_hint = "校准完成!"
-            self.calibration_step.emit("complete")
-            self._complete_calibration()
+        if self._calibration.coord_type == "polar":
+            # 极坐标校准点: origin, x_axis, y_axis, angle_ref
+            if next_type == "origin":
+                self._calibration.x_start = img_pos
+                self._calibration_step_hint = "请点击正X轴方向点"
+                self.calibration_step.emit("x_axis")
+            elif next_type == "x_axis":
+                self._calibration.x_end = img_pos
+                self._calibration_step_hint = "请点击Y轴正方向点"
+                self.calibration_step.emit("y_axis")
+            elif next_type == "y_axis":
+                self._calibration.y_start = img_pos
+                self._calibration_step_hint = "请点击角度参考点"
+                self.calibration_step.emit("angle_ref")
+            elif next_type == "angle_ref":
+                self._calibration.y_end = img_pos
+                self._calibration_step_hint = "校准点已设置完成，请再次点击校准按钮完成校准"
+                self.calibration_step.emit("complete")
+        else:
+            # 线性/对数坐标校准点: x_start, x_end, y_start, y_end
+            if next_type == "x_start":
+                self._calibration.x_start = img_pos
+                self._calibration_step_hint = "点击设置 X 轴终点"
+                self.calibration_step.emit("x_end")
+            elif next_type == "x_end":
+                self._calibration.x_end = img_pos
+                self._calibration_step_hint = "点击设置 Y 轴起点"
+                self.calibration_step.emit("y_start")
+            elif next_type == "y_start":
+                self._calibration.y_start = img_pos
+                self._calibration_step_hint = "点击设置 Y 轴终点"
+                self.calibration_step.emit("y_end")
+            elif next_type == "y_end":
+                self._calibration.y_end = img_pos
+                self._calibration_step_hint = "校准点已设置完成，请再次点击校准按钮完成校准"
+                self.calibration_step.emit("complete")
 
         self.update()
 

@@ -178,7 +178,16 @@ class ProjectManager:
         return curve
 
     def _compute_actual_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
-        """将像素坐标转换为实际坐标"""
+        """将像素坐标转换为实际坐标（支持多种坐标类型）"""
+        if calib.coord_type == "polar":
+            return self._compute_polar_coords(calib, px, py)
+        elif calib.coord_type == "log":
+            return self._compute_log_coords(calib, px, py)
+        else:
+            return self._compute_linear_coords(calib, px, py)
+
+    def _compute_linear_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
+        """线性坐标转换"""
         # X轴计算：点在线段x_start到x_end上的比例
         x_start = calib.x_start
         x_end = calib.x_end
@@ -218,6 +227,112 @@ class ProjectManager:
         y_actual = calib.y_range[1] - t_y * (calib.y_range[1] - calib.y_range[0])  # Y轴反转
 
         return (x_actual, y_actual)
+
+    def _compute_log_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
+        """对数坐标转换"""
+        import math
+        # 首先计算线性比例
+        x_start = calib.x_start
+        x_end = calib.x_end
+        dx = x_end[0] - x_start[0]
+        dy_x = x_end[1] - x_start[1]
+
+        if abs(dx) > abs(dy_x):
+            if dx != 0:
+                t = (px - x_start[0]) / dx
+            else:
+                t = 0
+        else:
+            if dy_x != 0:
+                t = (py - x_start[1]) / dy_x
+            else:
+                t = 0
+
+        # 对数变换
+        log_min = math.log10(max(calib.x_range[0], 1e-10))
+        log_max = math.log10(max(calib.x_range[1], 1e-10))
+        x_actual = math.pow(10, log_min + t * (log_max - log_min))
+
+        # Y轴类似处理
+        y_start = calib.y_start
+        y_end = calib.y_end
+        dx_y = y_end[0] - y_start[0]
+        dy = y_end[1] - y_start[1]
+
+        if abs(dx_y) > abs(dy):
+            if dx_y != 0:
+                t_y = (px - y_start[0]) / dx_y
+            else:
+                t_y = 0
+        else:
+            if dy != 0:
+                t_y = (py - y_start[1]) / dy
+            else:
+                t_y = 0
+
+        log_min_y = math.log10(max(calib.y_range[0], 1e-10))
+        log_max_y = math.log10(max(calib.y_range[1], 1e-10))
+        y_actual = math.pow(10, log_min_y + (1 - t_y) * (log_max_y - log_min_y))
+
+        return (x_actual, y_actual)
+
+    def _compute_polar_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
+        """极坐标转换
+
+        像素坐标 -> (r, theta)
+        - origin: 原点
+        - x_axis_point: 确定0度角方向
+        - y_axis_point: 确定90度角方向
+        - angle_ref_point: 确定r=1的位置（比例尺参考点）
+        """
+        import math
+
+        origin_x, origin_y = calib.x_start
+        x_axis_x, x_axis_y = calib.x_end
+        y_axis_x, y_axis_y = calib.y_start
+        ref_x, ref_y = calib.y_end
+
+        # 计算向量
+        vx = px - origin_x
+        vy = py - origin_y
+
+        # 计算x轴方向角（弧度）- 使用x_axis_point
+        theta_x = math.atan2(x_axis_y - origin_y, x_axis_x - origin_x)
+
+        # 计算点的角度（弧度转度）- 相对于x轴方向
+        theta_point = math.atan2(vy, vx)
+        theta_deg = (theta_point - theta_x) * 180 / math.pi
+
+        # 归一化角度到 [0, 360)
+        while theta_deg < 0:
+            theta_deg += 360
+        while theta_deg >= 360:
+            theta_deg -= 360
+
+        # 计算像素距离
+        pixel_r = math.sqrt(vx * vx + vy * vy)
+
+        # 计算参考距离（r=1对应的像素距离）
+        ref_dx = ref_x - origin_x
+        ref_dy = ref_y - origin_y
+        reference_dist = math.sqrt(ref_dx * ref_dx + ref_dy * ref_dy)
+
+        # 计算实际半径
+        if reference_dist > 0:
+            r_actual = pixel_r / reference_dist
+        else:
+            r_actual = 0
+
+        # 应用范围映射
+        r_min, r_max = calib.x_range
+        theta_min, theta_max = calib.y_range
+
+        # r_actual 是归一化后的值，需要映射到实际范围
+        # reference_dist 对应 r=1，映射到 [r_min, r_max]
+        r_mapped = r_min + r_actual * (r_max - r_min)
+        theta_mapped = theta_min + (theta_deg / 360) * (theta_max - theta_min)
+
+        return (r_mapped, theta_mapped)
 
     def get_curve(self, curve_id: str) -> Optional[Curve]:
         """根据ID获取曲线"""
