@@ -200,12 +200,13 @@ class WorkspacePage(QWidget):
         widget = QWidget(parent)
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 5, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(8)
 
+        # 图标按钮行
         tools_widget = QWidget(widget)
         tools_layout = QHBoxLayout(tools_widget)
         tools_layout.setContentsMargins(0, 0, 0, 0)
-        tools_layout.setSpacing(3)
+        tools_layout.setSpacing(5)
 
         # 橡皮擦
         self._eraser_btn = ToolButton(FIF.ERASE_TOOL, tools_widget)
@@ -214,45 +215,82 @@ class WorkspacePage(QWidget):
         self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
         tools_layout.addWidget(self._eraser_btn)
 
-        # 点大小
-        self._point_size_spin = SpinBox(tools_widget)
-        self._point_size_spin.setRange(1, 50)
-        self._point_size_spin.setValue(3)
-        self._point_size_spin.setToolTip("点大小")
-        self._point_size_spin.setMaximumWidth(60)
-        self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
-        tools_layout.addWidget(self._point_size_spin)
-
-        # 微调步长
-        self._nudge_step_spin = SpinBox(tools_widget)
-        self._nudge_step_spin.setRange(1, 20)
-        self._nudge_step_spin.setValue(3)
-        self._nudge_step_spin.setToolTip("微调步长")
-        self._nudge_step_spin.setMaximumWidth(60)
-        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
-        tools_layout.addWidget(self._nudge_step_spin)
-
-        # 橡皮大小
-        self._eraser_size_spin = SpinBox(tools_widget)
-        self._eraser_size_spin.setRange(1, 100)
-        self._eraser_size_spin.setValue(20)
-        self._eraser_size_spin.setToolTip("橡皮大小")
-        self._eraser_size_spin.setMaximumWidth(60)
-        self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
-        tools_layout.addWidget(self._eraser_size_spin)
-
-        # 排序按钮
+        # 按X排序
         self._sort_x_btn = ToolButton(FIF.UP, tools_widget)
         self._sort_x_btn.setToolTip("按X坐标排序")
         self._sort_x_btn.clicked.connect(self._on_sort_by_x)
         tools_layout.addWidget(self._sort_x_btn)
 
+        # 按Y排序
         self._sort_y_btn = ToolButton(FIF.DOWN, tools_widget)
         self._sort_y_btn.setToolTip("按Y坐标排序")
         self._sort_y_btn.clicked.connect(self._on_sort_by_y)
         tools_layout.addWidget(self._sort_y_btn)
 
+        tools_layout.addStretch()
         layout.addWidget(tools_widget)
+
+        # 参数设置列
+        params_widget = QWidget(widget)
+        params_layout = QVBoxLayout(params_widget)
+        params_layout.setContentsMargins(0, 0, 0, 0)
+        params_layout.setSpacing(5)
+
+        # 点大小
+        point_size_row = QWidget(params_widget)
+        point_size_layout = QHBoxLayout(point_size_row)
+        point_size_layout.setContentsMargins(0, 0, 0, 0)
+        point_size_layout.setSpacing(5)
+        point_size_label = QLabel("点大小:", point_size_row)
+        point_size_label.setFixedWidth(50)
+        self._point_size_spin = SpinBox(point_size_row)
+        self._point_size_spin.setRange(1, 50)
+        self._point_size_spin.setValue(3)
+        self._point_size_spin.setToolTip("点大小")
+        self._point_size_spin.setMaximumWidth(70)
+        self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
+        point_size_layout.addWidget(point_size_label)
+        point_size_layout.addWidget(self._point_size_spin)
+        point_size_layout.addStretch()
+        params_layout.addWidget(point_size_row)
+
+        # 微调步长
+        nudge_step_row = QWidget(params_widget)
+        nudge_step_layout = QHBoxLayout(nudge_step_row)
+        nudge_step_layout.setContentsMargins(0, 0, 0, 0)
+        nudge_step_layout.setSpacing(5)
+        nudge_step_label = QLabel("微调步长:", nudge_step_row)
+        nudge_step_label.setFixedWidth(50)
+        self._nudge_step_spin = SpinBox(nudge_step_row)
+        self._nudge_step_spin.setRange(1, 20)
+        self._nudge_step_spin.setValue(3)
+        self._nudge_step_spin.setToolTip("微调步长")
+        self._nudge_step_spin.setMaximumWidth(70)
+        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
+        nudge_step_layout.addWidget(nudge_step_label)
+        nudge_step_layout.addWidget(self._nudge_step_spin)
+        nudge_step_layout.addStretch()
+        params_layout.addWidget(nudge_step_row)
+
+        # 橡皮大小
+        eraser_size_row = QWidget(params_widget)
+        eraser_size_layout = QHBoxLayout(eraser_size_row)
+        eraser_size_layout.setContentsMargins(0, 0, 0, 0)
+        eraser_size_layout.setSpacing(5)
+        eraser_size_label = QLabel("橡皮大小:", eraser_size_row)
+        eraser_size_label.setFixedWidth(50)
+        self._eraser_size_spin = SpinBox(eraser_size_row)
+        self._eraser_size_spin.setRange(1, 100)
+        self._eraser_size_spin.setValue(20)
+        self._eraser_size_spin.setToolTip("橡皮大小")
+        self._eraser_size_spin.setMaximumWidth(70)
+        self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
+        eraser_size_layout.addWidget(eraser_size_label)
+        eraser_size_layout.addWidget(self._eraser_size_spin)
+        eraser_size_layout.addStretch()
+        params_layout.addWidget(eraser_size_row)
+
+        layout.addWidget(params_widget)
 
         return widget
 
@@ -263,27 +301,24 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # 工具按钮区域
-        tools_widget = QWidget(tab)
-        tools_layout = QHBoxLayout(tools_widget)
-        tools_layout.setContentsMargins(0, 0, 0, 0)
-        tools_layout.setSpacing(3)
-
         # 校准
-        self._calibrate_btn = ToolButton(FIF.ALIGNMENT, tools_widget)
+        self._calibrate_btn = ToolButton(FIF.ALIGNMENT, tab)
+        self._calibrate_btn.setText("校准")
+        self._calibrate_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._calibrate_btn.setToolTip("校准")
         self._calibrate_btn.setCheckable(True)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
-        tools_layout.addWidget(self._calibrate_btn)
+        layout.addWidget(self._calibrate_btn)
 
         # 提取曲线
-        self._extract_btn = ToolButton(FIF.PIE_SINGLE, tools_widget)
+        self._extract_btn = ToolButton(FIF.PIE_SINGLE, tab)
+        self._extract_btn.setText("提取曲线")
+        self._extract_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._extract_btn.setToolTip("提取曲线")
         self._extract_btn.setCheckable(True)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
-        tools_layout.addWidget(self._extract_btn)
+        layout.addWidget(self._extract_btn)
 
-        layout.addWidget(tools_widget)
         layout.addStretch()
 
         return tab
@@ -295,27 +330,24 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # 工具按钮区域
-        tools_widget = QWidget(tab)
-        tools_layout = QHBoxLayout(tools_widget)
-        tools_layout.setContentsMargins(0, 0, 0, 0)
-        tools_layout.setSpacing(3)
-
         # 框选蒙版
-        self._box_mask_btn = ToolButton(FIF.LAYOUT, tools_widget)
+        self._box_mask_btn = ToolButton(FIF.LAYOUT, tab)
+        self._box_mask_btn.setText("框选蒙版")
+        self._box_mask_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._box_mask_btn.setToolTip("框选蒙版")
         self._box_mask_btn.setCheckable(True)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
-        tools_layout.addWidget(self._box_mask_btn)
+        layout.addWidget(self._box_mask_btn)
 
         # 涂刷蒙版
-        self._brush_mask_btn = ToolButton(FIF.BRUSH, tools_widget)
-        self._brush_mask_btn.setToolTip("涂刷蒙版")
+        self._brush_mask_btn = ToolButton(FIF.BRUSH, tab)
+        self._brush_mask_btn.setText("画笔蒙版")
+        self._brush_mask_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._brush_mask_btn.setToolTip("画笔蒙版")
         self._brush_mask_btn.setCheckable(True)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
-        tools_layout.addWidget(self._brush_mask_btn)
+        layout.addWidget(self._brush_mask_btn)
 
-        layout.addWidget(tools_widget)
         layout.addStretch()
 
         return tab
