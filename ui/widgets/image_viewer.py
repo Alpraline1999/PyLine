@@ -186,15 +186,11 @@ class CalibrationOverlay:
     def next_point_type(self) -> str:
         """返回下一个要设置的点的类型"""
         if self.coord_type == "polar":
-            # 极坐标使用 origin, angle_point1, angle_point2, radius_point
+            # 极坐标使用 2 点: origin, angle_radius_point
             if self.x_start is None:
                 return "origin"
             elif self.x_end is None:
-                return "angle_point1"
-            elif self.y_start is None:
-                return "angle_point2"
-            elif self.y_end is None:
-                return "radius_point"
+                return "angle_radius_point"
             return "complete"
         else:
             # 线性/对数坐标使用 x_start, x_end, y_start, y_end
@@ -211,14 +207,11 @@ class CalibrationOverlay:
     def get_current_point(self) -> QPointF:
         """获取当前正在编辑的点"""
         if self.coord_type == "polar":
+            # 极坐标使用 2 点: origin, angle_radius_point
             if self.x_start is None:
                 return self.x_start
             elif self.x_end is None:
                 return self.x_end
-            elif self.y_start is None:
-                return self.y_start
-            elif self.y_end is None:
-                return self.y_end
         else:
             if self.x_start is None:
                 return self.x_start
@@ -233,14 +226,11 @@ class CalibrationOverlay:
     def set_current_point(self, pos: QPointF):
         """设置当前正在编辑的点"""
         if self.coord_type == "polar":
+            # 极坐标使用 2 点: origin, angle_radius_point
             if self.x_start is None:
                 self.x_start = pos  # origin
             elif self.x_end is None:
-                self.x_end = pos    # angle_point1
-            elif self.y_start is None:
-                self.y_start = pos  # angle_point2
-            elif self.y_end is None:
-                self.y_end = pos    # radius_point
+                self.x_end = pos    # angle_radius_point
         else:
             if self.x_start is None:
                 self.x_start = pos
@@ -254,17 +244,13 @@ class CalibrationOverlay:
     def nudge_current_point(self, dx: float, dy: float):
         """微调当前正在设置的点"""
         if self.coord_type == "polar":
-            # 极坐标: origin, x_axis, y_axis, angle_ref
+            # 极坐标: origin, angle_radius_point
             if self.x_start is None:
                 pass
             elif self.x_end is None:
                 self.x_start = QPointF(self.x_start.x() + dx, self.x_start.y() + dy)
-            elif self.y_start is None:
-                self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
-            elif self.y_end is None:
-                self.y_start = QPointF(self.y_start.x() + dx, self.y_start.y() + dy)
             else:
-                self.y_end = QPointF(self.y_end.x() + dx, self.y_end.y() + dy)
+                self.x_end = QPointF(self.x_end.x() + dx, self.x_end.y() + dy)
         else:
             # 线性/对数坐标
             if self.x_start is None:
@@ -447,9 +433,7 @@ class ImageViewer(QWidget):
             if coord_type == "polar":
                 hint_map = {
                     "origin": "点击设置原点",
-                    "angle_point1": "点击设置A点(角度θ1)",
-                    "angle_point2": "点击设置B点(角度θ2)",
-                    "radius_point": "点击设置C点(极径r1)"
+                    "angle_radius_point": "点击设置角度和极径点A"
                 }
             else:
                 hint_map = {
@@ -901,21 +885,13 @@ class ImageViewer(QWidget):
         next_type = self._calibration.next_point_type()
 
         if self._calibration.coord_type == "polar":
-            # 极坐标校准点: origin, angle_point1, angle_point2, radius_point
+            # 极坐标校准点: origin, angle_radius_point (2点)
             if next_type == "origin":
                 self._calibration.x_start = img_pos
-                self._calibration_step_hint = "请点击A点(角度θ1)"
-                self.calibration_step.emit("angle_point1")
-            elif next_type == "angle_point1":
+                self._calibration_step_hint = "请点击设置角度和极径点A"
+                self.calibration_step.emit("angle_radius_point")
+            elif next_type == "angle_radius_point":
                 self._calibration.x_end = img_pos
-                self._calibration_step_hint = "请点击B点(角度θ2)"
-                self.calibration_step.emit("angle_point2")
-            elif next_type == "angle_point2":
-                self._calibration.y_start = img_pos
-                self._calibration_step_hint = "请点击C点(极径r1)"
-                self.calibration_step.emit("radius_point")
-            elif next_type == "radius_point":
-                self._calibration.y_end = img_pos
                 self._calibration_step_hint = "校准点已设置完成，请再次点击校准按钮完成校准"
                 self.calibration_step.emit("complete")
         else:

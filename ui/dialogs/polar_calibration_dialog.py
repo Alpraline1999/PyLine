@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButt
 class PolarCalibrationDialog(QDialog):
     """极坐标校准配置对话框
 
-    输入角度1、角度2、极径1的实际数值
+    输入点A的角度和极径
     """
 
     def __init__(self, calibration, parent=None):
@@ -24,9 +24,7 @@ class PolarCalibrationDialog(QDialog):
         # 显示校准点信息
         info_text = QLabel(
             f"原点: ({self._calibration.x_start.x():.1f}, {self._calibration.x_start.y():.1f})\n"
-            f"角度1点: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
-            f"角度2点: ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
-            f"极径1点: ({self._calibration.y_end.x():.1f}, {self._calibration.y_end.y():.1f})",
+            f"角度和极径点A: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})",
             self
         )
         info_text.setStyleSheet("color: gray; padding: 10px; background: #f0f0f0; border-radius: 5px;")
@@ -34,17 +32,13 @@ class PolarCalibrationDialog(QDialog):
 
         form = QFormLayout()
 
-        # 角度1
-        self._angle1_input = QLineEdit("0", self)
-        form.addRow("角度1 (θ1):", self._angle1_input)
+        # 点A的角度
+        self._angle_input = QLineEdit("0", self)
+        form.addRow("点A的角度 (度):", self._angle_input)
 
-        # 角度2
-        self._angle2_input = QLineEdit("90", self)
-        form.addRow("角度2 (θ2):", self._angle2_input)
-
-        # 极径1
-        self._radius1_input = QLineEdit("1", self)
-        form.addRow("极径1 (r1):", self._radius1_input)
+        # 点A的极径
+        self._radius_input = QLineEdit("1", self)
+        form.addRow("点A的极径:", self._radius_input)
 
         layout.addLayout(form)
 
@@ -61,8 +55,7 @@ class PolarCalibrationDialog(QDialog):
     def get_calibration_data(self) -> dict:
         """获取校准配置数据"""
         return {
-            "angle1": float(self._angle1_input.text()),
-            "angle2": float(self._angle2_input.text()),
-            "radius1": float(self._radius1_input.text()),
+            "angle_A": float(self._angle_input.text()),
+            "radius_A": float(self._radius_input.text()),
             "coord_type": "polar"
         }

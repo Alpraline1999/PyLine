@@ -1125,12 +1125,9 @@ class WorkspacePage(QWidget):
                 calib_data = CalibrationData(
                     x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
                     x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
-                    y_start=(calibration_overlay.y_start.x(), calibration_overlay.y_start.y()),
-                    y_end=(calibration_overlay.y_end.x(), calibration_overlay.y_end.y()),
                     coord_type="polar",
-                    angle1=data["angle1"],
-                    angle2=data["angle2"],
-                    radius1=data["radius1"]
+                    angle_A=data["angle_A"],
+                    radius_A=data["radius_A"]
                 )
             else:
                 calib_data = CalibrationData(

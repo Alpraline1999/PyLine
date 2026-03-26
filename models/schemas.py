@@ -5,7 +5,7 @@ import uuid
 
 
 class CalibrationData(BaseModel):
-    """校准数据 - 使用4点校准
+    """校准数据
 
     线性/对数坐标系（coord_type="linear"或"log"）：
     - x_start, x_end: X轴起点和终点（像素坐标）
@@ -15,25 +15,20 @@ class CalibrationData(BaseModel):
 
     极坐标系（coord_type="polar"）：
     - x_start: 原点/极点（像素坐标）
-    - x_end: 角度1点（像素坐标）
-    - y_start: 角度2点（像素坐标）
-    - y_end: 极径1点（像素坐标）
-    - angle1: 角度1的实际值（度）
-    - angle2: 角度2的实际值（度）
-    - radius1: 极径1的实际值
-    - radius_max: 最大半径（由角度点位置比例确定）
+    - x_end: 角度和极径点A（像素坐标）
+    - angle_A: 点A的实际角度（度）
+    - radius_A: 点A的实际极径
     """
     x_start: Tuple[float, float] = (0.0, 0.0)  # X轴起点 或 原点(极坐标)
-    x_end: Tuple[float, float] = (1.0, 0.0)      # X轴终点 或 角度1点(极坐标)
-    y_start: Tuple[float, float] = (0.0, 0.0)  # Y轴起点 或 角度2点(极坐标)
-    y_end: Tuple[float, float] = (0.0, 1.0)      # Y轴终点 或 极径1点(极坐标)
-    x_range: Tuple[float, float] = (0.0, 1.0)  # X轴范围 或 半径范围(极坐标)
-    y_range: Tuple[float, float] = (0.0, 1.0)  # Y轴范围 或 角度范围(极坐标)
+    x_end: Tuple[float, float] = (1.0, 0.0)      # X轴终点 或 角度极径点A(极坐标)
+    y_start: Tuple[float, float] = (0.0, 0.0)  # Y轴起点 (极坐标未使用)
+    y_end: Tuple[float, float] = (0.0, 1.0)      # Y轴终点 (极坐标未使用)
+    x_range: Tuple[float, float] = (0.0, 1.0)  # X轴范围
+    y_range: Tuple[float, float] = (0.0, 1.0)  # Y轴范围
     coord_type: str = "linear"
-    # 极坐标专用参数
-    angle1: float = 0.0  # 角度1的实际值（度）
-    angle2: float = 90.0  # 角度2的实际值（度）
-    radius1: float = 1.0  # 极径1的实际值
+    # 极坐标专用参数（2点校准）
+    angle_A: float = 0.0  # 点A的实际角度（度）
+    radius_A: float = 1.0  # 点A的实际极径
 
 
 class Curve(BaseModel):

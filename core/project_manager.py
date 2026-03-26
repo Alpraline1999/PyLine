@@ -277,32 +277,30 @@ class ProjectManager:
         return (x_actual, y_actual)
 
     def _compute_polar_coords(self, calib: CalibrationData, px: float, py: float) -> Tuple[float, float]:
-        """极坐标转换
+        """极坐标转换（2点校准）
 
         像素坐标 -> (r, theta)
+
         校准点：
-        - origin: 原点(极点)
-        - x_end: 角度1点（像素坐标），对应实际角度 angle1
-        - y_start: 角度2点（像素坐标），对应实际角度 angle2
-        - y_end: 极径1点（像素坐标），对应实际极径 radius1
+        - x_start: 原点/极点（像素坐标）
+        - x_end: 角度和极径点A（像素坐标），对应实际角度 angle_A 和极径 radius_A
 
         算法：
-        1. 计算P相对于原点的像素半径和像素角度方向
-        2. 计算像素角度方向相对于角度1点的方向的比例位置
-        3. 映射到实际角度 angle1 -> angle2
-        4. 半径 = (像素半径 / 极径1点的像素距离) * radius1
+        1. 计算原点和点A之间的像素距离作为极径比例
+        2. 计算点A相对于原点的像素角度方向
+        3. 对于任意点P：
+           - 计算P相对于原点的像素半径和像素角度
+           - actual_r = (P的像素半径 / A的像素半径) * radius_A
+           - actual_theta = P的像素角度 - A的像素角度 + angle_A
         """
         import math
 
         origin_x, origin_y = calib.x_start
-        angle1_x, angle1_y = calib.x_end      # 角度1点
-        angle2_x, angle2_y = calib.y_start    # 角度2点
-        radius1_x, radius1_y = calib.y_end     # 极径1点
+        point_a_x, point_a_y = calib.x_end  # 角度和极径点A
 
-        # 用户输入的实际角度值
-        theta1_actual = calib.angle1  # 角度1的实际值
-        theta2_actual = calib.angle2  # 角度2的实际值
-        r1_actual = calib.radius1     # 极径1的实际值
+        # 用户输入的实际角度和极径
+        angle_A = calib.angle_A  # 点A的实际角度
+        radius_A = calib.radius_A  # 点A的实际极径
 
         # 计算向量
         vx = px - origin_x
@@ -314,51 +312,28 @@ class ProjectManager:
         # 计算P的像素角度（标准数学角度，逆时针为正，从正x轴开始）
         theta_p = math.atan2(vy, vx) * 180 / math.pi
 
-        # 计算角度1点的像素方向角
-        theta1_pix = math.atan2(angle1_y - origin_y, angle1_x - origin_x) * 180 / math.pi
+        # 计算点A相对于原点的像素方向角
+        direction_a_x = point_a_x - origin_x
+        direction_a_y = point_a_y - origin_y
+        direction_a = math.atan2(direction_a_y, direction_a_x) * 180 / math.pi
 
-        # 计算角度2点的像素方向角
-        theta2_pix = math.atan2(angle2_y - origin_y, angle2_x - origin_x) * 180 / math.pi
+        # 计算点A的像素距离（作为极径比例）
+        pixel_scale = math.sqrt(direction_a_x * direction_a_x + direction_a_y * direction_a_y)
 
-        # 计算像素角度的顺时针跨度（从角度1到角度2）
-        clockwise_span = (theta2_pix - theta1_pix + 360) % 360
-
-        # 计算P相对于角度1的顺时针像素角度距离
-        clockwise_dist = (theta_p - theta1_pix + 360) % 360
-
-        # 计算比例（0到1之间）
-        if clockwise_span < 1e-6:
-            proportion = 0
-        elif clockwise_dist <= clockwise_span:
-            proportion = clockwise_dist / clockwise_span
+        # 计算实际半径
+        if pixel_scale > 0:
+            r_actual = (pixel_r / pixel_scale) * radius_A
         else:
-            # 超出范围，clamped到边界
-            proportion = 1.0 if clockwise_dist > clockwise_span + 180 else 0.0
+            r_actual = 0
 
-        # 映射到实际角度
-        # 注意：实际角度可能跨越0度（如330到30），需要特殊处理
-        angle_diff = theta2_actual - theta1_actual
-        # 如果角度差为负，说明跨越了0度，需要调整
-        if angle_diff < 0:
-            angle_diff += 360
+        # 计算实际角度
+        theta_actual = theta_p - direction_a + angle_A
 
-        theta_actual = theta1_actual + proportion * angle_diff
-        # 归一化到[0, 360)
+        # 归一化到 [0, 360)
         while theta_actual < 0:
             theta_actual += 360
         while theta_actual >= 360:
             theta_actual -= 360
-
-        # 计算极径1点的像素距离
-        r1_dx = radius1_x - origin_x
-        r1_dy = radius1_y - origin_y
-        r1_pixel_dist = math.sqrt(r1_dx * r1_dx + r1_dy * r1_dy)
-
-        # 计算实际半径
-        if r1_pixel_dist > 0:
-            r_actual = (pixel_r / r1_pixel_dist) * r1_actual
-        else:
-            r_actual = 0
 
         return (r_actual, theta_actual)
 
