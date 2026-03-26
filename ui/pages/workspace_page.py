@@ -1212,7 +1212,7 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
 
         calib = curve.calibration if curve else None
-        color = self._color_btn.color().name(QColor.NameFormat.HexRgb) if hasattr(self, '_color_btn') else "#0078D4"
+        color = self._color_btn.color.name(QColor.NameFormat.HexRgb) if hasattr(self, '_color_btn') else "#0078D4"
         shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle", "菱形": "diamond", "倒三角": "inv_triangle", "叉号": "cross", "星号": "star", "五角星": "pentagram"}
         point_shape = shape_map.get(self._shape_combo.currentText(), "circle") if hasattr(self, '_shape_combo') else "circle"
 
