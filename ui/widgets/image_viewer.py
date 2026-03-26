@@ -766,6 +766,9 @@ class ImageViewer(QWidget):
         elif self._current_tool == self.MODE_ERASER:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._eraser_pressed = True
+                # 更新鼠标位置并重绘
+                self._mouse_image_pos = self._widget_to_image_coords(pos)
+                self.update()
                 self._handle_eraser_click(pos)
         elif self._current_tool == self.MODE_BOX_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
