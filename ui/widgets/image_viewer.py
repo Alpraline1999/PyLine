@@ -305,6 +305,8 @@ class ImageViewer(QWidget):
         """切换到选择模式"""
         self._current_tool = self.MODE_SELECT
         self._calibration_step_hint = ""
+        # 清除当前提取的曲线点，避免在非提取模式下显示
+        self._current_curve = None
         self.update()
 
     def set_calibrate_mode(self):
@@ -553,7 +555,8 @@ class ImageViewer(QWidget):
         for curve_item in self._curve_items:
             self._draw_single_curve(painter, curve_item)
 
-        if self._current_curve and self._current_curve.points:
+        # 只在提取模式下绘制当前正在提取的曲线
+        if self._current_tool == self.MODE_EXTRACT and self._current_curve and self._current_curve.points:
             self._draw_single_curve(painter, self._current_curve)
 
     def _draw_single_curve(self, painter: QPainter, curve_item: CurveOverlayItem):

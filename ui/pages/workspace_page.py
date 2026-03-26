@@ -1264,8 +1264,19 @@ class WorkspacePage(QWidget):
         if self._current_curve_id is None:
             return
         curve = project_manager.get_curve(self._current_curve_id)
-        if curve is None or not curve.x_data:
+        if curve is None:
             return
+
+        # 先保存当前提取的曲线点（如果有）
+        if self._current_curve_points:
+            self._save_extracted_curve()
+
+        # 如果曲线没有数据，直接返回
+        if not curve.x_data:
+            return
+
+        # 保存校准数据
+        saved_calibration = curve.calibration
 
         # 获取排序后的索引
         indices = sorted(range(len(curve.x_data)), key=lambda i: curve.x_data[i])
@@ -1276,6 +1287,9 @@ class WorkspacePage(QWidget):
             curve.x_actual = [curve.x_actual[i] for i in indices]
             curve.y_actual = [curve.y_actual[i] for i in indices]
 
+        # 先应用校准，再显示曲线
+        if saved_calibration:
+            self._apply_calibration_to_viewer(saved_calibration)
         self._display_current_curve_on_image()
         self._update_curve_table()
         self.project_modified.emit()
@@ -1285,8 +1299,19 @@ class WorkspacePage(QWidget):
         if self._current_curve_id is None:
             return
         curve = project_manager.get_curve(self._current_curve_id)
-        if curve is None or not curve.y_data:
+        if curve is None:
             return
+
+        # 先保存当前提取的曲线点（如果有）
+        if self._current_curve_points:
+            self._save_extracted_curve()
+
+        # 如果曲线没有数据，直接返回
+        if not curve.y_data:
+            return
+
+        # 保存校准数据
+        saved_calibration = curve.calibration
 
         # 获取排序后的索引
         indices = sorted(range(len(curve.y_data)), key=lambda i: curve.y_data[i])
@@ -1297,6 +1322,9 @@ class WorkspacePage(QWidget):
             curve.x_actual = [curve.x_actual[i] for i in indices]
             curve.y_actual = [curve.y_actual[i] for i in indices]
 
+        # 先应用校准，再显示曲线
+        if saved_calibration:
+            self._apply_calibration_to_viewer(saved_calibration)
         self._display_current_curve_on_image()
         self._update_curve_table()
         self.project_modified.emit()
