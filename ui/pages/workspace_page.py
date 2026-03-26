@@ -242,10 +242,14 @@ class WorkspacePage(QWidget):
         style_layout.setSpacing(5)
 
         # 颜色选择
+        color_label = QLabel("颜色:", style_row)
+        color_label.setFixedWidth(40)
+        style_layout.addWidget(color_label)
+
         from qfluentwidgets import ColorPickerButton
-        self._color_btn = ColorPickerButton(QColor("#0078D4"), "颜色", widget)
+        self._color_btn = ColorPickerButton(QColor("#0078D4"), "", widget)
         self._color_btn.setToolTip("曲线颜色")
-        self._color_btn.setFixedSize(60, 25)
+        self._color_btn.setFixedSize(32, 32)
         self._color_btn.colorChanged.connect(self._on_color_changed)
         style_layout.addWidget(self._color_btn)
 

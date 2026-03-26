@@ -310,9 +310,17 @@ class ImageViewer(QWidget):
     def set_calibrate_mode(self):
         """切换到校准模式"""
         self._current_tool = self.MODE_CALIBRATE
-        self._calibration.reset()
-        self._calibration_step_hint = "点击设置 X 轴起点"
-        self.calibration_step.emit("x_start")
+        # 不再进入时重置，保留当前校准坐标直到校准完成
+        next_type = self._calibration.next_point_type()
+        if next_type != "complete":
+            hint_map = {
+                "x_start": "点击设置 X 轴起点",
+                "x_end": "点击设置 X 轴终点",
+                "y_start": "点击设置 Y 轴起点",
+                "y_end": "点击设置 Y 轴终点"
+            }
+            self._calibration_step_hint = hint_map.get(next_type, "")
+            self.calibration_step.emit(next_type)
         self.update()
 
     def set_extract_mode(self):
