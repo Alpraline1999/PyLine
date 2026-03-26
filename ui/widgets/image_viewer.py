@@ -851,6 +851,7 @@ class ImageViewer(QWidget):
             self._pan = False
             if self._current_tool == self.MODE_ERASER:
                 self._eraser_pressed = False
+                self.update()
             if self._current_tool == self.MODE_BOX_MASK and self._mask_start_point:
                 # 框选蒙版完成
                 end_point = self._widget_to_image_coords(event.position())
