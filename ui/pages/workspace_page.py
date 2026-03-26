@@ -197,6 +197,8 @@ class WorkspacePage(QWidget):
 
     def _create_common_tools_widget(self, parent) -> QWidget:
         """创建公用工具区域"""
+        from qfluentwidgets import TransparentTogglePushButton
+
         widget = QWidget(parent)
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 5, 0, 0)
@@ -242,12 +244,12 @@ class WorkspacePage(QWidget):
         point_size_layout.setContentsMargins(0, 0, 0, 0)
         point_size_layout.setSpacing(5)
         point_size_label = QLabel("点大小:", point_size_row)
-        point_size_label.setFixedWidth(50)
+        point_size_label.setFixedWidth(60)
         self._point_size_spin = SpinBox(point_size_row)
         self._point_size_spin.setRange(1, 50)
         self._point_size_spin.setValue(3)
         self._point_size_spin.setToolTip("点大小")
-        self._point_size_spin.setMaximumWidth(70)
+        self._point_size_spin.setFixedWidth(80)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         point_size_layout.addWidget(point_size_label)
         point_size_layout.addWidget(self._point_size_spin)
@@ -260,12 +262,12 @@ class WorkspacePage(QWidget):
         nudge_step_layout.setContentsMargins(0, 0, 0, 0)
         nudge_step_layout.setSpacing(5)
         nudge_step_label = QLabel("微调步长:", nudge_step_row)
-        nudge_step_label.setFixedWidth(50)
+        nudge_step_label.setFixedWidth(60)
         self._nudge_step_spin = SpinBox(nudge_step_row)
         self._nudge_step_spin.setRange(1, 20)
         self._nudge_step_spin.setValue(3)
         self._nudge_step_spin.setToolTip("微调步长")
-        self._nudge_step_spin.setMaximumWidth(70)
+        self._nudge_step_spin.setFixedWidth(80)
         self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
         nudge_step_layout.addWidget(nudge_step_label)
         nudge_step_layout.addWidget(self._nudge_step_spin)
@@ -278,12 +280,12 @@ class WorkspacePage(QWidget):
         eraser_size_layout.setContentsMargins(0, 0, 0, 0)
         eraser_size_layout.setSpacing(5)
         eraser_size_label = QLabel("橡皮大小:", eraser_size_row)
-        eraser_size_label.setFixedWidth(50)
+        eraser_size_label.setFixedWidth(60)
         self._eraser_size_spin = SpinBox(eraser_size_row)
         self._eraser_size_spin.setRange(1, 100)
         self._eraser_size_spin.setValue(20)
         self._eraser_size_spin.setToolTip("橡皮大小")
-        self._eraser_size_spin.setMaximumWidth(70)
+        self._eraser_size_spin.setFixedWidth(80)
         self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
         eraser_size_layout.addWidget(eraser_size_label)
         eraser_size_layout.addWidget(self._eraser_size_spin)
@@ -296,24 +298,24 @@ class WorkspacePage(QWidget):
 
     def _create_extract_tab(self) -> QWidget:
         """创建手动选点功能区"""
+        from qfluentwidgets import TransparentTogglePushButton
+
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
         # 校准
-        self._calibrate_btn = ToolButton(FIF.ALIGNMENT, tab)
-        self._calibrate_btn.setText("校准")
-        self._calibrate_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._calibrate_btn = TransparentTogglePushButton("校准", tab)
+        self._calibrate_btn.setIcon(FIF.ALIGNMENT)
         self._calibrate_btn.setToolTip("校准")
         self._calibrate_btn.setCheckable(True)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         layout.addWidget(self._calibrate_btn)
 
         # 提取曲线
-        self._extract_btn = ToolButton(FIF.PIE_SINGLE, tab)
-        self._extract_btn.setText("提取曲线")
-        self._extract_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._extract_btn = TransparentTogglePushButton("提取曲线", tab)
+        self._extract_btn.setIcon(FIF.PIE_SINGLE)
         self._extract_btn.setToolTip("提取曲线")
         self._extract_btn.setCheckable(True)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
@@ -325,24 +327,24 @@ class WorkspacePage(QWidget):
 
     def _create_auto_extract_tab(self) -> QWidget:
         """创建自动选点功能区"""
+        from qfluentwidgets import TransparentTogglePushButton
+
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
         # 框选蒙版
-        self._box_mask_btn = ToolButton(FIF.LAYOUT, tab)
-        self._box_mask_btn.setText("框选蒙版")
-        self._box_mask_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._box_mask_btn = TransparentTogglePushButton("框选蒙版", tab)
+        self._box_mask_btn.setIcon(FIF.LAYOUT)
         self._box_mask_btn.setToolTip("框选蒙版")
         self._box_mask_btn.setCheckable(True)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
         layout.addWidget(self._box_mask_btn)
 
         # 涂刷蒙版
-        self._brush_mask_btn = ToolButton(FIF.BRUSH, tab)
-        self._brush_mask_btn.setText("画笔蒙版")
-        self._brush_mask_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._brush_mask_btn = TransparentTogglePushButton("画笔蒙版", tab)
+        self._brush_mask_btn.setIcon(FIF.BRUSH)
         self._brush_mask_btn.setToolTip("画笔蒙版")
         self._brush_mask_btn.setCheckable(True)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
