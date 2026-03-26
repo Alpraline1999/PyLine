@@ -183,7 +183,78 @@ class WorkspacePage(QWidget):
 
         layout.addWidget(self._right_tabs)
 
+        # 公用工具区
+        self._common_tools_widget = self._create_common_tools_widget(panel)
+        layout.addWidget(self._common_tools_widget)
+
+        # 提示标签
+        self._status_label = QLabel("", panel)
+        self._status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._status_label.setWordWrap(True)
+        layout.addWidget(self._status_label)
+
         return panel
+
+    def _create_common_tools_widget(self, parent) -> QWidget:
+        """创建公用工具区域"""
+        widget = QWidget(parent)
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 5, 0, 0)
+        layout.setSpacing(5)
+
+        tools_widget = QWidget(widget)
+        tools_layout = QHBoxLayout(tools_widget)
+        tools_layout.setContentsMargins(0, 0, 0, 0)
+        tools_layout.setSpacing(3)
+
+        # 橡皮擦
+        self._eraser_btn = ToolButton(FIF.ERASE_TOOL, tools_widget)
+        self._eraser_btn.setToolTip("橡皮擦")
+        self._eraser_btn.setCheckable(True)
+        self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
+        tools_layout.addWidget(self._eraser_btn)
+
+        # 点大小
+        self._point_size_spin = SpinBox(tools_widget)
+        self._point_size_spin.setRange(1, 50)
+        self._point_size_spin.setValue(3)
+        self._point_size_spin.setToolTip("点大小")
+        self._point_size_spin.setMaximumWidth(60)
+        self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
+        tools_layout.addWidget(self._point_size_spin)
+
+        # 微调步长
+        self._nudge_step_spin = SpinBox(tools_widget)
+        self._nudge_step_spin.setRange(1, 20)
+        self._nudge_step_spin.setValue(3)
+        self._nudge_step_spin.setToolTip("微调步长")
+        self._nudge_step_spin.setMaximumWidth(60)
+        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
+        tools_layout.addWidget(self._nudge_step_spin)
+
+        # 橡皮大小
+        self._eraser_size_spin = SpinBox(tools_widget)
+        self._eraser_size_spin.setRange(1, 100)
+        self._eraser_size_spin.setValue(20)
+        self._eraser_size_spin.setToolTip("橡皮大小")
+        self._eraser_size_spin.setMaximumWidth(60)
+        self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
+        tools_layout.addWidget(self._eraser_size_spin)
+
+        # 排序按钮
+        self._sort_x_btn = ToolButton(FIF.UP, tools_widget)
+        self._sort_x_btn.setToolTip("按X坐标排序")
+        self._sort_x_btn.clicked.connect(self._on_sort_by_x)
+        tools_layout.addWidget(self._sort_x_btn)
+
+        self._sort_y_btn = ToolButton(FIF.DOWN, tools_widget)
+        self._sort_y_btn.setToolTip("按Y坐标排序")
+        self._sort_y_btn.clicked.connect(self._on_sort_by_y)
+        tools_layout.addWidget(self._sort_y_btn)
+
+        layout.addWidget(tools_widget)
+
+        return widget
 
     def _create_extract_tab(self) -> QWidget:
         """创建手动选点功能区"""
@@ -192,11 +263,7 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # 工具按钮区域 - 横向排列
-        tools_label = QLabel("工具", tab)
-        tools_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
-        layout.addWidget(tools_label)
-
+        # 工具按钮区域
         tools_widget = QWidget(tab)
         tools_layout = QHBoxLayout(tools_widget)
         tools_layout.setContentsMargins(0, 0, 0, 0)
@@ -216,85 +283,7 @@ class WorkspacePage(QWidget):
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         tools_layout.addWidget(self._extract_btn)
 
-        # 完成
-        self._finish_curve_btn = ToolButton(FIF.ACCEPT, tools_widget)
-        self._finish_curve_btn.setToolTip("完成")
-        self._finish_curve_btn.clicked.connect(self._on_tool_finish_curve)
-        tools_layout.addWidget(self._finish_curve_btn)
-
-        # 排序按钮
-        self._sort_x_btn = ToolButton(FIF.UP, tools_widget)
-        self._sort_x_btn.setToolTip("按X坐标排序")
-        self._sort_x_btn.clicked.connect(self._on_sort_by_x)
-        tools_layout.addWidget(self._sort_x_btn)
-
-        self._sort_y_btn = ToolButton(FIF.DOWN, tools_widget)
-        self._sort_y_btn.setToolTip("按Y坐标排序")
-        self._sort_y_btn.clicked.connect(self._on_sort_by_y)
-        tools_layout.addWidget(self._sort_y_btn)
-
         layout.addWidget(tools_widget)
-
-        # 参数设置区域 - 纵向排列，带标签和当前值
-        params_label = QLabel("参数设置", tab)
-        params_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
-        layout.addWidget(params_label)
-
-        params_widget = QWidget(tab)
-        params_layout = QVBoxLayout(params_widget)
-        params_layout.setContentsMargins(0, 0, 0, 0)
-        params_layout.setSpacing(8)
-
-        # 点大小
-        point_size_row = QWidget(tab)
-        point_size_layout = QHBoxLayout(point_size_row)
-        point_size_layout.setContentsMargins(0, 0, 0, 0)
-        point_size_layout.setSpacing(5)
-        point_size_label = QLabel("点大小:", tab)
-        point_size_label.setFixedWidth(60)
-        self._point_size_spin = SpinBox(tab)
-        self._point_size_spin.setRange(1, 50)
-        self._point_size_spin.setValue(3)
-        self._point_size_spin.setToolTip("曲线点大小")
-        self._point_size_spin.setMaximumWidth(80)
-        self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
-        point_size_layout.addWidget(point_size_label)
-        point_size_layout.addWidget(self._point_size_spin)
-        self._point_size_value_label = QLabel("3 px", tab)
-        self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
-        point_size_layout.addWidget(self._point_size_value_label)
-        point_size_layout.addStretch()
-        params_layout.addWidget(point_size_row)
-
-        # 微调步长
-        nudge_step_row = QWidget(tab)
-        nudge_step_layout = QHBoxLayout(nudge_step_row)
-        nudge_step_layout.setContentsMargins(0, 0, 0, 0)
-        nudge_step_layout.setSpacing(5)
-        nudge_step_label = QLabel("微调步长:", tab)
-        nudge_step_label.setFixedWidth(60)
-        self._nudge_step_spin = SpinBox(tab)
-        self._nudge_step_spin.setRange(1, 20)
-        self._nudge_step_spin.setValue(3)
-        self._nudge_step_spin.setToolTip("方向键微调步长(像素)")
-        self._nudge_step_spin.setMaximumWidth(80)
-        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
-        nudge_step_layout.addWidget(nudge_step_label)
-        nudge_step_layout.addWidget(self._nudge_step_spin)
-        self._nudge_step_value_label = QLabel("3 px", tab)
-        self._nudge_step_value_label.setStyleSheet(f"color: {placeholder_color()};")
-        nudge_step_layout.addWidget(self._nudge_step_value_label)
-        nudge_step_layout.addStretch()
-        params_layout.addWidget(nudge_step_row)
-
-        layout.addWidget(params_widget)
-
-        # 提示标签
-        self._status_label = QLabel("", tab)
-        self._status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        self._status_label.setWordWrap(True)
-        layout.addWidget(self._status_label)
-
         layout.addStretch()
 
         return tab
@@ -307,10 +296,6 @@ class WorkspacePage(QWidget):
         layout.setSpacing(5)
 
         # 工具按钮区域
-        tools_label = QLabel("工具", tab)
-        tools_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
-        layout.addWidget(tools_label)
-
         tools_widget = QWidget(tab)
         tools_layout = QHBoxLayout(tools_widget)
         tools_layout.setContentsMargins(0, 0, 0, 0)
@@ -330,75 +315,7 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         tools_layout.addWidget(self._brush_mask_btn)
 
-        # 橡皮擦
-        self._eraser_btn = ToolButton(FIF.ERASE_TOOL, tools_widget)
-        self._eraser_btn.setToolTip("橡皮擦")
-        self._eraser_btn.setCheckable(True)
-        self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
-        tools_layout.addWidget(self._eraser_btn)
-
         layout.addWidget(tools_widget)
-
-        # 参数设置
-        params_label = QLabel("参数设置", tab)
-        params_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
-        layout.addWidget(params_label)
-
-        params_widget = QWidget(tab)
-        params_layout = QVBoxLayout(params_widget)
-        params_layout.setContentsMargins(0, 0, 0, 0)
-        params_layout.setSpacing(8)
-
-        # 点大小
-        point_size_row = QWidget(tab)
-        point_size_layout = QHBoxLayout(point_size_row)
-        point_size_layout.setContentsMargins(0, 0, 0, 0)
-        point_size_layout.setSpacing(5)
-        point_size_label = QLabel("点大小:", tab)
-        point_size_label.setFixedWidth(60)
-        self._auto_point_size_spin = SpinBox(tab)
-        self._auto_point_size_spin.setRange(1, 50)
-        self._auto_point_size_spin.setValue(3)
-        self._auto_point_size_spin.setToolTip("曲线点大小")
-        self._auto_point_size_spin.setMaximumWidth(80)
-        self._auto_point_size_spin.valueChanged.connect(self._on_point_size_changed)
-        point_size_layout.addWidget(point_size_label)
-        point_size_layout.addWidget(self._auto_point_size_spin)
-        self._auto_point_size_value_label = QLabel("3 px", tab)
-        self._auto_point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
-        point_size_layout.addWidget(self._auto_point_size_value_label)
-        point_size_layout.addStretch()
-        params_layout.addWidget(point_size_row)
-
-        # 橡皮大小
-        eraser_size_row = QWidget(tab)
-        eraser_size_layout = QHBoxLayout(eraser_size_row)
-        eraser_size_layout.setContentsMargins(0, 0, 0, 0)
-        eraser_size_layout.setSpacing(5)
-        eraser_size_label = QLabel("橡皮大小:", tab)
-        eraser_size_label.setFixedWidth(60)
-        self._auto_eraser_size_spin = SpinBox(tab)
-        self._auto_eraser_size_spin.setRange(1, 100)
-        self._auto_eraser_size_spin.setValue(20)
-        self._auto_eraser_size_spin.setToolTip("橡皮擦大小")
-        self._auto_eraser_size_spin.setMaximumWidth(80)
-        self._auto_eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
-        eraser_size_layout.addWidget(eraser_size_label)
-        eraser_size_layout.addWidget(self._auto_eraser_size_spin)
-        self._auto_eraser_size_value_label = QLabel("20 px", tab)
-        self._auto_eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
-        eraser_size_layout.addWidget(self._auto_eraser_size_value_label)
-        eraser_size_layout.addStretch()
-        params_layout.addWidget(eraser_size_row)
-
-        layout.addWidget(params_widget)
-
-        # 提示标签
-        self._auto_status_label = QLabel("", tab)
-        self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        self._auto_status_label.setWordWrap(True)
-        layout.addWidget(self._auto_status_label)
-
         layout.addStretch()
 
         return tab
@@ -516,12 +433,18 @@ class WorkspacePage(QWidget):
         """处理工具按钮点击"""
         if self._active_tool == tool_name:
             # 取消当前工具
+            if self._active_tool == "extract" and self._current_curve_points:
+                # 提取模式下取消，自动保存曲线
+                self._save_extracted_curve()
             self._deactivate_all_tools()
             self._image_viewer.set_select_mode()
             self._active_tool = None
             self._status_label.setText("")
-            self._auto_status_label.setText("")
             return
+
+        # 如果切换到其他工具，且当前是提取模式，先保存曲线
+        if self._active_tool == "extract" and self._current_curve_points:
+            self._save_extracted_curve()
 
         self._deactivate_all_tools()
 
@@ -559,7 +482,7 @@ class WorkspacePage(QWidget):
             self._activate_tool_button(self._eraser_btn)
             self._image_viewer.set_eraser_mode()
             self._active_tool = tool_name
-            self._auto_status_label.setText("点击或拖动擦除曲线点")
+            self._status_label.setText("点击或拖动擦除曲线点")
         elif tool_name == "box_mask":
             # 框选蒙版需要先选择一张图片
             if self._current_image_id is None:
@@ -569,13 +492,17 @@ class WorkspacePage(QWidget):
             self._activate_tool_button(self._box_mask_btn)
             self._image_viewer.set_box_mask_mode()
             self._active_tool = tool_name
-            self._auto_status_label.setText("拖动绘制矩形蒙版区域")
+            self._status_label.setText("拖动绘制矩形蒙版区域")
         elif tool_name == "brush_mask":
             # 画笔蒙版需要先选择一张图片
             if self._current_image_id is None:
                 QMessageBox.warning(self, "警告", "请先选择一张图片")
                 self._deactivate_all_tools()
                 return
+            self._activate_tool_button(self._brush_mask_btn)
+            self._image_viewer.set_brush_mask_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("点击并拖动绘制多边形蒙版区域")
             self._activate_tool_button(self._brush_mask_btn)
             self._image_viewer.set_brush_mask_mode()
             self._active_tool = tool_name
@@ -1076,7 +1003,8 @@ class WorkspacePage(QWidget):
             self._auto_status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
         self.project_modified.emit()
 
-    def _on_tool_finish_curve(self):
+    def _save_extracted_curve(self):
+        """保存提取的曲线点"""
         if not self._current_curve_points or self._current_image_id is None:
             return
 
@@ -1125,9 +1053,6 @@ class WorkspacePage(QWidget):
                 curve.y_actual = y_actual
 
         if curve:
-            self._deactivate_all_tools()
-            self._active_tool = None
-            self._image_viewer.set_select_mode()
             self._current_curve_points = []
             self._status_label.setText("曲线已保存！")
             self._display_current_curve_on_image()
