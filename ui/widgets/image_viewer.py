@@ -113,11 +113,14 @@ class ImageViewer(QWidget):
     curve_point_added = Signal(float, float)  # 曲线点添加信号 (x, y 像素坐标)
     calibration_step = Signal(str)  # 校准步骤信号，发送下一个需要设置的点类型
     calibration_nudge = Signal(float, float)  # 微调信号 (dx, dy)
+    eraser_point = Signal(float, float)  # 橡皮擦信号 (x, y 像素坐标)
+    toggle_eraser_mode = Signal()  # 切换橡皮擦模式信号
 
     # 工具模式
     MODE_SELECT = "select"
     MODE_CALIBRATE = "calibrate"
     MODE_EXTRACT = "extract"
+    MODE_ERASER = "eraser"
 
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
@@ -149,6 +152,7 @@ class ImageViewer(QWidget):
         # 配置参数
         self._point_size = self.DEFAULT_POINT_SIZE
         self._nudge_step = self.DEFAULT_NUDGE_STEP
+        self._eraser_size = 20.0
 
         self.setup_ui()
 
@@ -258,6 +262,20 @@ class ImageViewer(QWidget):
         self._calibration_step_hint = ""
         self._current_curve = CurveOverlayItem()
         self.update()
+
+    def set_eraser_mode(self):
+        """切换到橡皮擦模式"""
+        self._current_tool = self.MODE_ERASER
+        self._calibration_step_hint = ""
+        self.update()
+
+    def set_eraser_size(self, size: float):
+        """设置橡皮擦大小"""
+        self._eraser_size = max(1.0, size)
+
+    def get_eraser_size(self) -> float:
+        """获取橡皮擦大小"""
+        return getattr(self, '_eraser_size', 20.0)
 
     def get_current_tool(self) -> str:
         """获取当前工具模式"""
@@ -486,6 +504,12 @@ class ImageViewer(QWidget):
             self._calibration.nudge_current_point(dx, dy)
             self.calibration_nudge.emit(dx, dy)
             self.update()
+        elif self._current_tool in (self.MODE_EXTRACT, self.MODE_ERASER):
+            # E键切换橡皮擦和提取模式
+            if event.key() == Qt.Key_E:
+                self.toggle_eraser_mode.emit()
+            else:
+                super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
 
@@ -502,10 +526,18 @@ class ImageViewer(QWidget):
             self._handle_calibrate_click(pos)
         elif self._current_tool == self.MODE_EXTRACT:
             self._handle_extract_click(pos)
+        elif self._current_tool == self.MODE_ERASER:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._handle_eraser_click(pos)
         elif self._current_tool == self.MODE_SELECT:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._pan = True
                 self._pan_start = pos - self._offset
+
+    def _handle_eraser_click(self, pos: QPointF):
+        """处理橡皮擦点击"""
+        img_pos = self._widget_to_image_coords(pos)
+        self.eraser_point.emit(img_pos.x(), img_pos.y())
 
     def _handle_calibrate_click(self, pos: QPointF):
         """处理校准模式点击"""
@@ -549,6 +581,11 @@ class ImageViewer(QWidget):
             new_offset = event.position() - self._pan_start
             self._offset = self._clamp_offset(new_offset)
             self.update()
+        elif self._current_tool == self.MODE_ERASER and event.buttons() & Qt.MouseButton.LeftButton:
+            # 橡皮擦模式下的拖动
+            pos = event.position()
+            img_pos = self._widget_to_image_coords(pos)
+            self.eraser_point.emit(img_pos.x(), img_pos.y())
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         """鼠标释放"""

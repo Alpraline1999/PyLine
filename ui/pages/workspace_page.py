@@ -73,6 +73,8 @@ class WorkspacePage(QWidget):
         self._image_viewer.curve_point_added.connect(self._on_curve_point_added)
         self._image_viewer.calibration_step.connect(self._on_calibration_step)
         self._image_viewer.calibration_nudge.connect(self._on_calibration_nudge)
+        self._image_viewer.eraser_point.connect(self._on_eraser_point)
+        self._image_viewer.toggle_eraser_mode.connect(self._on_toggle_eraser_mode)
 
     def _create_left_panel(self) -> CardWidget:
         panel = CardWidget(self)
@@ -270,13 +272,13 @@ class WorkspacePage(QWidget):
         point_size_label.setFixedWidth(60)
         self._point_size_spin = SpinBox(tab)
         self._point_size_spin.setRange(1, 50)
-        self._point_size_spin.setValue(5)
+        self._point_size_spin.setValue(3)
         self._point_size_spin.setToolTip("曲线点大小")
         self._point_size_spin.setMaximumWidth(80)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         point_size_layout.addWidget(point_size_label)
         point_size_layout.addWidget(self._point_size_spin)
-        self._point_size_value_label = QLabel("5 px", tab)
+        self._point_size_value_label = QLabel("3 px", tab)
         self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()};")
         point_size_layout.addWidget(self._point_size_value_label)
         point_size_layout.addStretch()
@@ -481,7 +483,17 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_extract_mode()
             self._active_tool = tool_name
             self._current_curve_points = []
-            self._status_label.setText("点击图片选取曲线点，使用方向键或WASD微调")
+            self._status_label.setText("点击添加点，E键切换橡皮擦模式")
+        elif tool_name == "eraser":
+            # 橡皮擦需要先选择一条曲线
+            if self._current_image_id is None or self._current_curve_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一张图片和一条曲线")
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._eraser_btn)
+            self._image_viewer.set_eraser_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("点击或拖动擦除曲线点")
         else:
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -508,6 +520,7 @@ class WorkspacePage(QWidget):
         self._nudge_step_value_label.setText(f"{value} px")
 
     def _on_eraser_size_changed(self, value):
+        self._image_viewer.set_eraser_size(float(value))
         self._eraser_size_value_label.setText(f"{value} px")
 
     def _on_tree_item_clicked(self, item, column):
@@ -929,6 +942,45 @@ class WorkspacePage(QWidget):
             return
         self._current_curve_points.append((px, py))
         self._status_label.setText(f"已选取 {len(self._current_curve_points)} 个点")
+
+    def _on_eraser_point(self, px: float, py: float):
+        """处理橡皮擦擦除点"""
+        if self._current_curve_id is None:
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None:
+            return
+
+        eraser_radius = self._image_viewer.get_eraser_size()
+
+        # 找到在橡皮擦范围内的点并移除
+        points_to_remove = []
+        for i in range(len(curve.x_data)):
+            dx = curve.x_data[i] - px
+            dy = curve.y_data[i] - py
+            distance = (dx * dx + dy * dy) ** 0.5
+            if distance <= eraser_radius:
+                points_to_remove.append(i)
+
+        if points_to_remove:
+            # 从后往前移除，避免索引变化
+            for i in reversed(points_to_remove):
+                del curve.x_data[i]
+                del curve.y_data[i]
+                if curve.x_actual and i < len(curve.x_actual):
+                    del curve.x_actual[i]
+                    del curve.y_actual[i]
+
+            self._display_current_curve_on_image()
+            self._update_curve_table()
+            self.project_modified.emit()
+
+    def _on_toggle_eraser_mode(self):
+        """切换橡皮擦模式"""
+        if self._active_tool == "extract":
+            self._on_tool_clicked("eraser")
+        elif self._active_tool == "eraser":
+            self._on_tool_clicked("extract")
 
     def _on_tool_finish_curve(self):
         if not self._current_curve_points or self._current_image_id is None:
