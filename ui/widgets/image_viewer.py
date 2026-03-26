@@ -20,6 +20,53 @@ class CurveOverlayItem:
     def add_point(self, x: float, y: float):
         self.points.append((x, y))
 
+
+class MaskOverlay:
+    """蒙版覆盖层"""
+    def __init__(self):
+        self.enabled = False
+        self.include_mode = True  # True=包含模式, False=排除模式
+        self.polygons = []  # 多边形列表，每个多边形是 [(x,y), ...] 点列表
+
+    def reset(self):
+        self.enabled = False
+        self.polygons.clear()
+
+    def add_polygon(self, polygon):
+        self.polygons.append(polygon)
+        self.enabled = True
+
+    def is_point_inside(self, x: float, y: float) -> bool:
+        """检查点是否在蒙版内"""
+        if not self.enabled or not self.polygons:
+            return True  # 无蒙版时默认包含
+
+        inside = False
+        for polygon in self.polygons:
+            if self._point_in_polygon(x, y, polygon):
+                inside = True
+                break
+        return inside if self.include_mode else not inside
+
+    def _point_in_polygon(self, x: float, y: float, polygon) -> bool:
+        """射线法判断点是否在多边形内"""
+        n = len(polygon)
+        if n < 3:
+            return False
+        inside = False
+        p1x, p1y = polygon[0]
+        for i in range(1, n + 1):
+            p2x, p2y = polygon[i % n]
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        return inside
+
     def clear_points(self):
         self.points.clear()
 
@@ -115,12 +162,15 @@ class ImageViewer(QWidget):
     calibration_nudge = Signal(float, float)  # 微调信号 (dx, dy)
     eraser_point = Signal(float, float)  # 橡皮擦信号 (x, y 像素坐标)
     toggle_eraser_mode = Signal()  # 切换橡皮擦模式信号
+    mask_changed = Signal()  # 蒙版改变信号
 
     # 工具模式
     MODE_SELECT = "select"
     MODE_CALIBRATE = "calibrate"
     MODE_EXTRACT = "extract"
     MODE_ERASER = "eraser"
+    MODE_BOX_MASK = "box_mask"
+    MODE_BRUSH_MASK = "brush_mask"
 
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
@@ -153,6 +203,11 @@ class ImageViewer(QWidget):
         self._point_size = self.DEFAULT_POINT_SIZE
         self._nudge_step = self.DEFAULT_NUDGE_STEP
         self._eraser_size = 20.0
+
+        # 蒙版
+        self._mask = MaskOverlay()
+        self._mask_start_point = None
+        self._mask_current_polygon = []
 
         self.setup_ui()
 
@@ -269,6 +324,20 @@ class ImageViewer(QWidget):
         self._calibration_step_hint = ""
         self.update()
 
+    def set_box_mask_mode(self):
+        """切换到框选蒙版模式"""
+        self._current_tool = self.MODE_BOX_MASK
+        self._calibration_step_hint = ""
+        self._mask.reset()
+        self.update()
+
+    def set_brush_mask_mode(self):
+        """切换到画笔蒙版模式"""
+        self._current_tool = self.MODE_BRUSH_MASK
+        self._calibration_step_hint = ""
+        self._mask_current_polygon = []
+        self.update()
+
     def set_eraser_size(self, size: float):
         """设置橡皮擦大小"""
         self._eraser_size = max(1.0, size)
@@ -276,6 +345,10 @@ class ImageViewer(QWidget):
     def get_eraser_size(self) -> float:
         """获取橡皮擦大小"""
         return getattr(self, '_eraser_size', 20.0)
+
+    def get_mask(self) -> MaskOverlay:
+        """获取蒙版"""
+        return self._mask
 
     def get_current_tool(self) -> str:
         """获取当前工具模式"""
@@ -529,6 +602,12 @@ class ImageViewer(QWidget):
         elif self._current_tool == self.MODE_ERASER:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._handle_eraser_click(pos)
+        elif self._current_tool == self.MODE_BOX_MASK:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._mask_start_point = self._widget_to_image_coords(pos)
+        elif self._current_tool == self.MODE_BRUSH_MASK:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._mask_current_polygon = [self._widget_to_image_coords(pos)]
         elif self._current_tool == self.MODE_SELECT:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._pan = True
@@ -586,11 +665,36 @@ class ImageViewer(QWidget):
             pos = event.position()
             img_pos = self._widget_to_image_coords(pos)
             self.eraser_point.emit(img_pos.x(), img_pos.y())
+        elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
+            # 画笔蒙版模式下的拖动
+            self._mask_current_polygon.append(self._widget_to_image_coords(event.position()))
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         """鼠标释放"""
         if event.button() == Qt.MouseButton.LeftButton:
             self._pan = False
+            if self._current_tool == self.MODE_BOX_MASK and self._mask_start_point:
+                # 框选蒙版完成
+                end_point = self._widget_to_image_coords(event.position())
+                x1, y1 = self._mask_start_point.x(), self._mask_start_point.y()
+                x2, y2 = end_point.x(), end_point.y()
+                # 创建矩形多边形
+                polygon = [(min(x1, x2), min(y1, y2)),
+                          (max(x1, x2), min(y1, y2)),
+                          (max(x1, x2), max(y1, y2)),
+                          (min(x1, x2), max(y1, y2))]
+                self._mask.add_polygon(polygon)
+                self.mask_changed.emit()
+                self._mask_start_point = None
+                self.update()
+            elif self._current_tool == self.MODE_BRUSH_MASK and self._mask_current_polygon:
+                # 画笔蒙版完成
+                if len(self._mask_current_polygon) >= 3:
+                    points = [(p.x(), p.y()) for p in self._mask_current_polygon]
+                    self._mask.add_polygon(points)
+                    self.mask_changed.emit()
+                self._mask_current_polygon = []
+                self.update()
 
     def wheelEvent(self, event: QWheelEvent):
         """鼠标滚轮缩放"""

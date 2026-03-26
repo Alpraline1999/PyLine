@@ -75,6 +75,7 @@ class WorkspacePage(QWidget):
         self._image_viewer.calibration_nudge.connect(self._on_calibration_nudge)
         self._image_viewer.eraser_point.connect(self._on_eraser_point)
         self._image_viewer.toggle_eraser_mode.connect(self._on_toggle_eraser_mode)
+        self._image_viewer.mask_changed.connect(self._on_mask_changed)
 
     def _create_left_panel(self) -> CardWidget:
         panel = CardWidget(self)
@@ -494,6 +495,26 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_eraser_mode()
             self._active_tool = tool_name
             self._status_label.setText("点击或拖动擦除曲线点")
+        elif tool_name == "box_mask":
+            # 框选蒙版需要先选择一张图片
+            if self._current_image_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._box_mask_btn)
+            self._image_viewer.set_box_mask_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("拖动绘制矩形蒙版区域")
+        elif tool_name == "brush_mask":
+            # 画笔蒙版需要先选择一张图片
+            if self._current_image_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._brush_mask_btn)
+            self._image_viewer.set_brush_mask_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("点击并拖动绘制多边形蒙版区域")
         else:
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -981,6 +1002,13 @@ class WorkspacePage(QWidget):
             self._on_tool_clicked("eraser")
         elif self._active_tool == "eraser":
             self._on_tool_clicked("extract")
+
+    def _on_mask_changed(self):
+        """蒙版改变时的处理"""
+        mask = self._image_viewer.get_mask()
+        if mask and mask.enabled:
+            self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
+        self.project_modified.emit()
 
     def _on_tool_finish_curve(self):
         if not self._current_curve_points or self._current_image_id is None:
