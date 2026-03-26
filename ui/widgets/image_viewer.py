@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QWheelEvent, QMouseEvent, QResizeEvent, QPen, QColor, QBrush, QKeyEvent
+from PySide6.QtGui import QPixmap, QPainter, QWheelEvent, QMouseEvent, QResizeEvent, QPen, QColor, QBrush, QKeyEvent, QPainterPath
 
 
 class CurvePoint:
@@ -208,6 +208,9 @@ class ImageViewer(QWidget):
         self._mask = MaskOverlay()
         self._mask_start_point = None
         self._mask_current_polygon = []
+
+        # 鼠标位置(图片坐标)
+        self._mouse_image_pos = None
 
         self.setup_ui()
 
@@ -455,6 +458,9 @@ class ImageViewer(QWidget):
         if self._curves_visible:
             self._draw_curve_points(painter)
 
+        self._draw_mask_overlay(painter)
+        self._draw_eraser_cursor(painter)
+
         painter.restore()
 
         if self._calibration_step_hint:
@@ -553,6 +559,59 @@ class ImageViewer(QWidget):
 
         for px, py in curve_item.points:
             painter.drawEllipse(QPointF(px, py), r, r)
+
+    def _draw_mask_overlay(self, painter: QPainter):
+        """绘制蒙版覆盖层"""
+        if self._pixmap is None:
+            return
+
+        # 绘制已有多边形
+        if self._mask.polygons:
+            pen = QPen(QColor("#FF9800"))
+            pen.setWidthF(2.0 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#40FF9800")))
+
+            for polygon in self._mask.polygons:
+                if len(polygon) >= 3:
+                    points = [QPointF(p[0], p[1]) for p in polygon]
+                    path = QPainterPath()
+                    path.moveTo(points[0])
+                    for p in points[1:]:
+                        path.lineTo(p)
+                    path.closeSubpath()
+                    painter.drawPath(path)
+
+        # 绘制当前正在绘制的多边形
+        if self._mask_current_polygon and len(self._mask_current_polygon) >= 2:
+            pen = QPen(QColor("#FF5722"))
+            pen.setWidthF(2.0 / self._scale)
+            painter.setPen(pen)
+            points = self._mask_current_polygon
+            for i in range(len(points) - 1):
+                painter.drawLine(points[i], points[i + 1])
+
+        # 绘制框选蒙版的起始点
+        if self._mask_start_point:
+            pen = QPen(QColor("#FF5722"))
+            pen.setWidthF(2.0 / self._scale)
+            painter.setPen(pen)
+            r = self._point_size / self._scale
+            painter.setBrush(QBrush(QColor("#40FF5722")))
+            painter.drawEllipse(self._mask_start_point, r * 2, r * 2)
+
+    def _draw_eraser_cursor(self, painter: QPainter):
+        """绘制橡皮擦光标"""
+        if self._mouse_image_pos is None:
+            return
+
+        if self._current_tool == self.MODE_ERASER:
+            pen = QPen(QColor("#F44336"))
+            pen.setWidthF(2.0 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#20F44336")))
+            r = self._eraser_size
+            painter.drawEllipse(self._mouse_image_pos, r, r)
 
     # ==================== 键盘事件 ====================
 
@@ -656,6 +715,12 @@ class ImageViewer(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent):
         """鼠标移动（平移）"""
+        # 跟踪鼠标位置
+        if self._pixmap:
+            self._mouse_image_pos = self._widget_to_image_coords(event.position())
+        else:
+            self._mouse_image_pos = None
+
         if self._pan and self._pixmap and self._current_tool == self.MODE_SELECT:
             new_offset = event.position() - self._pan_start
             self._offset = self._clamp_offset(new_offset)
@@ -668,6 +733,10 @@ class ImageViewer(QWidget):
         elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
             # 画笔蒙版模式下的拖动
             self._mask_current_polygon.append(self._widget_to_image_coords(event.position()))
+            self.update()
+        elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK):
+            # 这些模式下需要重绘以显示鼠标位置
+            self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         """鼠标释放"""

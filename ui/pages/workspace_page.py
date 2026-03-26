@@ -197,7 +197,7 @@ class WorkspacePage(QWidget):
 
     def _create_common_tools_widget(self, parent) -> QWidget:
         """创建公用工具区域"""
-        from qfluentwidgets import TransparentTogglePushButton
+        from qfluentwidgets import TransparentTogglePushButton, PushButton
 
         widget = QWidget(parent)
         layout = QVBoxLayout(widget)
@@ -219,14 +219,14 @@ class WorkspacePage(QWidget):
         tools_layout.addWidget(self._eraser_btn)
 
         # 按X排序
-        self._sort_x_btn = TransparentTogglePushButton("按X排序", tools_widget)
-        self._sort_x_btn.setIcon(FIF.UP)
+        self._sort_x_btn = PushButton("X", tools_widget)
+        self._sort_x_btn.setIcon(FIF.DOWN)
         self._sort_x_btn.setToolTip("按X坐标排序")
         self._sort_x_btn.clicked.connect(self._on_sort_by_x)
         tools_layout.addWidget(self._sort_x_btn)
 
         # 按Y排序
-        self._sort_y_btn = TransparentTogglePushButton("按Y排序", tools_widget)
+        self._sort_y_btn = PushButton("Y", tools_widget)
         self._sort_y_btn.setIcon(FIF.DOWN)
         self._sort_y_btn.setToolTip("按Y坐标排序")
         self._sort_y_btn.clicked.connect(self._on_sort_by_y)
@@ -347,7 +347,7 @@ class WorkspacePage(QWidget):
 
     def _create_auto_extract_tab(self) -> QWidget:
         """创建自动选点功能区"""
-        from qfluentwidgets import TransparentTogglePushButton
+        from qfluentwidgets import TransparentTogglePushButton, PushButton
 
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -375,6 +375,13 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn.setCheckable(True)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         buttons_layout.addWidget(self._brush_mask_btn)
+
+        # 删除所有蒙版
+        self._clear_masks_btn = PushButton("清除蒙版", buttons_widget)
+        self._clear_masks_btn.setIcon(FIF.DELETE)
+        self._clear_masks_btn.setToolTip("删除所有蒙版区域")
+        self._clear_masks_btn.clicked.connect(self._on_clear_masks)
+        buttons_layout.addWidget(self._clear_masks_btn)
 
         buttons_layout.addStretch()
         layout.addWidget(buttons_widget)
@@ -583,6 +590,15 @@ class WorkspacePage(QWidget):
         self._eraser_btn.setChecked(False)
         self._calibrate_btn.setChecked(False)
         self._extract_btn.setChecked(False)
+
+    def _on_clear_masks(self):
+        """清除所有蒙版区域"""
+        mask = self._image_viewer.get_mask()
+        if mask:
+            mask.reset()
+            self._image_viewer.update()
+            self._status_label.setText("已清除所有蒙版区域")
+            self.project_modified.emit()
 
     def _on_point_size_changed(self, value):
         self._image_viewer.set_point_size(float(value))
@@ -1018,35 +1034,56 @@ class WorkspacePage(QWidget):
 
     def _on_eraser_point(self, px: float, py: float):
         """处理橡皮擦擦除点"""
-        if self._current_curve_id is None:
-            return
-        curve = project_manager.get_curve(self._current_curve_id)
-        if curve is None:
-            return
-
         eraser_radius = self._image_viewer.get_eraser_size()
+        mask = self._image_viewer.get_mask()
 
-        # 找到在橡皮擦范围内的点并移除
-        points_to_remove = []
-        for i in range(len(curve.x_data)):
-            dx = curve.x_data[i] - px
-            dy = curve.y_data[i] - py
-            distance = (dx * dx + dy * dy) ** 0.5
-            if distance <= eraser_radius:
-                points_to_remove.append(i)
+        # 擦除曲线点
+        if self._current_curve_id is not None:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve is not None:
+                points_to_remove = []
+                for i in range(len(curve.x_data)):
+                    dx = curve.x_data[i] - px
+                    dy = curve.y_data[i] - py
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance <= eraser_radius:
+                        # 如果蒙版启用，检查点是否在蒙版内
+                        if mask and mask.enabled:
+                            if mask.is_point_inside(curve.x_data[i], curve.y_data[i]):
+                                points_to_remove.append(i)
+                        else:
+                            points_to_remove.append(i)
 
-        if points_to_remove:
-            # 从后往前移除，避免索引变化
-            for i in reversed(points_to_remove):
-                del curve.x_data[i]
-                del curve.y_data[i]
-                if curve.x_actual and i < len(curve.x_actual):
-                    del curve.x_actual[i]
-                    del curve.y_actual[i]
+                if points_to_remove:
+                    for i in reversed(points_to_remove):
+                        del curve.x_data[i]
+                        del curve.y_data[i]
+                        if curve.x_actual and i < len(curve.x_actual):
+                            del curve.x_actual[i]
+                            del curve.y_actual[i]
 
-            self._display_current_curve_on_image()
-            self._update_curve_table()
-            self.project_modified.emit()
+                    self._display_current_curve_on_image()
+                    self._update_curve_table()
+                    self.project_modified.emit()
+
+        # 擦除蒙版多边形
+        if mask and mask.enabled and mask.polygons:
+            polygons_to_remove = []
+            for idx, polygon in enumerate(mask.polygons):
+                for px_poly, py_poly in polygon:
+                    dx = px_poly - px
+                    dy = py_poly - py
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance <= eraser_radius:
+                        polygons_to_remove.append(idx)
+                        break
+
+            if polygons_to_remove:
+                for idx in reversed(polygons_to_remove):
+                    del mask.polygons[idx]
+                self._image_viewer.update()
+                self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
+                self.project_modified.emit()
 
     def _on_toggle_eraser_mode(self):
         """切换橡皮擦模式"""
