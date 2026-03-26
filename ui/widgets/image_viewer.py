@@ -806,6 +806,7 @@ class ImageViewer(QWidget):
             pos = event.position()
             img_pos = self._widget_to_image_coords(pos)
             self.eraser_point.emit(img_pos.x(), img_pos.y())
+            self.update()
         elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
             # 画笔蒙版模式下的拖动
             self._mask_current_polygon.append(self._widget_to_image_coords(event.position()))

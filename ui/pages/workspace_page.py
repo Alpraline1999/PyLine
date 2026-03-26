@@ -1146,9 +1146,9 @@ class WorkspacePage(QWidget):
                     dy = curve.y_data[i] - py
                     distance = (dx * dx + dy * dy) ** 0.5
                     if distance <= eraser_radius:
-                        # 如果蒙版启用，检查点是否在蒙版内
+                        # 如果蒙版启用，检查点是否在蒙版内（受保护不删除）
                         if mask and mask.enabled:
-                            if mask.is_point_inside(curve.x_data[i], curve.y_data[i]):
+                            if not mask.is_point_inside(curve.x_data[i], curve.y_data[i]):
                                 points_to_remove.append(i)
                         else:
                             points_to_remove.append(i)
