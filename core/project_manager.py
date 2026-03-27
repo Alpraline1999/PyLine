@@ -326,8 +326,10 @@ class ProjectManager:
         else:
             r_actual = 0
 
-        # 计算实际角度
-        theta_actual = theta_p - direction_a + angle_A
+        # 计算实际角度（逆时针为正）
+        # 使用 direction_a - theta_p 使得在屏幕坐标系中顺时针方向为正
+        # 然后加 angle_A 得到最终角度，最后取反使逆时针为正
+        theta_actual = angle_A + direction_a - theta_p
 
         # 归一化到 [0, 360)
         while theta_actual < 0:
