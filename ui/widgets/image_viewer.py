@@ -180,8 +180,13 @@ class CalibrationOverlay:
         self.y_end = None
 
     def is_complete(self) -> bool:
-        return (self.x_start is not None and self.x_end is not None and
-                self.y_start is not None and self.y_end is not None)
+        if self.coord_type == "polar":
+            # 极坐标只需要2个点：原点和角度极径点
+            return self.x_start is not None and self.x_end is not None
+        else:
+            # 线性/对数坐标需要4个点
+            return (self.x_start is not None and self.x_end is not None and
+                    self.y_start is not None and self.y_end is not None)
 
     def next_point_type(self) -> str:
         """返回下一个要设置的点的类型"""
