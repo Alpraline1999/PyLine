@@ -282,6 +282,7 @@ class ImageViewer(QWidget):
     eraser_point = Signal(float, float)  # 橡皮擦信号 (x, y 像素坐标)
     toggle_eraser_mode = Signal()  # 切换橡皮擦模式信号
     mask_changed = Signal()  # 蒙版改变信号
+    mask_about_to_add = Signal(object)  # 蒙版即将添加信号，携带多边形数据
 
     # 工具模式
     MODE_SELECT = "select"
@@ -974,6 +975,7 @@ class ImageViewer(QWidget):
                           (max(x1, x2), min(y1, y2)),
                           (max(x1, x2), max(y1, y2)),
                           (min(x1, x2), max(y1, y2))]
+                self.mask_about_to_add.emit(polygon)
                 self._mask.add_polygon(polygon)
                 self.mask_changed.emit()
                 self._mask_start_point = None
@@ -982,6 +984,7 @@ class ImageViewer(QWidget):
                 # 画笔蒙版完成
                 if len(self._mask_current_polygon) >= 3:
                     points = [(p.x(), p.y()) for p in self._mask_current_polygon]
+                    self.mask_about_to_add.emit(points)
                     self._mask.add_polygon(points)
                     self.mask_changed.emit()
                 self._mask_current_polygon = []

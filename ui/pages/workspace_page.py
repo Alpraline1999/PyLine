@@ -82,6 +82,7 @@ class WorkspacePage(QWidget):
         self._image_viewer.eraser_point.connect(self._on_eraser_point)
         self._image_viewer.toggle_eraser_mode.connect(self._on_toggle_eraser_mode)
         self._image_viewer.mask_changed.connect(self._on_mask_changed)
+        self._image_viewer.mask_about_to_add.connect(self._on_mask_about_to_add)
 
     def _setup_shortcuts(self):
         """设置键盘快捷键"""
@@ -220,7 +221,7 @@ class WorkspacePage(QWidget):
         layout.setContentsMargins(0, 5, 0, 0)
         layout.setSpacing(8)
 
-        # 工具按钮行
+        # 工具按钮行 - 橡皮擦和排序
         tools_widget = QWidget(widget)
         tools_layout = QHBoxLayout(tools_widget)
         tools_layout.setContentsMargins(0, 0, 0, 0)
@@ -248,27 +249,36 @@ class WorkspacePage(QWidget):
         self._sort_y_btn.clicked.connect(self._on_sort_by_y)
         tools_layout.addWidget(self._sort_y_btn)
 
+        tools_layout.addStretch()
+        layout.addWidget(tools_widget)
+
+        # 操作按钮行 - 清除、撤销、重做
+        ops_widget = QWidget(widget)
+        ops_layout = QHBoxLayout(ops_widget)
+        ops_layout.setContentsMargins(0, 0, 0, 0)
+        ops_layout.setSpacing(5)
+
         # 清除所有点
-        self._clear_points_btn = PushButton("清除", tools_widget)
+        self._clear_points_btn = PushButton("清除", ops_widget)
         self._clear_points_btn.setIcon(FIF.DELETE)
         self._clear_points_btn.setToolTip("清除所有点")
         self._clear_points_btn.clicked.connect(self._on_clear_all_points)
-        tools_layout.addWidget(self._clear_points_btn)
+        ops_layout.addWidget(self._clear_points_btn)
 
         # 撤销
-        self._undo_btn = ToolButton(FIF.LEFT_ARROW, tools_widget)
+        self._undo_btn = ToolButton(FIF.LEFT_ARROW, ops_widget)
         self._undo_btn.setToolTip("撤销 (Ctrl+Z)")
         self._undo_btn.clicked.connect(self._undo)
-        tools_layout.addWidget(self._undo_btn)
+        ops_layout.addWidget(self._undo_btn)
 
         # 重做
-        self._redo_btn = ToolButton(FIF.RIGHT_ARROW, tools_widget)
+        self._redo_btn = ToolButton(FIF.RIGHT_ARROW, ops_widget)
         self._redo_btn.setToolTip("重做 (Ctrl+Y)")
         self._redo_btn.clicked.connect(self._redo)
-        tools_layout.addWidget(self._redo_btn)
+        ops_layout.addWidget(self._redo_btn)
 
-        tools_layout.addStretch()
-        layout.addWidget(tools_widget)
+        ops_layout.addStretch()
+        layout.addWidget(ops_widget)
 
         # 颜色和形状行
         style_row = QWidget(widget)
@@ -1222,13 +1232,30 @@ class WorkspacePage(QWidget):
         self._current_curve_points.append((px, py))
         self._status_label.setText(f"已选取 {len(self._current_curve_points)} 个点")
 
+        # 记录撤销信息（添加点）
+        if self._current_curve_id:
+            calib = None
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve:
+                calib = curve.calibration
+            if calib:
+                x_actual, y_actual = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+            else:
+                x_actual, y_actual = px, py
+            self._record_state("add_point", self._current_curve_id, {
+                "index": len(self._current_curve_points) - 1,
+                "x": px,
+                "y": py,
+                "x_actual": x_actual,
+                "y_actual": y_actual
+            })
+
     def _on_eraser_point(self, px: float, py: float):
         """处理橡皮擦擦除点"""
         eraser_radius = self._image_viewer.get_eraser_size()
         mask = self._image_viewer.get_mask()
-        mask_changed = False
 
-        # 擦除曲线点
+        # 擦除曲线点 - 逐点记录用于撤销
         if self._current_curve_id is not None:
             curve = project_manager.get_curve(self._current_curve_id)
             if curve is not None and curve.x_data:
@@ -1238,37 +1265,42 @@ class WorkspacePage(QWidget):
                     dy = curve.y_data[i] - py
                     distance = (dx * dx + dy * dy) ** 0.5
                     if distance <= eraser_radius:
-                        # 蒙版内的点也可以删除
                         points_to_remove.append(i)
 
+                # 逐点记录并删除
+                for i in reversed(points_to_remove):
+                    # 记录被删除的点用于撤销
+                    self._record_state("remove_point", self._current_curve_id, {
+                        "index": i,
+                        "x": curve.x_data[i],
+                        "y": curve.y_data[i],
+                        "x_actual": curve.x_actual[i] if curve.x_actual and i < len(curve.x_actual) else None,
+                        "y_actual": curve.y_actual[i] if curve.y_actual and i < len(curve.y_actual) else None
+                    })
+                    # 删除点
+                    del curve.x_data[i]
+                    del curve.y_data[i]
+                    if curve.x_actual and i < len(curve.x_actual):
+                        del curve.x_actual[i]
+                        del curve.y_actual[i]
+
                 if points_to_remove:
-                    # 记录状态用于撤销
-                    self._record_state("eraser_point", self._current_curve_id, {"removed_indices": points_to_remove})
-
-                    for i in reversed(points_to_remove):
-                        del curve.x_data[i]
-                        del curve.y_data[i]
-                        if curve.x_actual and i < len(curve.x_actual):
-                            del curve.x_actual[i]
-                            del curve.y_actual[i]
-
                     self._display_current_curve_on_image()
                     self._update_curve_table()
                     self.project_modified.emit()
 
-        # 擦除蒙版多边形
+        # 擦除蒙版多边形 - 记录用于撤销
         if mask and mask.enabled and mask.polygons:
-            # 先检查是否有蒙版多边形会被删除
             polygon_to_remove = mask.get_polygon_at_point(px, py)
             if polygon_to_remove >= 0:
-                # 记录状态用于撤销（在删除之前）
-                # 蒙版操作不依赖曲线，所以传 None 作为 curve_id
-                self._record_state("eraser_mask", None, {
-                    "mask_polygons": [list(p) for p in mask.polygons],
-                    "removed_polygon_index": polygon_to_remove
+                # 记录被删除的蒙版用于撤销
+                self._record_state("remove_mask", None, {
+                    "polygon": list(mask.polygons[polygon_to_remove])
                 })
                 # 执行删除
-                mask.remove_polygon_at_point(px, py, eraser_radius)
+                del mask.polygons[polygon_to_remove]
+                if not mask.polygons:
+                    mask.enabled = False
                 self._image_viewer.update()
                 self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
                 self.project_modified.emit()
@@ -1286,6 +1318,10 @@ class WorkspacePage(QWidget):
         if mask and mask.enabled:
             self._status_label.setText(f"蒙版区域: {len(mask.polygons)} 个")
         self.project_modified.emit()
+
+    def _on_mask_about_to_add(self, polygon):
+        """蒙版即将添加时记录撤销信息"""
+        self._record_state("add_mask", None, {"polygon": list(polygon)})
 
     def _save_extracted_curve(self):
         """保存提取的曲线点"""
@@ -1448,12 +1484,14 @@ class WorkspacePage(QWidget):
         self._status_label.setText("已清除所有点")
 
     def _record_state(self, action_type: str, curve_id: str = None, data: dict = None):
-        """记录操作前的状态到撤销栈
+        """记录操作到撤销栈
 
-        Args:
-            action_type: 操作类型 (add_point, remove_point, clear_points, add_mask, remove_mask)
-            curve_id: 曲线ID
-            data: 额外的操作数据
+        精细化操作记录：
+        - add_point: 添加点 - 记录点数据
+        - remove_point: 删除点 - 记录点和索引
+        - clear_curve: 清除曲线 - 记录所有点
+        - add_mask: 添加蒙版 - 记录蒙版多边形
+        - remove_mask: 删除蒙版 - 记录蒙版多边形
         """
         if self._is_undo_redo:
             return
@@ -1461,28 +1499,12 @@ class WorkspacePage(QWidget):
         if curve_id is None:
             curve_id = self._current_curve_id
 
-        # 获取当前曲线状态
-        curve = project_manager.get_curve(curve_id) if curve_id else None
-        if curve is None:
-            return
-
-        # 保存当前状态
+        # 构建操作记录
         state = {
             "type": action_type,
             "curve_id": curve_id,
-            "x_data": list(curve.x_data),
-            "y_data": list(curve.y_data),
-            "x_actual": list(curve.x_actual) if curve.x_actual else [],
-            "y_actual": list(curve.y_actual) if curve.y_actual else [],
-            "data": data  # 额外数据，如被删除的点等
+            "data": data
         }
-
-        # 保存蒙版状态
-        mask = self._image_viewer.get_mask()
-        if mask:
-            state["mask_polygons"] = [list(p) for p in mask.polygons]
-            state["mask_enabled"] = mask.enabled
-            state["mask_include_mode"] = mask.include_mode
 
         self._undo_stack.append(state)
         # 清空重做栈
@@ -1501,49 +1523,130 @@ class WorkspacePage(QWidget):
         self._is_undo_redo = True
         state = self._undo_stack.pop()
 
-        # 获取曲线（如果curve_id为None，则是纯蒙版操作）
+        action_type = state["type"]
         curve_id = state.get("curve_id")
+        data = state.get("data", {})
         curve = project_manager.get_curve(curve_id) if curve_id else None
 
-        # 保存当前状态到重做栈
-        current_state = {
-            "type": state["type"],
-            "curve_id": curve_id
-        }
-        if curve:
-            current_state["x_data"] = list(curve.x_data)
-            current_state["y_data"] = list(curve.y_data)
-            current_state["x_actual"] = list(curve.x_actual) if curve.x_actual else []
-            current_state["y_actual"] = list(curve.y_actual) if curve.y_actual else []
-        mask = self._image_viewer.get_mask()
-        if mask:
-            current_state["mask_polygons"] = [list(p) for p in mask.polygons]
-            current_state["mask_enabled"] = mask.enabled
-            current_state["mask_include_mode"] = mask.include_mode
-        self._redo_stack.append(current_state)
+        if action_type == "add_point":
+            # 撤销添加点 = 删除最后添加的点
+            # 先检查点是否在_current_curve_points中（未保存）
+            if self._current_curve_points:
+                # 保存到重做栈
+                pt = self._current_curve_points[-1]
+                self._redo_stack.append({
+                    "type": "add_point",
+                    "curve_id": curve_id,
+                    "data": {
+                        "x": pt[0],
+                        "y": pt[1],
+                        "x_actual": data.get("x_actual"),
+                        "y_actual": data.get("y_actual")
+                    }
+                })
+                # 从当前点列表中删除
+                self._current_curve_points.pop()
+            elif curve and curve.x_data:
+                # 点已在curve中，从curve删除
+                self._redo_stack.append({
+                    "type": "add_point",
+                    "curve_id": curve_id,
+                    "data": {
+                        "index": len(curve.x_data) - 1,
+                        "x": curve.x_data[-1],
+                        "y": curve.y_data[-1],
+                        "x_actual": curve.x_actual[-1] if curve.x_actual else None,
+                        "y_actual": curve.y_actual[-1] if curve.y_actual else None
+                    }
+                })
+                del curve.x_data[-1]
+                del curve.y_data[-1]
+                if curve.x_actual:
+                    del curve.x_actual[-1]
+                    del curve.y_actual[-1]
 
-        # 恢复曲线状态（如果有）
-        if curve:
-            curve.x_data = state.get("x_data", [])
-            curve.y_data = state.get("y_data", [])
-            curve.x_actual = state.get("x_actual", [])
-            curve.y_actual = state.get("y_actual", [])
+        elif action_type == "remove_point":
+            # 撤销删除点 = 恢复被删除的点
+            if curve:
+                # 保存当前状态到重做栈
+                self._redo_stack.append({
+                    "type": "remove_point",
+                    "curve_id": curve_id,
+                    "data": {
+                        "index": data["index"],
+                        "x": data["x"],
+                        "y": data["y"],
+                        "x_actual": data.get("x_actual"),
+                        "y_actual": data.get("y_actual")
+                    }
+                })
+                # 执行撤销：在原位置恢复点
+                index = data["index"]
+                curve.x_data.insert(index, data["x"])
+                curve.y_data.insert(index, data["y"])
+                if data.get("x_actual") is not None:
+                    if not curve.x_actual:
+                        curve.x_actual = []
+                        curve.y_actual = []
+                    curve.x_actual.insert(index, data["x_actual"])
+                    curve.y_actual.insert(index, data["y_actual"])
 
-        # 恢复蒙版
-        if "mask_polygons" in state:
+        elif action_type == "clear_curve":
+            # 撤销清除 = 恢复所有点
+            if curve and data.get("points"):
+                # 保存当前状态到重做栈
+                self._redo_stack.append({
+                    "type": "clear_curve",
+                    "curve_id": curve_id,
+                    "data": {
+                        "points": [(x, y) for x, y in zip(curve.x_data, curve.y_data)] if curve.x_data else [],
+                        "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                        "y_actual": list(curve.y_actual) if curve.y_actual else []
+                    }
+                })
+                # 执行撤销
+                curve.x_data = [p[0] for p in data["points"]]
+                curve.y_data = [p[1] for p in data["points"]]
+                curve.x_actual = list(data.get("x_actual", []))
+                curve.y_actual = list(data.get("y_actual", []))
+
+        elif action_type == "remove_mask":
+            # 撤销删除蒙版 = 恢复蒙版
             mask = self._image_viewer.get_mask()
-            mask.polygons = [list(p) for p in state["mask_polygons"]]
-            mask.enabled = state.get("mask_enabled", False)
-            mask.include_mode = state.get("mask_include_mode", True)
+            if mask and data.get("polygon") is not None:
+                # 保存当前状态到重做栈
+                self._redo_stack.append({
+                    "type": "remove_mask",
+                    "curve_id": None,
+                    "data": {"polygon": data["polygon"]}
+                })
+                # 执行撤销
+                mask.polygons.append(data["polygon"])
+                mask.enabled = True
 
+        elif action_type == "add_mask":
+            # 撤销添加蒙版 = 删除最后添加的蒙版
+            mask = self._image_viewer.get_mask()
+            if mask and mask.polygons:
+                # 保存当前状态到重做栈
+                self._redo_stack.append({
+                    "type": "add_mask",
+                    "curve_id": None,
+                    "data": {"polygon": mask.polygons[-1]}
+                })
+                # 执行撤销
+                del mask.polygons[-1]
+                if not mask.polygons:
+                    mask.enabled = False
+
+        # 更新显示
         if curve:
             self._display_current_curve_on_image()
             self._update_curve_table()
-        else:
-            self._image_viewer.update()
+        self._image_viewer.update()
         self.project_modified.emit()
         self._is_undo_redo = False
-        self._status_label.setText(f"已撤销: {state['type']}")
+        self._status_label.setText(f"已撤销: {action_type}")
 
     def _redo(self):
         """重做上一个撤销的操作"""
@@ -1554,49 +1657,120 @@ class WorkspacePage(QWidget):
         self._is_undo_redo = True
         state = self._redo_stack.pop()
 
-        # 获取曲线（如果curve_id为None，则是纯蒙版操作）
+        action_type = state["type"]
         curve_id = state.get("curve_id")
+        data = state.get("data", {})
         curve = project_manager.get_curve(curve_id) if curve_id else None
 
-        # 保存当前状态到撤销栈
-        current_state = {
-            "type": state["type"],
-            "curve_id": curve_id
-        }
-        if curve:
-            current_state["x_data"] = list(curve.x_data)
-            current_state["y_data"] = list(curve.y_data)
-            current_state["x_actual"] = list(curve.x_actual) if curve.x_actual else []
-            current_state["y_actual"] = list(curve.y_actual) if curve.y_actual else []
-        mask = self._image_viewer.get_mask()
-        if mask:
-            current_state["mask_polygons"] = [list(p) for p in mask.polygons]
-            current_state["mask_enabled"] = mask.enabled
-            current_state["mask_include_mode"] = mask.include_mode
-        self._undo_stack.append(current_state)
+        if action_type == "add_point":
+            # 重做添加点 = 重新添加点
+            if curve:
+                # 保存当前状态到撤销栈
+                self._undo_stack.append({
+                    "type": "remove_point",
+                    "curve_id": curve_id,
+                    "data": {
+                        "index": data["index"],
+                        "x": data["x"],
+                        "y": data["y"],
+                        "x_actual": data.get("x_actual"),
+                        "y_actual": data.get("y_actual")
+                    }
+                })
+                # 执行重做
+                curve.x_data.append(data["x"])
+                curve.y_data.append(data["y"])
+                if data.get("x_actual") is not None:
+                    if not curve.x_actual:
+                        curve.x_actual = []
+                        curve.y_actual = []
+                    curve.x_actual.append(data["x_actual"])
+                    curve.y_actual.append(data["y_actual"])
 
-        # 恢复曲线状态（如果有）
-        if curve:
-            curve.x_data = state.get("x_data", [])
-            curve.y_data = state.get("y_data", [])
-            curve.x_actual = state.get("x_actual", [])
-            curve.y_actual = state.get("y_actual", [])
+        elif action_type == "remove_point":
+            # 重做删除点 = 重新删除点
+            if curve:
+                # 保存当前状态到撤销栈
+                redo_data = {
+                    "index": data["index"],
+                    "x": data["x"],
+                    "y": data["y"],
+                    "x_actual": data.get("x_actual"),
+                    "y_actual": data.get("y_actual")
+                }
+                self._undo_stack.append({
+                    "type": "remove_point",
+                    "curve_id": curve_id,
+                    "data": redo_data
+                })
+                # 执行重做
+                index = data["index"]
+                if index < len(curve.x_data):
+                    del curve.x_data[index]
+                    del curve.y_data[index]
+                    if curve.x_actual and index < len(curve.x_actual):
+                        del curve.x_actual[index]
+                        del curve.y_actual[index]
 
-        # 恢复蒙版
-        if "mask_polygons" in state:
+        elif action_type == "clear_curve":
+            # 重做清除 = 重新清除
+            if curve and data.get("points"):
+                # 保存当前状态到撤销栈
+                self._undo_stack.append({
+                    "type": "clear_curve",
+                    "curve_id": curve_id,
+                    "data": {
+                        "points": [(x, y) for x, y in zip(curve.x_data, curve.y_data)] if curve.x_data else [],
+                        "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                        "y_actual": list(curve.y_actual) if curve.y_actual else []
+                    }
+                })
+                # 执行重做
+                curve.x_data = []
+                curve.y_data = []
+                curve.x_actual = []
+                curve.y_actual = []
+
+        elif action_type == "remove_mask":
+            # 重做删除蒙版 = 重新删除
             mask = self._image_viewer.get_mask()
-            mask.polygons = [list(p) for p in state["mask_polygons"]]
-            mask.enabled = state.get("mask_enabled", False)
-            mask.include_mode = state.get("mask_include_mode", True)
+            if mask and data.get("polygon") is not None:
+                # 保存当前状态到撤销栈
+                self._undo_stack.append({
+                    "type": "remove_mask",
+                    "curve_id": None,
+                    "data": {"polygon": data["polygon"]}
+                })
+                # 执行重做 - 找到并删除该蒙版
+                for i, poly in enumerate(mask.polygons):
+                    if poly == data["polygon"]:
+                        del mask.polygons[i]
+                        break
+                if not mask.polygons:
+                    mask.enabled = False
 
+        elif action_type == "add_mask":
+            # 重做添加蒙版 = 重新添加
+            mask = self._image_viewer.get_mask()
+            if mask and data.get("polygon") is not None:
+                # 保存当前状态到撤销栈
+                self._undo_stack.append({
+                    "type": "add_mask",
+                    "curve_id": None,
+                    "data": {"polygon": data["polygon"]}
+                })
+                # 执行重做
+                mask.polygons.append(data["polygon"])
+                mask.enabled = True
+
+        # 更新显示
         if curve:
             self._display_current_curve_on_image()
             self._update_curve_table()
-        else:
-            self._image_viewer.update()
+        self._image_viewer.update()
         self.project_modified.emit()
         self._is_undo_redo = False
-        self._status_label.setText(f"已重做: {state['type']}")
+        self._status_label.setText(f"已重做: {action_type}")
 
 
 # 需要导入 FIF
