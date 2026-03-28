@@ -760,7 +760,16 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
             if curve:
                 curve.color = color_str
-                self._display_current_curve_on_image()
+                # 重新显示曲线，保留所有点
+                self._image_viewer.clear_curves()
+                self._display_curve_on_image(curve)
+                # 更新校准显示
+                if curve.calibration:
+                    self._apply_calibration_to_viewer(curve.calibration)
+                else:
+                    calib = self._image_viewer.get_calibration()
+                    calib.reset()
+                self._image_viewer.update()
                 self.project_modified.emit()
 
     def _on_shape_changed(self, index):
