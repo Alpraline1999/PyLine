@@ -1664,28 +1664,44 @@ class WorkspacePage(QWidget):
 
         if action_type == "add_point":
             # 重做添加点 = 重新添加点
-            if curve:
-                # 保存当前状态到撤销栈
+            # 注意：add_point可能来自undo add_point（无index）或undo remove_point（有index）
+            if "index" in data:
+                # 来自undo remove_point，需要在指定位置插入
+                if curve:
+                    self._undo_stack.append({
+                        "type": "remove_point",
+                        "curve_id": curve_id,
+                        "data": {
+                            "index": data["index"],
+                            "x": data["x"],
+                            "y": data["y"],
+                            "x_actual": data.get("x_actual"),
+                            "y_actual": data.get("y_actual")
+                        }
+                    })
+                    # 执行重做：在指定位置插入
+                    index = data["index"]
+                    curve.x_data.insert(index, data["x"])
+                    curve.y_data.insert(index, data["y"])
+                    if data.get("x_actual") is not None:
+                        if not curve.x_actual:
+                            curve.x_actual = []
+                            curve.y_actual = []
+                        curve.x_actual.insert(index, data["x_actual"])
+                        curve.y_actual.insert(index, data["y_actual"])
+            else:
+                # 来自undo add_point，添加到当前点列表
                 self._undo_stack.append({
-                    "type": "remove_point",
+                    "type": "add_point",
                     "curve_id": curve_id,
                     "data": {
-                        "index": data["index"],
                         "x": data["x"],
                         "y": data["y"],
                         "x_actual": data.get("x_actual"),
                         "y_actual": data.get("y_actual")
                     }
                 })
-                # 执行重做
-                curve.x_data.append(data["x"])
-                curve.y_data.append(data["y"])
-                if data.get("x_actual") is not None:
-                    if not curve.x_actual:
-                        curve.x_actual = []
-                        curve.y_actual = []
-                    curve.x_actual.append(data["x_actual"])
-                    curve.y_actual.append(data["y_actual"])
+                self._current_curve_points.append((data["x"], data["y"]))
 
         elif action_type == "remove_point":
             # 重做删除点 = 重新删除点
