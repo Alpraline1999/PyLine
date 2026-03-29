@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, LineEdit, SpinBox
+from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -102,17 +102,46 @@ class WorkspacePage(QWidget):
         self._image_viewer.assisted_region_selected.connect(self._on_assisted_region)
 
     def _setup_shortcuts(self):
-        """设置键盘快捷键"""
+        """设置键盘快捷键（可在设置页自定义）"""
         from PySide6.QtGui import QShortcut, QKeySequence
-        # Ctrl+Z 撤销
-        self._undo_shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
-        self._undo_shortcut.activated.connect(self._undo)
-        # Ctrl+Y 重做
-        self._redo_shortcut = QShortcut(QKeySequence("Ctrl+Y"), self)
-        self._redo_shortcut.activated.connect(self._redo)
-        # Delete 删除选中数据行
-        self._delete_rows_shortcut = QShortcut(QKeySequence("Delete"), self._curve_table)
-        self._delete_rows_shortcut.activated.connect(self._delete_selected_table_rows)
+        from core.shortcut_manager import shortcut_manager
+        sm = shortcut_manager
+        self._shortcut_objects: dict[str, QShortcut] = {}
+
+        def _reg(action: str, parent, callback, context=None):
+            sc = QShortcut(QKeySequence(sm.get(action)), parent)
+            if context is not None:
+                sc.setContext(context)
+            sc.activated.connect(callback)
+            self._shortcut_objects[action] = sc
+
+        _reg("undo",         self, self._undo)
+        _reg("redo",         self, self._redo)
+        _reg("save",         self, self._on_save_project)
+        _reg("new_project",  self, self._on_new_project)
+        _reg("open_project", self, self._on_open_project)
+        _reg("close_project", self, self._on_close_project)
+        _reg("add_image",    self, self._on_add_image)
+        _reg("add_curve",    self, self._on_add_curve)
+        _reg("extract",      self, lambda: self._on_tool_clicked("extract"))
+        _reg("calibrate",    self, lambda: self._on_tool_clicked("calibrate"))
+        _reg("eraser",       self, lambda: self._on_tool_clicked("eraser"))
+        _reg("auto_detect",  self, self._on_auto_detect)
+        _reg("apply_auto",   self, self._on_apply_auto_points)
+        _reg("clear_points", self, self._on_clear_all_points)
+        _reg("clear_masks",  self, self._on_clear_masks)
+        _reg("escape_tool",  self, self._on_escape_tool)
+        _reg("zoom_in",      self._image_viewer, self._image_viewer.zoom_in)
+        _reg("zoom_out",     self._image_viewer, self._image_viewer.zoom_out)
+        _reg("zoom_fit",     self._image_viewer, self._image_viewer.fit_to_window)
+        _reg("delete_rows",  self._curve_table,  self._delete_selected_table_rows)
+
+    def apply_shortcuts(self):
+        """由设置页调用，用新配置刷新所有快捷键绑定"""
+        from PySide6.QtGui import QKeySequence
+        from core.shortcut_manager import shortcut_manager
+        for action, sc in self._shortcut_objects.items():
+            sc.setKey(QKeySequence(shortcut_manager.get(action)))
 
     def _create_left_panel(self) -> CardWidget:
         panel = CardWidget(self)
@@ -237,7 +266,6 @@ class WorkspacePage(QWidget):
 
     def _create_top_viewer_toolbar(self, parent) -> QWidget:
         """创建图片查看器上方工具栏（橡皮/清空/撤销/重做，靠右排列）"""
-        from qfluentwidgets import TransparentTogglePushButton
         bar = QWidget(parent)
         bar.setFixedHeight(36)
         bar_layout = QHBoxLayout(bar)
@@ -253,10 +281,8 @@ class WorkspacePage(QWidget):
             return line
 
         # 橡皮擦
-        self._eraser_btn = TransparentTogglePushButton("", bar)
-        self._eraser_btn.setIcon(FIF.ERASE_TOOL)
+        self._eraser_btn = ToggleToolButton(FIF.ERASE_TOOL, bar)
         self._eraser_btn.setToolTip("橡皮擦 (E)")
-        self._eraser_btn.setCheckable(True)
         self._eraser_btn.setFixedSize(32, 32)
         self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
         bar_layout.addWidget(self._eraser_btn)
@@ -272,14 +298,14 @@ class WorkspacePage(QWidget):
 
         # 撤销
         self._undo_btn = ToolButton(FIF.LEFT_ARROW, bar)
-        self._undo_btn.setToolTip("撤销 (Ctrl+Z)")
+        self._undo_btn.setToolTip("撤销")
         self._undo_btn.setFixedSize(32, 32)
         self._undo_btn.clicked.connect(self._undo)
         bar_layout.addWidget(self._undo_btn)
 
         # 重做
         self._redo_btn = ToolButton(FIF.RIGHT_ARROW, bar)
-        self._redo_btn.setToolTip("重做 (Ctrl+Y)")
+        self._redo_btn.setToolTip("重做")
         self._redo_btn.setFixedSize(32, 32)
         self._redo_btn.clicked.connect(self._redo)
         bar_layout.addWidget(self._redo_btn)
@@ -313,9 +339,9 @@ class WorkspacePage(QWidget):
 
         # 形状
         self._shape_combo = QComboBox(bar)
-        self._shape_combo.addItems(["圆形", "方形", "三角形", "菱形", "倒三角", "叉号", "星号"])
+        self._shape_combo.addItems(["●", "■", "▲", "◆", "▼", "✕", "★"])
         self._shape_combo.setToolTip("曲线点形状")
-        self._shape_combo.setFixedWidth(68)
+        self._shape_combo.setFixedWidth(52)
         self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
         bar_layout.addWidget(self._shape_combo)
 
@@ -376,7 +402,6 @@ class WorkspacePage(QWidget):
 
     def _create_combined_tab(self) -> QWidget:
         """创建合并的图片选点功能区（手动/自动/辅助三节）"""
-        from qfluentwidgets import TransparentTogglePushButton
         from PySide6.QtWidgets import QSlider, QScrollArea
 
         tab = QWidget()
@@ -414,18 +439,14 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
-        self._calibrate_btn = TransparentTogglePushButton("", manual_row)
-        self._calibrate_btn.setIcon(FIF.CERTIFICATE)
+        self._calibrate_btn = ToggleToolButton(FIF.CERTIFICATE, manual_row)
         self._calibrate_btn.setToolTip("校准")
-        self._calibrate_btn.setCheckable(True)
         self._calibrate_btn.setFixedSize(34, 34)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         ml.addWidget(self._calibrate_btn)
 
-        self._extract_btn = TransparentTogglePushButton("", manual_row)
-        self._extract_btn.setIcon(FIF.PENCIL_INK)
+        self._extract_btn = ToggleToolButton(FIF.PENCIL_INK, manual_row)
         self._extract_btn.setToolTip("手动提取曲线")
-        self._extract_btn.setCheckable(True)
         self._extract_btn.setFixedSize(34, 34)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         ml.addWidget(self._extract_btn)
@@ -442,13 +463,19 @@ class WorkspacePage(QWidget):
         abl.setContentsMargins(0, 0, 0, 0)
         abl.setSpacing(4)
 
-        self._sample_color_card = TransparentTogglePushButton("", auto_btn_row)
-        self._sample_color_card.setIcon(FIF.PALETTE)
-        self._sample_color_card.setCheckable(True)
-        self._sample_color_card.setFixedSize(34, 34)
-        self._sample_color_card.setToolTip("点击进入取色")
-        self._sample_color_card.clicked.connect(self._on_color_pick)
-        abl.addWidget(self._sample_color_card)
+        # 采样颜色按钮（ColorPickerButton 风格，点击打开对话框选色）
+        self._sample_color_btn = ColorPickerButton(QColor("#888888"), "", auto_btn_row, enableAlpha=False)
+        self._sample_color_btn.setToolTip("采样颜色（点击打开颜色对话框）")
+        self._sample_color_btn.setFixedSize(34, 34)
+        self._sample_color_btn.colorChanged.connect(self._on_sample_color_changed_direct)
+        abl.addWidget(self._sample_color_btn)
+
+        # 从图片取色按钮
+        self._screen_pick_btn = ToggleToolButton(FIF.PALETTE, auto_btn_row)
+        self._screen_pick_btn.setToolTip("从图片取色")
+        self._screen_pick_btn.setFixedSize(34, 34)
+        self._screen_pick_btn.clicked.connect(self._on_color_pick)
+        abl.addWidget(self._screen_pick_btn)
 
         self._auto_detect_btn = ToolButton(FIF.SEARCH, auto_btn_row)
         self._auto_detect_btn.setToolTip("自动检测")
@@ -468,7 +495,6 @@ class WorkspacePage(QWidget):
         self._sampled_color_hex_lbl = QLabel("#888888", content)
         self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         layout.addWidget(self._sampled_color_hex_lbl)
-        self._set_sample_color_card(QColor("#888888"))
 
         tol_row = QWidget(content)
         tl = QHBoxLayout(tol_row)
@@ -509,18 +535,14 @@ class WorkspacePage(QWidget):
         mml.setContentsMargins(0, 0, 0, 0)
         mml.setSpacing(4)
 
-        self._box_mask_btn = TransparentTogglePushButton("", mask_row)
-        self._box_mask_btn.setIcon(FIF.LAYOUT)
+        self._box_mask_btn = ToggleToolButton(FIF.LAYOUT, mask_row)
         self._box_mask_btn.setToolTip("框选蒙版")
-        self._box_mask_btn.setCheckable(True)
         self._box_mask_btn.setFixedSize(34, 34)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
         mml.addWidget(self._box_mask_btn)
 
-        self._brush_mask_btn = TransparentTogglePushButton("", mask_row)
-        self._brush_mask_btn.setIcon(FIF.BRUSH)
+        self._brush_mask_btn = ToggleToolButton(FIF.BRUSH, mask_row)
         self._brush_mask_btn.setToolTip("画笔蒙版")
-        self._brush_mask_btn.setCheckable(True)
         self._brush_mask_btn.setFixedSize(34, 34)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         mml.addWidget(self._brush_mask_btn)
@@ -539,25 +561,35 @@ class WorkspacePage(QWidget):
         self._auto_status_label.setWordWrap(True)
         layout.addWidget(self._auto_status_label)
 
-        # ══════════ 辅助选点（置于自动选点之后）══════════
-        layout.addWidget(_hsep())
-        layout.addWidget(_section_label("辅助选点"))
+        # ══════════ 辅助选点（暂时隐藏，功能待完善）══════════
+        # 创建所有辅助选点控件，但包装在隐藏容器中
+        _assist_container = QWidget(content)
+        _assist_container.setVisible(False)
+        ac_layout = QVBoxLayout(_assist_container)
+        ac_layout.setContentsMargins(0, 0, 0, 0)
+        ac_layout.setSpacing(4)
 
-        assist_btn_row = QWidget(content)
+        assist_sep = QFrame(_assist_container)
+        assist_sep.setFrameShape(QFrame.Shape.HLine)
+        assist_sep.setStyleSheet(f"color: {self._border_color()};")
+        ac_layout.addWidget(assist_sep)
+        assist_lbl = QLabel("辅助选点", _assist_container)
+        assist_lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
+        ac_layout.addWidget(assist_lbl)
+
+        assist_btn_row = QWidget(_assist_container)
         al = QHBoxLayout(assist_btn_row)
         al.setContentsMargins(0, 0, 0, 0)
         al.setSpacing(4)
 
-        self._assist_btn = TransparentTogglePushButton("", assist_btn_row)
-        self._assist_btn.setIcon(FIF.ZOOM)
+        self._assist_btn = ToggleToolButton(FIF.ZOOM, assist_btn_row)
         self._assist_btn.setToolTip("辅助选点：点击两个端点定义区域")
-        self._assist_btn.setCheckable(True)
         self._assist_btn.setFixedSize(34, 34)
         self._assist_btn.clicked.connect(lambda: self._on_tool_clicked("assisted"))
         al.addWidget(self._assist_btn)
 
         self._assist_shape_combo = QComboBox(assist_btn_row)
-        self._assist_shape_combo.addItems(["矩形", "椭圆"])
+        self._assist_shape_combo.addItems(["▭", "◯"])
         self._assist_shape_combo.setFixedWidth(70)
         self._assist_shape_combo.setToolTip("辅助区域形状")
         al.addWidget(self._assist_shape_combo)
@@ -569,12 +601,14 @@ class WorkspacePage(QWidget):
         al.addWidget(self._assist_apply_btn)
 
         al.addStretch()
-        layout.addWidget(assist_btn_row)
+        ac_layout.addWidget(assist_btn_row)
 
-        self._assist_status_label = QLabel("", content)
+        self._assist_status_label = QLabel("", _assist_container)
         self._assist_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         self._assist_status_label.setWordWrap(True)
-        layout.addWidget(self._assist_status_label)
+        ac_layout.addWidget(self._assist_status_label)
+
+        layout.addWidget(_assist_container)
 
         layout.addStretch()
         return tab
@@ -865,7 +899,7 @@ class WorkspacePage(QWidget):
                 QMessageBox.warning(self, "警告", "请先选择一张图片")
                 self._deactivate_all_tools()
                 return
-            self._activate_tool_button(self._sample_color_card)
+            self._activate_tool_button(self._screen_pick_btn)
             self._image_viewer.set_color_pick_mode()
             self._active_tool = tool_name
             self._status_label.setText("取色模式：点击图片上曲线的颜色")
@@ -879,7 +913,7 @@ class WorkspacePage(QWidget):
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._assist_btn)
-            shape = "ellipse" if self._assist_shape_combo.currentText() == "椭圆" else "rect"
+            shape = "ellipse" if self._assist_shape_combo.currentText() == "◯" else "rect"
             self._image_viewer.set_assisted_mode(shape=shape)
             self._active_tool = tool_name
             self._status_label.setText("辅助选点：点击两个端点，提取其间矩形/椭圆区域")
@@ -899,8 +933,16 @@ class WorkspacePage(QWidget):
         self._eraser_btn.setChecked(False)
         self._calibrate_btn.setChecked(False)
         self._extract_btn.setChecked(False)
-        self._sample_color_card.setChecked(False)
+        self._screen_pick_btn.setChecked(False)
         self._assist_btn.setChecked(False)
+
+    def _on_escape_tool(self):
+        """取消当前工具，恢复到选择模式（Escape 快捷键）"""
+        if self._active_tool is not None:
+            self._deactivate_all_tools()
+            self._image_viewer.set_select_mode()
+            self._active_tool = None
+            self._status_label.setText("")
 
     def _on_clear_masks(self):
         """清除所有蒙版区域"""
@@ -960,7 +1002,7 @@ class WorkspacePage(QWidget):
         # 构建区域蒙版（两点对角线的矩形或椭圆近似多边形）
         x_lo, x_hi = min(x1, x2), max(x1, x2)
         y_lo, y_hi = min(y1, y2), max(y1, y2)
-        if self._assist_shape_combo.currentText() == "椭圆":
+        if self._assist_shape_combo.currentText() == "◯":
             import math
             cx = (x_lo + x_hi) / 2.0
             cy = (y_lo + y_hi) / 2.0
@@ -1111,28 +1153,25 @@ class WorkspacePage(QWidget):
     # ==================== 自动选点槽函数 ====================
 
     def _on_color_pick(self):
-        """进入取色模式"""
+        """进入图片取色模式"""
         if self._current_image_id is None:
             QMessageBox.warning(self, "警告", "请先选择一张图片")
-            self._sample_color_card.setChecked(False)
+            self._screen_pick_btn.setChecked(False)
             return
         self._on_tool_clicked("color_pick")
 
     def _set_sample_color_card(self, color: QColor):
-        """更新自动选点取色卡的显示"""
-        hex_str = color.name(QColor.NameFormat.HexRgb)
-        self._sample_color_card.setStyleSheet(
-            f"background: {hex_str}; border: 1px solid #666; border-radius: 6px;"
-        )
+        """更新自动选点颜色按钮的颜色显示"""
+        self._sample_color_btn.setColor(color)
 
     def _on_color_picked(self, color):
-        """收到取色信号，更新颜色预览"""
+        """收到图片取色信号，更新颜色显示"""
         from PySide6.QtGui import QColor as _QColor
         if not isinstance(color, _QColor):
             color = _QColor(color)
         self._sampled_color = color
         hex_str = color.name(_QColor.NameFormat.HexRgb)
-        self._set_sample_color_card(color)
+        self._sample_color_btn.setColor(color)
         self._sampled_color_hex_lbl.setText(hex_str)
         # 取色完成后恢复 select 模式
         self._deactivate_all_tools()
@@ -1140,6 +1179,15 @@ class WorkspacePage(QWidget):
         self._active_tool = None
         self._auto_status_label.setText(f"已采样: {hex_str}")
         self._status_label.setText("")
+
+    def _on_sample_color_changed_direct(self, color):
+        """通过颜色对话框直接修改采样颜色"""
+        if not isinstance(color, QColor):
+            color = QColor(color)
+        self._sampled_color = color
+        hex_str = color.name(QColor.NameFormat.HexRgb)
+        self._sampled_color_hex_lbl.setText(hex_str)
+        self._auto_status_label.setText(f"已采样: {hex_str}")
 
     def _on_auto_detect(self):
         """执行自动颜色匹配检测"""
@@ -1406,7 +1454,7 @@ class WorkspacePage(QWidget):
 
     def _on_shape_changed(self, index):
         """形状改变"""
-        shape_map = {"圆形": "circle", "方形": "square", "三角形": "triangle", "菱形": "diamond", "倒三角": "inv_triangle", "叉号": "cross", "星号": "star", "五角星": "pentagram"}
+        shape_map = {"●": "circle", "■": "square", "▲": "triangle", "◆": "diamond", "▼": "inv_triangle", "✕": "cross", "★": "star"}
         shape = shape_map.get(self._shape_combo.currentText(), "circle")
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
@@ -1752,8 +1800,8 @@ class WorkspacePage(QWidget):
                     self._color_btn.setColor(QColor(curve.color))
                     self._color_btn.blockSignals(False)
                 if hasattr(self, '_shape_combo'):
-                    shape_map = {"circle": "圆形", "square": "方形", "triangle": "三角形", "diamond": "菱形", "inv_triangle": "倒三角", "cross": "叉号", "star": "星号", "pentagram": "五角星"}
-                    shape_text = shape_map.get(getattr(curve, 'point_shape', 'circle'), "圆形")
+                    shape_map = {"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "inv_triangle": "▼", "cross": "✕", "star": "★", "pentagram": "★"}
+                    shape_text = shape_map.get(getattr(curve, 'point_shape', 'circle'), "●")
                     idx = self._shape_combo.findText(shape_text)
                     if idx >= 0:
                         self._shape_combo.blockSignals(True)

@@ -57,6 +57,8 @@ class MainWindow(FluentWindow):
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
         self.settings_page.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        # 快捷键更新信号 → workspace 重新绑定
+        self.settings_page.shortcuts_changed.connect(self.workspace_page.apply_shortcuts)
 
     def _setup_project_signals(self):
         """监听项目事件"""
