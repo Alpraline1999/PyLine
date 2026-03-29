@@ -178,6 +178,9 @@ class CalibrationOverlay:
         self.x_end = None
         self.y_start = None
         self.y_end = None
+        self.coord_type = "linear"
+        self.x_range = (0.0, 1.0)
+        self.y_range = (0.0, 1.0)
 
     def is_complete(self) -> bool:
         if self.coord_type == "polar":
@@ -452,11 +455,11 @@ class ImageViewer(QWidget):
             self.calibration_step.emit(next_type)
         self.update()
 
-    def set_extract_mode(self):
+    def set_extract_mode(self, color: str = "#0078D4", point_shape: str = "circle"):
         """切换到曲线提取模式"""
         self._current_tool = self.MODE_EXTRACT
         self._calibration_step_hint = ""
-        self._current_curve = CurveOverlayItem()
+        self._current_curve = CurveOverlayItem(color=color, point_shape=point_shape)
         self.update()
 
     def set_eraser_mode(self):

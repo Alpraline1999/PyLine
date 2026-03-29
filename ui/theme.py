@@ -28,4 +28,19 @@ def card_background_color():
 
 def border_color():
     """边框颜色"""
-    return "#3d3d3d" if isDarkTheme() else "#e0e0e0"
+    return "#404040" if isDarkTheme() else "#e0e0e0"
+
+
+def accent_color():
+    """强调色（Fluent 蓝）"""
+    return "#0078D4"
+
+
+def surface_color():
+    """浅层面板背景"""
+    return "#2a2a2a" if isDarkTheme() else "#fafafa"
+
+
+def hover_color():
+    """悬停高亮颜色"""
+    return "#383838" if isDarkTheme() else "#e8f0fe"
