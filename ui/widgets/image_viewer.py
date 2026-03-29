@@ -344,9 +344,9 @@ class ImageViewer(QWidget):
         # 当前图片路径
         self._image_path: str = ""
 
-        # 辅助选点
-        self._assist_start = None  # QPointF
-        self._assist_current = None  # QPointF
+        # 辅助选点（两次点击定义矩形区域）
+        self._assist_point1 = None   # QPointF - 第一次点击
+        self._assist_shape = "rect"  # "rect" 或 "ellipse"
 
         # 鼠标位置(图片坐标)
         self._mouse_image_pos = None
@@ -500,12 +500,12 @@ class ImageViewer(QWidget):
         self._mask_current_polygon = []
         self.update()
 
-    def set_assisted_mode(self):
-        """切换到辅助选点模式"""
+    def set_assisted_mode(self, shape: str = "rect"):
+        """切换到辅助选点模式（两次点击定区域）"""
         self._current_tool = self.MODE_ASSISTED
         self._calibration_step_hint = ""
-        self._assist_start = None
-        self._assist_current = None
+        self._assist_point1 = None
+        self._assist_shape = shape
         self.update()
 
     def set_eraser_size(self, size: float):
@@ -670,9 +670,12 @@ class ImageViewer(QWidget):
 
         if self._current_tool == self.MODE_ASSISTED:
             painter.setPen(QColor("#FFD700"))
+            hint = ("辅助选点：点击第二个端点，自动提取两点间区域的曲线"
+                    if self._assist_point1 is not None
+                    else "辅助选点：点击第一个端点（矩形/椭圆区域起点）")
             painter.drawText(self.rect().adjusted(10, 10, -10, -50),
                            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
-                           "辅助选点：在图片上拖动选取曲线区域")
+                           hint)
 
         scale_text = f"{int(self._scale * 100)}%"
         painter.setPen(Qt.GlobalColor.gray)
@@ -913,20 +916,42 @@ class ImageViewer(QWidget):
             painter.drawEllipse(self._mouse_image_pos, r, r)
 
     def _draw_assisted_preview(self, painter: QPainter):
-        """绘制辅助选点预览矩形"""
-        if (self._current_tool != self.MODE_ASSISTED or
-                self._assist_start is None or self._assist_current is None):
+        """绘制辅助选点预览（两点点击模式）"""
+        if self._current_tool != self.MODE_ASSISTED:
             return
-        x1 = min(self._assist_start.x(), self._assist_current.x())
-        y1 = min(self._assist_start.y(), self._assist_current.y())
-        w = abs(self._assist_current.x() - self._assist_start.x())
-        h = abs(self._assist_current.y() - self._assist_start.y())
-        pen = QPen(QColor("#FFD700"))
-        pen.setWidthF(2.0 / self._scale)
-        pen.setStyle(Qt.PenStyle.DashLine)
-        painter.setPen(pen)
-        painter.setBrush(QBrush(QColor("#20FFD700")))
-        painter.drawRect(QRectF(x1, y1, w, h))
+        r = max(4.0, self._point_size * 1.5) / self._scale
+        if self._assist_point1 is not None:
+            # 绘制第一个点（黄色大圆圈 + 十字）
+            pen = QPen(QColor("#FFD700"))
+            pen.setWidthF(2.5 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#60FFD700")))
+            painter.drawEllipse(self._assist_point1, r, r)
+            painter.drawLine(
+                QPointF(self._assist_point1.x() - r * 1.5, self._assist_point1.y()),
+                QPointF(self._assist_point1.x() + r * 1.5, self._assist_point1.y())
+            )
+            painter.drawLine(
+                QPointF(self._assist_point1.x(), self._assist_point1.y() - r * 1.5),
+                QPointF(self._assist_point1.x(), self._assist_point1.y() + r * 1.5)
+            )
+            # 若鼠标位置已知，绘制预览区域
+            if self._mouse_image_pos is not None:
+                p1 = self._assist_point1
+                p2 = self._mouse_image_pos
+                x1 = min(p1.x(), p2.x())
+                y1 = min(p1.y(), p2.y())
+                w = abs(p2.x() - p1.x())
+                h = abs(p2.y() - p1.y())
+                dash_pen = QPen(QColor("#FFD700"))
+                dash_pen.setWidthF(1.5 / self._scale)
+                dash_pen.setStyle(Qt.PenStyle.DashLine)
+                painter.setPen(dash_pen)
+                painter.setBrush(QBrush(QColor("#15FFD700")))
+                if self._assist_shape == "ellipse":
+                    painter.drawEllipse(QRectF(x1, y1, w, h))
+                else:
+                    painter.drawRect(QRectF(x1, y1, w, h))
 
     # ==================== 键盘事件 ====================
 
@@ -991,8 +1016,18 @@ class ImageViewer(QWidget):
                 self._mask_current_polygon = [self._widget_to_image_coords(pos)]
         elif self._current_tool == self.MODE_ASSISTED:
             if event.button() == Qt.MouseButton.LeftButton:
-                self._assist_start = self._widget_to_image_coords(pos)
-                self._assist_current = self._assist_start
+                img_pos = self._widget_to_image_coords(pos)
+                if self._assist_point1 is None:
+                    # 第一次点击：记录起点，等待第二次点击
+                    self._assist_point1 = img_pos
+                else:
+                    # 第二次点击：发送区域信号，重置等待下一对
+                    x1, y1 = self._assist_point1.x(), self._assist_point1.y()
+                    x2, y2 = img_pos.x(), img_pos.y()
+                    if abs(x2 - x1) > 3 or abs(y2 - y1) > 3:
+                        self.assisted_region_selected.emit(x1, y1, x2, y2)
+                    self._assist_point1 = None
+                self.update()
         elif self._current_tool == self.MODE_SELECT:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._pan = True
@@ -1097,9 +1132,6 @@ class ImageViewer(QWidget):
             else:
                 self._mask_current_polygon.append(new_pt)
             self.update()
-        elif self._current_tool == self.MODE_ASSISTED and event.buttons() & Qt.MouseButton.LeftButton:
-            self._assist_current = self._widget_to_image_coords(event.position())
-            self.update()
         elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED):
             self.update()
 
@@ -1135,15 +1167,7 @@ class ImageViewer(QWidget):
                     self.mask_changed.emit()
                 self._mask_current_polygon = []
                 self.update()
-            elif self._current_tool == self.MODE_ASSISTED and self._assist_start and self._assist_current:
-                x1, y1 = self._assist_start.x(), self._assist_start.y()
-                x2, y2 = self._assist_current.x(), self._assist_current.y()
-                if abs(x2 - x1) > 5 and abs(y2 - y1) > 5:
-                    self.assisted_region_selected.emit(x1, y1, x2, y2)
-                self._assist_start = None
-                self._assist_current = None
-                self._current_tool = self.MODE_SELECT
-                self.update()
+            # 辅助选点模式不在鼠标释放时处理（已在press事件中处理）
 
     def wheelEvent(self, event: QWheelEvent):
         """鼠标滚轮缩放"""
