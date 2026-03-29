@@ -336,6 +336,7 @@ class ImageViewer(QWidget):
         # 蒙版
         self._mask = MaskOverlay()
         self._mask_start_point = None
+        self._mask_drag_current = None   # 框选蒙版拖动时的当前端点
         self._mask_current_polygon = []  # 画笔蒙版笔触点列表（QPointF）
 
         # 预览点（自动检测结果）
@@ -887,8 +888,21 @@ class ImageViewer(QWidget):
             for pt in self._mask_current_polygon:
                 painter.drawEllipse(pt, r, r)
 
-        # 绘制框选蒙版的起始点
-        if self._mask_start_point:
+        # 绘制框选蒙版实时预览矩形
+        if self._mask_start_point and self._mask_drag_current:
+            pen = QPen(QColor("#FF5722"))
+            pen.setStyle(Qt.PenStyle.DashLine)
+            pen.setWidthF(1.5 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#30FF5722")))
+            p1 = self._mask_start_point
+            p2 = self._mask_drag_current
+            x = min(p1.x(), p2.x())
+            y = min(p1.y(), p2.y())
+            w = abs(p2.x() - p1.x())
+            h = abs(p2.y() - p1.y())
+            painter.drawRect(QRectF(x, y, w, h))
+        elif self._mask_start_point:
             pen = QPen(QColor("#FF5722"))
             pen.setWidthF(2.0 / self._scale)
             painter.setPen(pen)
@@ -994,6 +1008,12 @@ class ImageViewer(QWidget):
 
         pos = event.position()
 
+        # 任意模式下右键拖动图片
+        if event.button() == Qt.MouseButton.RightButton:
+            self._pan = True
+            self._pan_start = pos - self._offset
+            return
+
         if self._current_tool == self.MODE_CALIBRATE:
             self._handle_calibrate_click(pos)
         elif self._current_tool == self.MODE_EXTRACT:
@@ -1004,13 +1024,13 @@ class ImageViewer(QWidget):
         elif self._current_tool == self.MODE_ERASER:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._eraser_pressed = True
-                # 更新鼠标位置并重绘
                 self._mouse_image_pos = self._widget_to_image_coords(pos)
                 self.update()
                 self._handle_eraser_click(pos)
         elif self._current_tool == self.MODE_BOX_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._mask_start_point = self._widget_to_image_coords(pos)
+                self._mask_drag_current = None
         elif self._current_tool == self.MODE_BRUSH_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._mask_current_polygon = [self._widget_to_image_coords(pos)]
@@ -1018,10 +1038,8 @@ class ImageViewer(QWidget):
             if event.button() == Qt.MouseButton.LeftButton:
                 img_pos = self._widget_to_image_coords(pos)
                 if self._assist_point1 is None:
-                    # 第一次点击：记录起点，等待第二次点击
                     self._assist_point1 = img_pos
                 else:
-                    # 第二次点击：发送区域信号，重置等待下一对
                     x1, y1 = self._assist_point1.x(), self._assist_point1.y()
                     x2, y2 = img_pos.x(), img_pos.y()
                     if abs(x2 - x1) > 3 or abs(y2 - y1) > 3:
@@ -1103,31 +1121,37 @@ class ImageViewer(QWidget):
         self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        """鼠标移动（平移）"""
+        """鼠标移动"""
         # 跟踪鼠标位置
         if self._pixmap:
             self._mouse_image_pos = self._widget_to_image_coords(event.position())
         else:
             self._mouse_image_pos = None
 
-        if self._pan and self._pixmap and self._current_tool == self.MODE_SELECT:
+        # 右键或左键在 SELECT 模式下拖动平移
+        if self._pan and self._pixmap:
             new_offset = event.position() - self._pan_start
             self._offset = self._clamp_offset(new_offset)
             self.update()
-        elif self._current_tool == self.MODE_ERASER and event.buttons() & Qt.MouseButton.LeftButton:
-            # 橡皮擦模式下的拖动
+            return
+
+        if self._current_tool == self.MODE_ERASER and event.buttons() & Qt.MouseButton.LeftButton:
             pos = event.position()
             img_pos = self._widget_to_image_coords(pos)
             self.eraser_point.emit(img_pos.x(), img_pos.y())
             self.update()
+        elif self._current_tool == self.MODE_BOX_MASK and self._mask_start_point and event.buttons() & Qt.MouseButton.LeftButton:
+            # 框选蒙版实时预览：记录当前鼠标位置
+            self._mask_drag_current = self._widget_to_image_coords(event.position())
+            self.update()
         elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
-            # 画笔蒙版：沿笔触路径收集点
+            # 画笔蒙版：沿笔触路径收集点（降低最小距离提高流畅度）
             new_pt = self._widget_to_image_coords(event.position())
             if self._mask_current_polygon:
                 last = self._mask_current_polygon[-1]
                 dx = new_pt.x() - last.x()
                 dy = new_pt.y() - last.y()
-                if (dx*dx + dy*dy) ** 0.5 >= self._eraser_size * 0.3:
+                if (dx*dx + dy*dy) ** 0.5 >= self._eraser_size * 0.15:
                     self._mask_current_polygon.append(new_pt)
             else:
                 self._mask_current_polygon.append(new_pt)
@@ -1137,28 +1161,41 @@ class ImageViewer(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         """鼠标释放"""
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.RightButton:
             self._pan = False
+            self.update()
+            return
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._current_tool == self.MODE_SELECT:
+                self._pan = False
             if self._current_tool == self.MODE_ERASER:
                 self._eraser_pressed = False
                 self.update()
             if self._current_tool == self.MODE_BOX_MASK and self._mask_start_point:
-                # 框选蒙版完成
                 end_point = self._widget_to_image_coords(event.position())
                 x1, y1 = self._mask_start_point.x(), self._mask_start_point.y()
                 x2, y2 = end_point.x(), end_point.y()
-                # 创建矩形多边形
-                polygon = [(min(x1, x2), min(y1, y2)),
-                          (max(x1, x2), min(y1, y2)),
-                          (max(x1, x2), max(y1, y2)),
-                          (min(x1, x2), max(y1, y2))]
-                self.mask_about_to_add.emit(polygon)
-                self._mask.add_polygon(polygon)
-                self.mask_changed.emit()
+                if abs(x2 - x1) > 2 or abs(y2 - y1) > 2:
+                    polygon = [(min(x1, x2), min(y1, y2)),
+                               (max(x1, x2), min(y1, y2)),
+                               (max(x1, x2), max(y1, y2)),
+                               (min(x1, x2), max(y1, y2))]
+                    self.mask_about_to_add.emit(polygon)
+                    self._mask.add_polygon(polygon)
+                    self.mask_changed.emit()
                 self._mask_start_point = None
+                self._mask_drag_current = None
                 self.update()
             elif self._current_tool == self.MODE_BRUSH_MASK and self._mask_current_polygon:
-                # 画笔蒙版完成：将笔触转换为多边形
+                # 画笔蒙版完成：确保收录最后一点，再转换
+                last_pt = self._widget_to_image_coords(event.position())
+                if self._mask_current_polygon:
+                    prev = self._mask_current_polygon[-1]
+                    dx = last_pt.x() - prev.x()
+                    dy = last_pt.y() - prev.y()
+                    if (dx*dx + dy*dy) ** 0.5 >= 1.0:
+                        self._mask_current_polygon.append(last_pt)
                 points = [(p.x(), p.y()) for p in self._mask_current_polygon]
                 polygon = self._stroke_to_polygon(points, self._eraser_size)
                 if polygon:
@@ -1167,7 +1204,6 @@ class ImageViewer(QWidget):
                     self.mask_changed.emit()
                 self._mask_current_polygon = []
                 self.update()
-            # 辅助选点模式不在鼠标释放时处理（已在press事件中处理）
 
     def wheelEvent(self, event: QWheelEvent):
         """鼠标滚轮缩放"""

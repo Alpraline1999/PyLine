@@ -54,6 +54,10 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
+        # 导航栏默认折叠（仅显示图标），不常驻展开占据界面空间
+        self.navigationInterface.setCollapsible(True)
+        self.navigationInterface.toggle()  # 初始状态: 折叠（图标模式）
+
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
         self.settings_page.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
@@ -65,6 +69,7 @@ class MainWindow(FluentWindow):
         self.home_page.project_created.connect(self._on_project_created)
         self.home_page.project_opened.connect(self._on_project_opened)
         self.workspace_page.project_modified.connect(self._on_project_modified)
+        self.workspace_page.project_saved.connect(self._update_window_title)
 
     def _on_project_created(self, name: str):
         """项目创建后的处理"""

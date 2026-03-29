@@ -14,6 +14,7 @@ class WorkspacePage(QWidget):
     """工作区页面 - 主功能区"""
 
     project_modified = Signal()  # 项目修改信号
+    project_saved = Signal()     # 项目保存信号（不触发 is_modified=True）
     current_project_changed = Signal(object)  # 当前项目切换信号
     current_image_changed = Signal(object)  # 当前图片切换信号
 
@@ -297,14 +298,14 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._clear_points_btn)
 
         # 撤销
-        self._undo_btn = ToolButton(FIF.LEFT_ARROW, bar)
+        self._undo_btn = ToolButton(FIF.CANCEL, bar)
         self._undo_btn.setToolTip("撤销")
         self._undo_btn.setFixedSize(32, 32)
         self._undo_btn.clicked.connect(self._undo)
         bar_layout.addWidget(self._undo_btn)
 
         # 重做
-        self._redo_btn = ToolButton(FIF.RIGHT_ARROW, bar)
+        self._redo_btn = ToolButton(FIF.SYNC, bar)
         self._redo_btn.setToolTip("重做")
         self._redo_btn.setFixedSize(32, 32)
         self._redo_btn.clicked.connect(self._redo)
@@ -439,7 +440,7 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
-        self._calibrate_btn = ToggleToolButton(FIF.CERTIFICATE, manual_row)
+        self._calibrate_btn = ToggleToolButton(FIF.UNIT, manual_row)
         self._calibrate_btn.setToolTip("校准")
         self._calibrate_btn.setFixedSize(34, 34)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
@@ -489,6 +490,12 @@ class WorkspacePage(QWidget):
         self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
         abl.addWidget(self._apply_auto_btn)
 
+        self._cancel_auto_btn = ToolButton(FIF.CLOSE, auto_btn_row)
+        self._cancel_auto_btn.setToolTip("放弃检测结果")
+        self._cancel_auto_btn.setFixedSize(34, 34)
+        self._cancel_auto_btn.clicked.connect(self._on_cancel_auto_preview)
+        abl.addWidget(self._cancel_auto_btn)
+
         abl.addStretch()
         layout.addWidget(auto_btn_row)
 
@@ -535,7 +542,7 @@ class WorkspacePage(QWidget):
         mml.setContentsMargins(0, 0, 0, 0)
         mml.setSpacing(4)
 
-        self._box_mask_btn = ToggleToolButton(FIF.LAYOUT, mask_row)
+        self._box_mask_btn = ToggleToolButton(FIF.ZOOM, mask_row)
         self._box_mask_btn.setToolTip("框选蒙版")
         self._box_mask_btn.setFixedSize(34, 34)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
@@ -615,7 +622,7 @@ class WorkspacePage(QWidget):
 
     def _create_export_tab(self) -> QWidget:
         """创建数据导出功能区"""
-        from qfluentwidgets import PushButton
+        from qfluentwidgets import PushButton, CheckBox
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -636,6 +643,11 @@ class WorkspacePage(QWidget):
         self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
         fmt_row.addWidget(self._export_fmt_combo)
         layout.addLayout(fmt_row)
+
+        # 时间戳选项
+        self._export_timestamp_chk = CheckBox("导出时添加时间戳", tab)
+        self._export_timestamp_chk.setChecked(False)
+        layout.addWidget(self._export_timestamp_chk)
 
         # 导出按钮
         export_btn = PushButton("导出到文件", tab)
@@ -1152,6 +1164,15 @@ class WorkspacePage(QWidget):
 
     # ==================== 自动选点槽函数 ====================
 
+    def _on_cancel_auto_preview(self):
+        """放弃自动检测结果，清除预览点，不写入曲线"""
+        if not self._auto_preview_points:
+            self._auto_status_label.setText("没有待取消的预览结果")
+            return
+        self._auto_preview_points = []
+        self._image_viewer.clear_preview_points()
+        self._auto_status_label.setText("已放弃检测结果")
+
     def _on_color_pick(self):
         """进入图片取色模式"""
         if self._current_image_id is None:
@@ -1285,12 +1306,15 @@ class WorkspacePage(QWidget):
     def _on_export_to_file(self):
         """导出曲线到文件"""
         from core.exporter import Exporter
+        import datetime
 
         all_curves_mode = (self._export_scope_combo.currentIndex() == 1)
         fmt_idx = self._export_fmt_combo.currentIndex()
         fmt_map = {0: ("CSV 文件 (*.csv)", ".csv"), 1: ("Excel 文件 (*.xlsx)", ".xlsx"),
                    2: ("JSON 文件 (*.json)", ".json"), 3: ("文本文件 (*.txt)", ".txt")}
         filter_str, ext = fmt_map[fmt_idx]
+        add_ts = hasattr(self, '_export_timestamp_chk') and self._export_timestamp_chk.isChecked()
+        ts_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
 
         # 获取曲线
         if all_curves_mode:
@@ -1323,24 +1347,24 @@ class WorkspacePage(QWidget):
         try:
             if ext == ".csv":
                 if all_curves_mode:
-                    Exporter.export_csv_all(curves, file_path)
+                    Exporter.export_csv_all(curves, file_path, timestamp=ts_str)
                 else:
-                    Exporter.export_csv(curves[0], file_path)
+                    Exporter.export_csv(curves[0], file_path, timestamp=ts_str)
             elif ext == ".xlsx":
                 if all_curves_mode:
-                    Exporter.export_excel_all(curves, file_path)
+                    Exporter.export_excel_all(curves, file_path, timestamp=ts_str)
                 else:
-                    Exporter.export_excel(curves[0], file_path)
+                    Exporter.export_excel(curves[0], file_path, timestamp=ts_str)
             elif ext == ".json":
                 if all_curves_mode:
-                    Exporter.export_json_all(curves, file_path)
+                    Exporter.export_json_all(curves, file_path, timestamp=ts_str)
                 else:
-                    Exporter.export_json(curves[0], file_path)
+                    Exporter.export_json(curves[0], file_path, timestamp=ts_str)
             elif ext == ".txt":
                 if all_curves_mode:
-                    Exporter.export_txt_all(curves, file_path)
+                    Exporter.export_txt_all(curves, file_path, timestamp=ts_str)
                 else:
-                    Exporter.export_txt(curves[0], file_path)
+                    Exporter.export_txt(curves[0], file_path, timestamp=ts_str)
             self._status_label.setText(f"已导出: {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "导出失败", str(e))
@@ -1348,13 +1372,16 @@ class WorkspacePage(QWidget):
     def _on_export_to_clipboard(self):
         """复制当前曲线数据到剪贴板"""
         from core.exporter import Exporter
+        import datetime
         if self._current_curve_id is None:
             QMessageBox.warning(self, "警告", "请先选择一条曲线")
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None:
             return
-        Exporter.export_to_clipboard(curve)
+        add_ts = hasattr(self, '_export_timestamp_chk') and self._export_timestamp_chk.isChecked()
+        ts_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
+        Exporter.export_to_clipboard(curve, timestamp=ts_str)
         self._status_label.setText("已复制到剪贴板")
 
     # ==================== 曲线平滑槽函数 ====================
@@ -1885,7 +1912,7 @@ class WorkspacePage(QWidget):
                 project_manager.save(file_path)
                 project_manager.current_project.is_modified = False
                 self._refresh_project_tree()
-                self.project_modified.emit()
+                self.project_saved.emit()
                 QMessageBox.information(self, "成功", f"项目已保存到:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"保存失败:\n{str(e)}")
@@ -1983,7 +2010,49 @@ class WorkspacePage(QWidget):
         return False
 
     def update_theme_colors(self):
-        pass
+        """主题切换后重新应用颜色到所有使用 text_color/placeholder_color/border_color 的组件"""
+        from ui.theme import text_color, placeholder_color
+        from PySide6.QtWidgets import QLabel, QFrame
+
+        tc = text_color()
+        pc = placeholder_color()
+        bc = self._border_color()
+
+        # 重新设置已知的 self._ 成员
+        known_placeholder = [
+            self._status_label,
+            self._point_size_value_label,
+            self._nudge_step_value_label,
+            self._eraser_size_value_label,
+            self._sampled_color_hex_lbl,
+            self._tol_val_lbl,
+            self._step_val_lbl,
+            self._auto_status_label,
+            self._assist_status_label,
+        ]
+        for lbl in known_placeholder:
+            if lbl and lbl.styleSheet():
+                ss = lbl.styleSheet()
+                # 替换颜色值（统一使用当前 placeholder 颜色）
+                import re as _re
+                ss = _re.sub(r'color:\s*#[0-9a-fA-F]{3,8}', f'color: {pc}', ss)
+                lbl.setStyleSheet(ss)
+
+        # 扫描所有子 QLabel（section title 类型，font-weight:bold 样式）
+        for lbl in self.findChildren(QLabel):
+            ss = lbl.styleSheet()
+            if 'font-weight: bold' in ss and 'color:' in ss:
+                import re as _re
+                ss = _re.sub(r'color:\s*#[0-9a-fA-F]{3,8}', f'color: {tc}', ss)
+                lbl.setStyleSheet(ss)
+
+        # 扫描分隔线
+        for frame in self.findChildren(QFrame):
+            ss = frame.styleSheet()
+            if 'background-color:' in ss and 'border' not in ss:
+                frame.setStyleSheet(f"background-color: {bc};")
+            elif 'color:' in ss and frame.frameShape() in (QFrame.Shape.HLine, QFrame.Shape.VLine):
+                frame.setStyleSheet(f"color: {bc};")
 
     # ==================== 校准和曲线提取 ====================
 
