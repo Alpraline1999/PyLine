@@ -1,4 +1,5 @@
 from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QMessageBox
 from qfluentwidgets import FluentWindow, NavigationItemPosition, setTheme, Theme
 from qfluentwidgets.common.icon import FluentIcon as FIF
 
@@ -76,15 +77,37 @@ class MainWindow(FluentWindow):
         self.switchTo(self.workspace_page)
 
     def _on_project_modified(self):
-        """项目修改后的处理"""
+        """项目修改后的处理 - 标记未保存状态"""
+        if project_manager.current_project:
+            project_manager.current_project.is_modified = True
         self._update_window_title()
 
     def _update_window_title(self):
-        """更新窗口标题"""
+        """更新窗口标题，未保存时显示 *"""
         if project_manager.current_project:
-            self.setWindowTitle(f"PyLine - {project_manager.current_project.name}")
+            name = project_manager.current_project.name
+            modified = project_manager.current_project.is_modified
+            marker = " *" if modified else ""
+            self.setWindowTitle(f"PyLine - {name}{marker}")
         else:
             self.setWindowTitle("PyLine")
+
+    def closeEvent(self, event):
+        """关闭前检查未保存的项目"""
+        unsaved = [p for p in project_manager.projects if p.is_modified]
+        if unsaved:
+            names = "、".join(p.name for p in unsaved)
+            reply = QMessageBox.question(
+                self,
+                "未保存的更改",
+                f"以下项目有未保存的更改：\n{names}\n\n确定要退出吗？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        event.accept()
 
     def _on_theme_changed(self, index):
         """主题切换后的回调"""

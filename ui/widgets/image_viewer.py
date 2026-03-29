@@ -287,6 +287,8 @@ class ImageViewer(QWidget):
     mask_changed = Signal()  # 蒙版改变信号
     mask_about_to_add = Signal(object)  # 蒙版即将添加信号，携带多边形数据
     color_picked = Signal(object)  # 取色信号，发送 QColor
+    file_dropped = Signal(str)  # 文件拖入信号，发送文件路径
+    assisted_region_selected = Signal(float, float, float, float)  # 辅助选点区域信号 (x1,y1,x2,y2)
 
     # 工具模式
     MODE_SELECT = "select"
@@ -296,6 +298,7 @@ class ImageViewer(QWidget):
     MODE_BOX_MASK = "box_mask"
     MODE_BRUSH_MASK = "brush_mask"
     MODE_COLOR_PICK = "color_pick"
+    MODE_ASSISTED = "assisted"
 
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
@@ -333,13 +336,17 @@ class ImageViewer(QWidget):
         # 蒙版
         self._mask = MaskOverlay()
         self._mask_start_point = None
-        self._mask_current_polygon = []
+        self._mask_current_polygon = []  # 画笔蒙版笔触点列表（QPointF）
 
         # 预览点（自动检测结果）
         self._preview_points: list = []
 
         # 当前图片路径
         self._image_path: str = ""
+
+        # 辅助选点
+        self._assist_start = None  # QPointF
+        self._assist_current = None  # QPointF
 
         # 鼠标位置(图片坐标)
         self._mouse_image_pos = None
@@ -487,10 +494,18 @@ class ImageViewer(QWidget):
         self.update()
 
     def set_brush_mask_mode(self):
-        """切换到画笔蒙版模式"""
+        """切换到画笔蒙版模式（涂刷式）"""
         self._current_tool = self.MODE_BRUSH_MASK
         self._calibration_step_hint = ""
         self._mask_current_polygon = []
+        self.update()
+
+    def set_assisted_mode(self):
+        """切换到辅助选点模式"""
+        self._current_tool = self.MODE_ASSISTED
+        self._calibration_step_hint = ""
+        self._assist_start = None
+        self._assist_current = None
         self.update()
 
     def set_eraser_size(self, size: float):
@@ -637,6 +652,7 @@ class ImageViewer(QWidget):
         self._draw_preview_points(painter)
         self._draw_mask_overlay(painter)
         self._draw_eraser_cursor(painter)
+        self._draw_assisted_preview(painter)
 
         painter.restore()
 
@@ -651,6 +667,12 @@ class ImageViewer(QWidget):
             painter.drawText(self.rect().adjusted(10, 10, -10, -50),
                            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
                            "取色模式：点击图片上的曲线颜色")
+
+        if self._current_tool == self.MODE_ASSISTED:
+            painter.setPen(QColor("#FFD700"))
+            painter.drawText(self.rect().adjusted(10, 10, -10, -50),
+                           Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                           "辅助选点：在图片上拖动选取曲线区域")
 
         scale_text = f"{int(self._scale * 100)}%"
         painter.setPen(Qt.GlobalColor.gray)
@@ -852,6 +874,16 @@ class ImageViewer(QWidget):
             for i in range(len(points) - 1):
                 painter.drawLine(points[i], points[i + 1])
 
+        # 绘制当前正在绘制的画笔蒙版笔触（圆形预览）
+        if self._mask_current_polygon and self._current_tool == self.MODE_BRUSH_MASK:
+            pen = QPen(QColor("#FF9800"))
+            pen.setWidthF(1.5 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#50FF9800")))
+            r = self._eraser_size
+            for pt in self._mask_current_polygon:
+                painter.drawEllipse(pt, r, r)
+
         # 绘制框选蒙版的起始点
         if self._mask_start_point:
             pen = QPen(QColor("#FF5722"))
@@ -865,8 +897,6 @@ class ImageViewer(QWidget):
         """绘制橡皮擦光标"""
         if self._mouse_image_pos is None:
             return
-
-        # 只在鼠标按下时绘制橡皮擦光标
         if self._current_tool == self.MODE_ERASER and self._eraser_pressed:
             pen = QPen(QColor("#F44336"))
             pen.setWidthF(2.0 / self._scale)
@@ -874,6 +904,29 @@ class ImageViewer(QWidget):
             painter.setBrush(QBrush(QColor("#20F44336")))
             r = self._eraser_size
             painter.drawEllipse(self._mouse_image_pos, r, r)
+        elif self._current_tool == self.MODE_BRUSH_MASK:
+            pen = QPen(QColor("#FF9800"))
+            pen.setWidthF(2.0 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor("#30FF9800")))
+            r = self._eraser_size
+            painter.drawEllipse(self._mouse_image_pos, r, r)
+
+    def _draw_assisted_preview(self, painter: QPainter):
+        """绘制辅助选点预览矩形"""
+        if (self._current_tool != self.MODE_ASSISTED or
+                self._assist_start is None or self._assist_current is None):
+            return
+        x1 = min(self._assist_start.x(), self._assist_current.x())
+        y1 = min(self._assist_start.y(), self._assist_current.y())
+        w = abs(self._assist_current.x() - self._assist_start.x())
+        h = abs(self._assist_current.y() - self._assist_start.y())
+        pen = QPen(QColor("#FFD700"))
+        pen.setWidthF(2.0 / self._scale)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(QBrush(QColor("#20FFD700")))
+        painter.drawRect(QRectF(x1, y1, w, h))
 
     # ==================== 键盘事件 ====================
 
@@ -936,6 +989,10 @@ class ImageViewer(QWidget):
         elif self._current_tool == self.MODE_BRUSH_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._mask_current_polygon = [self._widget_to_image_coords(pos)]
+        elif self._current_tool == self.MODE_ASSISTED:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._assist_start = self._widget_to_image_coords(pos)
+                self._assist_current = self._assist_start
         elif self._current_tool == self.MODE_SELECT:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._pan = True
@@ -1029,11 +1086,21 @@ class ImageViewer(QWidget):
             self.eraser_point.emit(img_pos.x(), img_pos.y())
             self.update()
         elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
-            # 画笔蒙版模式下的拖动
-            self._mask_current_polygon.append(self._widget_to_image_coords(event.position()))
+            # 画笔蒙版：沿笔触路径收集点
+            new_pt = self._widget_to_image_coords(event.position())
+            if self._mask_current_polygon:
+                last = self._mask_current_polygon[-1]
+                dx = new_pt.x() - last.x()
+                dy = new_pt.y() - last.y()
+                if (dx*dx + dy*dy) ** 0.5 >= self._eraser_size * 0.3:
+                    self._mask_current_polygon.append(new_pt)
+            else:
+                self._mask_current_polygon.append(new_pt)
             self.update()
-        elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK):
-            # 这些模式下需要重绘以显示鼠标位置
+        elif self._current_tool == self.MODE_ASSISTED and event.buttons() & Qt.MouseButton.LeftButton:
+            self._assist_current = self._widget_to_image_coords(event.position())
+            self.update()
+        elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED):
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -1059,13 +1126,23 @@ class ImageViewer(QWidget):
                 self._mask_start_point = None
                 self.update()
             elif self._current_tool == self.MODE_BRUSH_MASK and self._mask_current_polygon:
-                # 画笔蒙版完成
-                if len(self._mask_current_polygon) >= 3:
-                    points = [(p.x(), p.y()) for p in self._mask_current_polygon]
-                    self.mask_about_to_add.emit(points)
-                    self._mask.add_polygon(points)
+                # 画笔蒙版完成：将笔触转换为多边形
+                points = [(p.x(), p.y()) for p in self._mask_current_polygon]
+                polygon = self._stroke_to_polygon(points, self._eraser_size)
+                if polygon:
+                    self.mask_about_to_add.emit(polygon)
+                    self._mask.add_polygon(polygon)
                     self.mask_changed.emit()
                 self._mask_current_polygon = []
+                self.update()
+            elif self._current_tool == self.MODE_ASSISTED and self._assist_start and self._assist_current:
+                x1, y1 = self._assist_start.x(), self._assist_start.y()
+                x2, y2 = self._assist_current.x(), self._assist_current.y()
+                if abs(x2 - x1) > 5 and abs(y2 - y1) > 5:
+                    self.assisted_region_selected.emit(x1, y1, x2, y2)
+                self._assist_start = None
+                self._assist_current = None
+                self._current_tool = self.MODE_SELECT
                 self.update()
 
     def wheelEvent(self, event: QWheelEvent):
@@ -1101,12 +1178,68 @@ class ImageViewer(QWidget):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        """拖拽放下"""
+        """拖拽放下 - 发射信号而非自己加载，由外层决定如何处理"""
         urls = event.mimeData().urls()
         if urls:
             file_path = urls[0].toLocalFile()
             if file_path:
-                self.load_image(file_path)
+                self.file_dropped.emit(file_path)
+
+    @staticmethod
+    def _stroke_to_polygon(points: list, radius: float) -> list:
+        """将笔触转换为轮廓多边形（粗笔形状）"""
+        import math
+        if not points:
+            return []
+        if len(points) == 1:
+            cx, cy = points[0]
+            n = 12
+            return [(cx + radius * math.cos(2 * math.pi * i / n),
+                     cy + radius * math.sin(2 * math.pi * i / n))
+                    for i in range(n)]
+
+        left_side = []
+        right_side = []
+        for i in range(len(points)):
+            cx, cy = points[i]
+            if i == 0:
+                dx = points[1][0] - points[0][0]
+                dy = points[1][1] - points[0][1]
+            elif i == len(points) - 1:
+                dx = points[-1][0] - points[-2][0]
+                dy = points[-1][1] - points[-2][1]
+            else:
+                dx = points[i+1][0] - points[i-1][0]
+                dy = points[i+1][1] - points[i-1][1]
+            dist = (dx*dx + dy*dy) ** 0.5
+            if dist < 1e-9:
+                dx, dy, dist = 1.0, 0.0, 1.0
+            px = -dy / dist * radius
+            py = dx / dist * radius
+            left_side.append((cx + px, cy + py))
+            right_side.append((cx - px, cy - py))
+
+        # start cap
+        scx, scy = points[0]
+        sdx = points[0][0] - points[1][0] if len(points) > 1 else -1
+        sdy = points[0][1] - points[1][1] if len(points) > 1 else 0
+        sd = (sdx*sdx + sdy*sdy) ** 0.5 or 1
+        s_angle = math.atan2(sdy/sd, sdx/sd)
+        start_cap = [(scx + radius * math.cos(s_angle + math.pi * i / 6),
+                      scy + radius * math.sin(s_angle + math.pi * i / 6))
+                     for i in range(7)]
+
+        # end cap
+        ecx, ecy = points[-1]
+        edx = points[-1][0] - points[-2][0] if len(points) > 1 else 1
+        edy = points[-1][1] - points[-2][1] if len(points) > 1 else 0
+        ed = (edx*edx + edy*edy) ** 0.5 or 1
+        e_angle = math.atan2(edy/ed, edx/ed)
+        end_cap = [(ecx + radius * math.cos(e_angle + math.pi * i / 6),
+                    ecy + radius * math.sin(e_angle + math.pi * i / 6))
+                   for i in range(7)]
+
+        return start_cap + left_side + end_cap + list(reversed(right_side))
 
     def resizeEvent(self, event: QResizeEvent):
         """窗口大小变化"""

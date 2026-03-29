@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
+from PySide6.QtCore import Qt, Signal, QSize, QMimeData
+from PySide6.QtGui import QFont, QColor, QDrag
 from qfluentwidgets import CardWidget, ToolButton, LineEdit, SpinBox
 
 from ui.theme import text_color, secondary_color, placeholder_color
@@ -41,6 +41,9 @@ class WorkspacePage(QWidget):
         # 自动选点
         self._sampled_color = None  # 采样颜色 (QColor)
         self._auto_preview_points = []  # 自动检测预览点
+        # 表格排序
+        self._sort_col = -1  # -1表示未排序
+        self._sort_order = Qt.SortOrder.AscendingOrder
         self.setup_ui()
         self._setup_viewer_signals()
         self._setup_shortcuts()
@@ -60,12 +63,16 @@ class WorkspacePage(QWidget):
         center_panel = QFrame(self)
         center_panel.setFrameShape(QFrame.Shape.StyledPanel)
         center_layout = QVBoxLayout(center_panel)
-        center_layout.setContentsMargins(5, 5, 5, 5)
+        center_layout.setContentsMargins(5, 5, 5, 0)
         center_layout.setSpacing(0)
 
         self._image_viewer = ImageViewer(center_panel)
         self._image_viewer.image_loaded.connect(self._on_image_loaded)
-        center_layout.addWidget(self._image_viewer)
+        center_layout.addWidget(self._image_viewer, 1)
+
+        # 图片查看器下方工具栏
+        self._viewer_toolbar = self._create_viewer_toolbar(center_panel)
+        center_layout.addWidget(self._viewer_toolbar)
 
         self._splitter.addWidget(center_panel)
 
@@ -87,6 +94,8 @@ class WorkspacePage(QWidget):
         self._image_viewer.mask_changed.connect(self._on_mask_changed)
         self._image_viewer.mask_about_to_add.connect(self._on_mask_about_to_add)
         self._image_viewer.color_picked.connect(self._on_color_picked)
+        self._image_viewer.file_dropped.connect(self._on_image_file_dropped)
+        self._image_viewer.assisted_region_selected.connect(self._on_assisted_region)
 
     def _setup_shortcuts(self):
         """设置键盘快捷键"""
@@ -160,6 +169,12 @@ class WorkspacePage(QWidget):
         self._project_tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         self._project_tree.itemClicked.connect(self._on_tree_item_clicked)
         self._project_tree.itemDoubleClicked.connect(self._on_tree_item_double_clicked)
+        # 支持图片节点拖放到其他项目
+        self._project_tree.setDragEnabled(True)
+        self._project_tree.setAcceptDrops(True)
+        self._project_tree.setDropIndicatorShown(True)
+        self._project_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self._project_tree.dropEvent = self._on_tree_drop_event
         self._refresh_project_tree()
         layout.addWidget(self._project_tree)
 
@@ -168,7 +183,7 @@ class WorkspacePage(QWidget):
     def _create_right_panel(self) -> CardWidget:
         panel = CardWidget(self)
         panel.setMinimumWidth(260)
-        panel.setMaximumWidth(400)
+        panel.setMaximumWidth(420)
         panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         layout = QVBoxLayout(panel)
@@ -180,12 +195,14 @@ class WorkspacePage(QWidget):
         title_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
         layout.addWidget(title_label)
 
-        # 曲线数据表格
+        # 曲线数据表格（带可点击排序表头）
         self._curve_table = QTableWidget(panel)
         self._curve_table.setColumnCount(2)
         self._curve_table.setHorizontalHeaderLabels(["X", "Y"])
         self._curve_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self._curve_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._curve_table.horizontalHeader().setSectionsClickable(True)
+        self._curve_table.horizontalHeader().sectionClicked.connect(self._on_header_sort)
         self._curve_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._curve_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._curve_table.setAlternatingRowColors(True)
@@ -193,25 +210,13 @@ class WorkspacePage(QWidget):
         self._curve_table.verticalHeader().setDefaultSectionSize(22)
         layout.addWidget(self._curve_table)
 
-        # 功能区标签
-        func_label = QLabel("功能区", panel)
-        func_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
-        layout.addWidget(func_label)
-
         # 功能区页面
         self._right_tabs = QTabWidget(panel)
-        extract_tab = self._create_extract_tab()
-        self._right_tabs.addTab(extract_tab, "手动选点")
-        auto_extract_tab = self._create_auto_extract_tab()
-        self._right_tabs.addTab(auto_extract_tab, "自动选点")
+        combined_tab = self._create_combined_tab()
+        self._right_tabs.addTab(combined_tab, "图片选点")
         export_tab = self._create_export_tab()
         self._right_tabs.addTab(export_tab, "数据导出")
-
         layout.addWidget(self._right_tabs)
-
-        # 公用工具区
-        self._common_tools_widget = self._create_common_tools_widget(panel)
-        layout.addWidget(self._common_tools_widget)
 
         # 提示标签
         self._status_label = QLabel("", panel)
@@ -221,11 +226,332 @@ class WorkspacePage(QWidget):
 
         return panel
 
-    def _create_common_tools_widget(self, parent) -> QWidget:
-        """创建公用工具区域"""
-        from qfluentwidgets import TransparentTogglePushButton, PushButton
+    def _create_viewer_toolbar(self, parent) -> QWidget:
+        """创建图片查看器下方的一行工具栏"""
+        from qfluentwidgets import TransparentTogglePushButton, PushButton as FPushButton, ComboBox as FComboBox
+        from qfluentwidgets import ColorPickerButton
 
-        widget = QWidget(parent)
+        bar = QWidget(parent)
+        bar.setFixedHeight(40)
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(4, 2, 4, 2)
+        bar_layout.setSpacing(3)
+
+        def _vsep():
+            line = QFrame(bar)
+            line.setFrameShape(QFrame.Shape.VLine)
+            line.setFixedWidth(1)
+            line.setStyleSheet(f"color: {self._border_color()};")
+            return line
+
+        # 橡皮擦
+        self._eraser_btn = TransparentTogglePushButton("", bar)
+        self._eraser_btn.setIcon(FIF.ERASE_TOOL)
+        self._eraser_btn.setToolTip("橡皮擦")
+        self._eraser_btn.setCheckable(True)
+        self._eraser_btn.setFixedSize(32, 32)
+        self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
+        bar_layout.addWidget(self._eraser_btn)
+
+        bar_layout.addWidget(_vsep())
+
+        # 清除
+        self._clear_points_btn = ToolButton(FIF.DELETE, bar)
+        self._clear_points_btn.setToolTip("清除所有点")
+        self._clear_points_btn.setFixedSize(32, 32)
+        self._clear_points_btn.clicked.connect(self._on_clear_all_points)
+        bar_layout.addWidget(self._clear_points_btn)
+
+        # 撤销
+        self._undo_btn = ToolButton(FIF.LEFT_ARROW, bar)
+        self._undo_btn.setToolTip("撤销 (Ctrl+Z)")
+        self._undo_btn.setFixedSize(32, 32)
+        self._undo_btn.clicked.connect(self._undo)
+        bar_layout.addWidget(self._undo_btn)
+
+        # 重做
+        self._redo_btn = ToolButton(FIF.RIGHT_ARROW, bar)
+        self._redo_btn.setToolTip("重做 (Ctrl+Y)")
+        self._redo_btn.setFixedSize(32, 32)
+        self._redo_btn.clicked.connect(self._redo)
+        bar_layout.addWidget(self._redo_btn)
+
+        bar_layout.addWidget(_vsep())
+
+        # 颜色
+        self._color_btn = ColorPickerButton(QColor("#0078D4"), "", bar)
+        self._color_btn.setToolTip("曲线颜色")
+        self._color_btn.setFixedSize(32, 32)
+        self._color_btn.colorChanged.connect(self._on_color_changed)
+        bar_layout.addWidget(self._color_btn)
+
+        # 形状
+        self._shape_combo = QComboBox(bar)
+        self._shape_combo.addItems(["圆形", "方形", "三角形", "菱形", "倒三角", "叉号", "星号"])
+        self._shape_combo.setToolTip("曲线点形状")
+        self._shape_combo.setFixedWidth(68)
+        self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
+        bar_layout.addWidget(self._shape_combo)
+
+        bar_layout.addWidget(_vsep())
+
+        # 点大小
+        bar_layout.addWidget(QLabel("大小:", bar))
+        self._point_size_spin = SpinBox(bar)
+        self._point_size_spin.setRange(1, 50)
+        self._point_size_spin.setValue(3)
+        self._point_size_spin.setFixedWidth(50)
+        self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
+        self._point_size_value_label = QLabel("3px", bar)
+        self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        bar_layout.addWidget(self._point_size_spin)
+        bar_layout.addWidget(self._point_size_value_label)
+
+        # 步长
+        bar_layout.addWidget(QLabel("步长:", bar))
+        self._nudge_step_spin = SpinBox(bar)
+        self._nudge_step_spin.setRange(1, 20)
+        self._nudge_step_spin.setValue(3)
+        self._nudge_step_spin.setFixedWidth(50)
+        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
+        self._nudge_step_value_label = QLabel("3px", bar)
+        self._nudge_step_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        bar_layout.addWidget(self._nudge_step_spin)
+        bar_layout.addWidget(self._nudge_step_value_label)
+
+        # 橡皮大小
+        bar_layout.addWidget(QLabel("橡皮:", bar))
+        self._eraser_size_spin = SpinBox(bar)
+        self._eraser_size_spin.setRange(1, 100)
+        self._eraser_size_spin.setValue(20)
+        self._eraser_size_spin.setFixedWidth(50)
+        self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
+        self._eraser_size_value_label = QLabel("20px", bar)
+        self._eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        bar_layout.addWidget(self._eraser_size_spin)
+        bar_layout.addWidget(self._eraser_size_value_label)
+
+        bar_layout.addWidget(_vsep())
+
+        # 平滑
+        self._smooth_method_combo = FComboBox(bar)
+        self._smooth_method_combo.addItems(["移动平均", "Savitzky-Golay"])
+        self._smooth_method_combo.setFixedWidth(104)
+        bar_layout.addWidget(self._smooth_method_combo)
+
+        self._smooth_btn = FPushButton("平滑", bar)
+        self._smooth_btn.setIcon(FIF.EDIT)
+        self._smooth_btn.setFixedHeight(28)
+        self._smooth_btn.clicked.connect(self._on_smooth_curve)
+        bar_layout.addWidget(self._smooth_btn)
+
+        bar_layout.addStretch()
+        return bar
+
+    def _create_combined_tab(self) -> QWidget:
+        """创建合并的图片选点功能区（手动/辅助/自动三节）"""
+        from qfluentwidgets import TransparentTogglePushButton, PushButton
+        from PySide6.QtWidgets import QSlider, QScrollArea
+
+        tab = QWidget()
+        scroll = QScrollArea(tab)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
+
+        outer = QVBoxLayout(tab)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+
+        def _section_label(text):
+            lbl = QLabel(text, content)
+            lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
+            return lbl
+
+        def _hsep():
+            line = QFrame(content)
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setStyleSheet(f"color: {self._border_color()};")
+            return line
+
+        # ══════════ 手动选点 ══════════
+        layout.addWidget(_section_label("手动选点"))
+
+        manual_row = QWidget(content)
+        ml = QHBoxLayout(manual_row)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(4)
+
+        self._calibrate_btn = TransparentTogglePushButton("校准", manual_row)
+        self._calibrate_btn.setIcon(FIF.ALIGNMENT)
+        self._calibrate_btn.setCheckable(True)
+        self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
+        ml.addWidget(self._calibrate_btn)
+
+        self._extract_btn = TransparentTogglePushButton("提取曲线", manual_row)
+        self._extract_btn.setIcon(FIF.PIE_SINGLE)
+        self._extract_btn.setCheckable(True)
+        self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
+        ml.addWidget(self._extract_btn)
+
+        ml.addStretch()
+        layout.addWidget(manual_row)
+
+        # ══════════ 辅助选点 ══════════
+        layout.addWidget(_hsep())
+        layout.addWidget(_section_label("辅助选点"))
+
+        assist_desc = QLabel("在图片上拖动框选区域，自动识别区域内曲线点", content)
+        assist_desc.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        assist_desc.setWordWrap(True)
+        layout.addWidget(assist_desc)
+
+        assist_btn_row = QWidget(content)
+        al = QHBoxLayout(assist_btn_row)
+        al.setContentsMargins(0, 0, 0, 0)
+        al.setSpacing(4)
+
+        self._assist_btn = TransparentTogglePushButton("辅助选点", assist_btn_row)
+        self._assist_btn.setIcon(FIF.CUT)
+        self._assist_btn.setCheckable(True)
+        self._assist_btn.setToolTip("拖动框选后根据颜色识别自动提取点")
+        self._assist_btn.clicked.connect(lambda: self._on_tool_clicked("assisted"))
+        al.addWidget(self._assist_btn)
+
+        self._assist_apply_btn = PushButton("应用预览", assist_btn_row)
+        self._assist_apply_btn.setIcon(FIF.ACCEPT)
+        self._assist_apply_btn.clicked.connect(self._on_apply_auto_points)
+        al.addWidget(self._assist_apply_btn)
+
+        al.addStretch()
+        layout.addWidget(assist_btn_row)
+
+        self._assist_status_label = QLabel("", content)
+        self._assist_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._assist_status_label.setWordWrap(True)
+        layout.addWidget(self._assist_status_label)
+
+        # ══════════ 自动选点 ══════════
+        layout.addWidget(_hsep())
+        layout.addWidget(_section_label("自动选点"))
+
+        auto_btn_row = QWidget(content)
+        abl = QHBoxLayout(auto_btn_row)
+        abl.setContentsMargins(0, 0, 0, 0)
+        abl.setSpacing(4)
+
+        self._color_pick_btn = TransparentTogglePushButton("取色", auto_btn_row)
+        self._color_pick_btn.setIcon(FIF.PALETTE)
+        self._color_pick_btn.setCheckable(True)
+        self._color_pick_btn.clicked.connect(self._on_color_pick)
+        abl.addWidget(self._color_pick_btn)
+
+        self._auto_detect_btn = PushButton("自动检测", auto_btn_row)
+        self._auto_detect_btn.setIcon(FIF.SEARCH)
+        self._auto_detect_btn.clicked.connect(self._on_auto_detect)
+        abl.addWidget(self._auto_detect_btn)
+
+        self._apply_auto_btn = PushButton("应用", auto_btn_row)
+        self._apply_auto_btn.setIcon(FIF.ACCEPT)
+        self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
+        abl.addWidget(self._apply_auto_btn)
+
+        abl.addStretch()
+        layout.addWidget(auto_btn_row)
+
+        # 颜色预览
+        color_row = QWidget(content)
+        cl = QHBoxLayout(color_row)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(5)
+        cl.addWidget(QLabel("采样色:", color_row))
+        self._sampled_color_preview = QLabel(color_row)
+        self._sampled_color_preview.setFixedSize(18, 18)
+        self._sampled_color_preview.setStyleSheet("background: #888888; border: 1px solid #666;")
+        cl.addWidget(self._sampled_color_preview)
+        self._sampled_color_hex_lbl = QLabel("#888888", color_row)
+        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        cl.addWidget(self._sampled_color_hex_lbl)
+        cl.addStretch()
+        layout.addWidget(color_row)
+
+        # 统一容差（单滑块代替H/S/V三个）
+        tol_row = QWidget(content)
+        tl = QHBoxLayout(tol_row)
+        tl.setContentsMargins(0, 0, 0, 0)
+        tl.setSpacing(4)
+        tol_lbl = QLabel("容差:", tol_row)
+        tol_lbl.setFixedWidth(38)
+        tl.addWidget(tol_lbl)
+        self._tol_slider = QSlider(Qt.Orientation.Horizontal, tol_row)
+        self._tol_slider.setRange(1, 80)
+        self._tol_slider.setValue(20)
+        tl.addWidget(self._tol_slider, 1)
+        self._tol_val_lbl = QLabel("20", tol_row)
+        self._tol_val_lbl.setFixedWidth(24)
+        self._tol_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        tl.addWidget(self._tol_val_lbl)
+        self._tol_slider.valueChanged.connect(lambda v: self._tol_val_lbl.setText(str(v)))
+        layout.addWidget(tol_row)
+
+        # 步长
+        step_row = QWidget(content)
+        sl = QHBoxLayout(step_row)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.setSpacing(4)
+        sl.addWidget(QLabel("步长:", step_row))
+        self._auto_step_slider = QSlider(Qt.Orientation.Horizontal, step_row)
+        self._auto_step_slider.setRange(1, 20)
+        self._auto_step_slider.setValue(2)
+        sl.addWidget(self._auto_step_slider, 1)
+        self._step_val_lbl = QLabel("2", step_row)
+        self._step_val_lbl.setFixedWidth(24)
+        self._step_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        sl.addWidget(self._step_val_lbl)
+        self._auto_step_slider.valueChanged.connect(lambda v: self._step_val_lbl.setText(str(v)))
+        layout.addWidget(step_row)
+
+        # 蒙版工具
+        mask_row = QWidget(content)
+        mml = QHBoxLayout(mask_row)
+        mml.setContentsMargins(0, 0, 0, 0)
+        mml.setSpacing(4)
+
+        self._box_mask_btn = TransparentTogglePushButton("框选蒙版", mask_row)
+        self._box_mask_btn.setIcon(FIF.LAYOUT)
+        self._box_mask_btn.setCheckable(True)
+        self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
+        mml.addWidget(self._box_mask_btn)
+
+        self._brush_mask_btn = TransparentTogglePushButton("画笔蒙版", mask_row)
+        self._brush_mask_btn.setIcon(FIF.BRUSH)
+        self._brush_mask_btn.setCheckable(True)
+        self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
+        mml.addWidget(self._brush_mask_btn)
+
+        self._clear_masks_btn = PushButton("清除蒙版", mask_row)
+        self._clear_masks_btn.setIcon(FIF.DELETE)
+        self._clear_masks_btn.clicked.connect(self._on_clear_masks)
+        mml.addWidget(self._clear_masks_btn)
+
+        mml.addStretch()
+        layout.addWidget(mask_row)
+
+        self._auto_status_label = QLabel("", content)
+        self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._auto_status_label.setWordWrap(True)
+        layout.addWidget(self._auto_status_label)
+
+        layout.addStretch()
+        return tab
+
+
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 5, 0, 0)
         layout.setSpacing(8)
@@ -395,243 +721,44 @@ class WorkspacePage(QWidget):
 
         return widget
 
-    def _create_extract_tab(self) -> QWidget:
-        """创建手动选点功能区"""
-        from qfluentwidgets import TransparentTogglePushButton
-
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # 第一行按钮
-        buttons_widget = QWidget(tab)
-        buttons_layout = QHBoxLayout(buttons_widget)
-        buttons_layout.setContentsMargins(0, 0, 0, 0)
-        buttons_layout.setSpacing(5)
-
-        # 校准
-        self._calibrate_btn = TransparentTogglePushButton("校准", buttons_widget)
-        self._calibrate_btn.setIcon(FIF.ALIGNMENT)
-        self._calibrate_btn.setToolTip("校准")
-        self._calibrate_btn.setCheckable(True)
-        self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
-        buttons_layout.addWidget(self._calibrate_btn)
-
-        # 提取曲线
-        self._extract_btn = TransparentTogglePushButton("提取曲线", buttons_widget)
-        self._extract_btn.setIcon(FIF.PIE_SINGLE)
-        self._extract_btn.setToolTip("提取曲线")
-        self._extract_btn.setCheckable(True)
-        self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
-        buttons_layout.addWidget(self._extract_btn)
-
-        buttons_layout.addStretch()
-        layout.addWidget(buttons_widget)
-
-        # ── 平滑功能 ──
-        sep = QFrame(tab)
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {self._border_color()};")
-        layout.addWidget(sep)
-
-        smooth_label = QLabel("数据平滑:", tab)
-        smooth_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        layout.addWidget(smooth_label)
-
-        smooth_row = QWidget(tab)
-        smooth_layout = QHBoxLayout(smooth_row)
-        smooth_layout.setContentsMargins(0, 0, 0, 0)
-        smooth_layout.setSpacing(4)
-
-        from qfluentwidgets import PushButton as QPB2, ComboBox as FComboBox2
-        self._smooth_method_combo = FComboBox2(smooth_row)
-        self._smooth_method_combo.addItems(["移动平均", "Savitzky-Golay"])
-        smooth_layout.addWidget(self._smooth_method_combo, 1)
-
-        self._smooth_btn = QPB2("平滑", smooth_row)
-        self._smooth_btn.setIcon(FIF.EDIT)
-        self._smooth_btn.clicked.connect(self._on_smooth_curve)
-        smooth_layout.addWidget(self._smooth_btn)
-
-        layout.addWidget(smooth_row)
-        layout.addStretch()
-
-        return tab
-
-    def _create_auto_extract_tab(self) -> QWidget:
-        """创建自动选点功能区"""
-        from qfluentwidgets import TransparentTogglePushButton, PushButton
-        from PySide6.QtWidgets import QSlider
-
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(4)
-
-        # ── 操作按钮行 ──
-        btn_row = QWidget(tab)
-        btn_layout = QHBoxLayout(btn_row)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
-        btn_layout.setSpacing(4)
-
-        self._color_pick_btn = TransparentTogglePushButton("取色", btn_row)
-        self._color_pick_btn.setIcon(FIF.PALETTE)
-        self._color_pick_btn.setCheckable(True)
-        self._color_pick_btn.clicked.connect(self._on_color_pick)
-        btn_layout.addWidget(self._color_pick_btn)
-
-        self._auto_detect_btn = PushButton("自动检测", btn_row)
-        self._auto_detect_btn.setIcon(FIF.SEARCH)
-        self._auto_detect_btn.clicked.connect(self._on_auto_detect)
-        btn_layout.addWidget(self._auto_detect_btn)
-
-        self._apply_auto_btn = PushButton("应用", btn_row)
-        self._apply_auto_btn.setIcon(FIF.ACCEPT)
-        self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
-        btn_layout.addWidget(self._apply_auto_btn)
-
-        btn_layout.addStretch()
-        layout.addWidget(btn_row)
-
-        # ── 颜色预览 ──
-        color_row = QWidget(tab)
-        color_layout = QHBoxLayout(color_row)
-        color_layout.setContentsMargins(0, 0, 0, 0)
-        color_layout.setSpacing(6)
-        color_name_lbl = QLabel("采样颜色:", color_row)
-        color_name_lbl.setFixedWidth(60)
-        color_layout.addWidget(color_name_lbl)
-        self._sampled_color_preview = QLabel(color_row)
-        self._sampled_color_preview.setFixedSize(20, 20)
-        self._sampled_color_preview.setStyleSheet("background: #888888; border: 1px solid #666;")
-        color_layout.addWidget(self._sampled_color_preview)
-        self._sampled_color_hex_lbl = QLabel("#888888", color_row)
-        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        color_layout.addWidget(self._sampled_color_hex_lbl)
-        color_layout.addStretch()
-        layout.addWidget(color_row)
-
-        # ── HSV 容差滑块 ──
-        def _make_slider_row(parent, label: str, lo: int, hi: int, default: int, attr: str):
-            row = QWidget(parent)
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.setSpacing(4)
-            lbl = QLabel(label, row)
-            lbl.setFixedWidth(50)
-            row_layout.addWidget(lbl)
-            slider = QSlider(Qt.Orientation.Horizontal, row)
-            slider.setRange(lo, hi)
-            slider.setValue(default)
-            row_layout.addWidget(slider, 1)
-            val_lbl = QLabel(str(default), row)
-            val_lbl.setFixedWidth(28)
-            val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-            row_layout.addWidget(val_lbl)
-            slider.valueChanged.connect(lambda v, l=val_lbl: l.setText(str(v)))
-            setattr(self, f"_{attr}_slider", slider)
-            return row
-
-        layout.addWidget(_make_slider_row(tab, "H 容差:", 0, 90, 15, "h_tol"))
-        layout.addWidget(_make_slider_row(tab, "S 容差:", 0, 255, 50, "s_tol"))
-        layout.addWidget(_make_slider_row(tab, "V 容差:", 0, 255, 50, "v_tol"))
-        layout.addWidget(_make_slider_row(tab, "步长:", 1, 20, 2, "auto_step"))
-
-        # ── 分隔线 ──
-        sep = QFrame(tab)
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {self._border_color()};")
-        layout.addWidget(sep)
-
-        # ── 蒙版工具 ──
-        mask_row = QWidget(tab)
-        mask_layout = QHBoxLayout(mask_row)
-        mask_layout.setContentsMargins(0, 0, 0, 0)
-        mask_layout.setSpacing(4)
-
-        self._box_mask_btn = TransparentTogglePushButton("框选蒙版", mask_row)
-        self._box_mask_btn.setIcon(FIF.LAYOUT)
-        self._box_mask_btn.setCheckable(True)
-        self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
-        mask_layout.addWidget(self._box_mask_btn)
-
-        self._brush_mask_btn = TransparentTogglePushButton("画笔蒙版", mask_row)
-        self._brush_mask_btn.setIcon(FIF.BRUSH)
-        self._brush_mask_btn.setCheckable(True)
-        self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
-        mask_layout.addWidget(self._brush_mask_btn)
-
-        mask_layout.addStretch()
-        layout.addWidget(mask_row)
-
-        clear_row = QWidget(tab)
-        clear_layout = QHBoxLayout(clear_row)
-        clear_layout.setContentsMargins(0, 0, 0, 0)
-        self._clear_masks_btn = PushButton("清除蒙版", clear_row)
-        self._clear_masks_btn.setIcon(FIF.DELETE)
-        self._clear_masks_btn.clicked.connect(self._on_clear_masks)
-        clear_layout.addWidget(self._clear_masks_btn)
-        clear_layout.addStretch()
-        layout.addWidget(clear_row)
-
-        # ── 状态标签 ──
-        self._auto_status_label = QLabel("", tab)
-        self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        self._auto_status_label.setWordWrap(True)
-        layout.addWidget(self._auto_status_label)
-
-        layout.addStretch()
-        return tab
-
     def _create_export_tab(self) -> QWidget:
         """创建数据导出功能区"""
-        from qfluentwidgets import PushButton, ComboBox as FComboBox
-
+        from qfluentwidgets import PushButton
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(6)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
-        # ── 导出范围 ──
-        scope_row = QWidget(tab)
-        scope_layout = QHBoxLayout(scope_row)
-        scope_layout.setContentsMargins(0, 0, 0, 0)
-        scope_layout.setSpacing(6)
-        scope_lbl = QLabel("范围:", scope_row)
-        scope_lbl.setFixedWidth(40)
-        scope_layout.addWidget(scope_lbl)
-        self._export_scope_combo = FComboBox(scope_row)
+        # 导出范围
+        scope_row = QHBoxLayout()
+        scope_row.addWidget(QLabel("导出范围:", tab))
+        self._export_scope_combo = QComboBox(tab)
         self._export_scope_combo.addItems(["当前曲线", "全部曲线"])
-        scope_layout.addWidget(self._export_scope_combo, 1)
-        layout.addWidget(scope_row)
+        scope_row.addWidget(self._export_scope_combo)
+        layout.addLayout(scope_row)
 
-        # ── 导出格式 ──
-        fmt_row = QWidget(tab)
-        fmt_layout = QHBoxLayout(fmt_row)
-        fmt_layout.setContentsMargins(0, 0, 0, 0)
-        fmt_layout.setSpacing(6)
-        fmt_lbl = QLabel("格式:", fmt_row)
-        fmt_lbl.setFixedWidth(40)
-        fmt_layout.addWidget(fmt_lbl)
-        self._export_fmt_combo = FComboBox(fmt_row)
+        # 格式
+        fmt_row = QHBoxLayout()
+        fmt_row.addWidget(QLabel("文件格式:", tab))
+        self._export_fmt_combo = QComboBox(tab)
         self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
-        fmt_layout.addWidget(self._export_fmt_combo, 1)
-        layout.addWidget(fmt_row)
+        fmt_row.addWidget(self._export_fmt_combo)
+        layout.addLayout(fmt_row)
 
-        # ── 导出文件按钮 ──
-        from qfluentwidgets import PrimaryPushButton
-        export_file_btn = PrimaryPushButton("导出文件", tab)
-        export_file_btn.setIcon(FIF.SAVE)
-        export_file_btn.clicked.connect(self._on_export_to_file)
-        layout.addWidget(export_file_btn)
+        # 导出按钮
+        export_btn = PushButton("导出到文件", tab)
+        export_btn.clicked.connect(self._on_export_to_file)
+        layout.addWidget(export_btn)
 
-        # ── 复制到剪贴板（仅当前曲线） ──
-        clip_btn = PushButton("复制到剪贴板", tab)
-        clip_btn.setIcon(FIF.COPY)
-        clip_btn.setToolTip("将当前曲线数据复制为制表符分隔文本")
-        clip_btn.clicked.connect(self._on_export_to_clipboard)
-        layout.addWidget(clip_btn)
+        # 复制到剪贴板
+        clipboard_btn = PushButton("复制到剪贴板", tab)
+        clipboard_btn.clicked.connect(self._on_export_to_clipboard)
+        layout.addWidget(clipboard_btn)
+
+        # 保存项目
+        save_btn = PushButton("保存项目", tab)
+        save_btn.clicked.connect(self._on_save_project)
+        layout.addWidget(save_btn)
 
         layout.addStretch()
         return tab
@@ -874,7 +1001,7 @@ class WorkspacePage(QWidget):
             self._activate_tool_button(self._brush_mask_btn)
             self._image_viewer.set_brush_mask_mode()
             self._active_tool = tool_name
-            self._status_label.setText("点击并拖动绘制多边形蒙版区域")
+            self._status_label.setText("涂刷蒙版：按住拖动涂抹遮罩区域")
         elif tool_name == "color_pick":
             if self._current_image_id is None:
                 QMessageBox.warning(self, "警告", "请先选择一张图片")
@@ -884,6 +1011,19 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_color_pick_mode()
             self._active_tool = tool_name
             self._status_label.setText("取色模式：点击图片上曲线的颜色")
+        elif tool_name == "assisted":
+            if self._current_image_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                self._deactivate_all_tools()
+                return
+            if self._current_curve_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._assist_btn)
+            self._image_viewer.set_assisted_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("辅助选点：在图片上拖动框选曲线区域")
         else:
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -901,6 +1041,7 @@ class WorkspacePage(QWidget):
         self._calibrate_btn.setChecked(False)
         self._extract_btn.setChecked(False)
         self._color_pick_btn.setChecked(False)
+        self._assist_btn.setChecked(False)
 
     def _on_clear_masks(self):
         """清除所有蒙版区域"""
@@ -910,6 +1051,124 @@ class WorkspacePage(QWidget):
             self._image_viewer.update()
             self._status_label.setText("已清除所有蒙版区域")
             self.project_modified.emit()
+
+    def _on_image_file_dropped(self, file_path: str):
+        """处理图片拖放到图片查看器"""
+        import os
+        # 判断是否是图片文件
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.tif', '.webp'):
+            self._status_label.setText("不支持的文件格式")
+            return
+
+        # 若无当前项目，自动新建默认项目
+        if project_manager.current_project is None:
+            import os as _os
+            default_name = _os.path.splitext(_os.path.basename(file_path))[0]
+            project_manager.create_new(default_name)
+            self._refresh_project_tree()
+
+        image_work = project_manager.add_image(file_path)
+        self._current_image_id = image_work.id
+        self._current_curve_id = None
+        self._image_viewer.load_image(file_path)
+        self._refresh_project_tree()
+        self.project_modified.emit()
+        self._status_label.setText(f"已添加图片: {os.path.basename(file_path)}")
+
+    def _on_assisted_region(self, x1: float, y1: float, x2: float, y2: float):
+        """辅助选点：在矩形区域内使用自动颜色识别提取点"""
+        if self._sampled_color is None:
+            QMessageBox.warning(self, "警告", "请先在「自动选点」区取色后再使用辅助选点")
+            self._deactivate_all_tools()
+            self._image_viewer.set_select_mode()
+            self._active_tool = None
+            return
+        if self._current_curve_id is None:
+            return
+
+        image_path = self._image_viewer.get_image_path()
+        if not image_path:
+            return
+
+        from core.auto_extractor import AutoExtractor
+        tol = self._tol_slider.value()
+        h_tol = max(5, tol // 2)
+        s_tol = min(255, tol * 4)
+        v_tol = min(255, tol * 4)
+        step = self._auto_step_slider.value()
+
+        # 构建区域蒙版（两点对角线矩形）
+        x_lo, x_hi = min(x1, x2), max(x1, x2)
+        y_lo, y_hi = min(y1, y2), max(y1, y2)
+        region_mask = [(x_lo, y_lo), (x_hi, y_lo), (x_hi, y_hi), (x_lo, y_hi)]
+
+        self._assist_status_label.setText("辅助检测中...")
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        try:
+            points = AutoExtractor.extract(
+                image_path,
+                target_r=self._sampled_color.red(),
+                target_g=self._sampled_color.green(),
+                target_b=self._sampled_color.blue(),
+                h_tol=h_tol, s_tol=s_tol, v_tol=v_tol,
+                mask_polygons=[region_mask],
+                step=step,
+            )
+        except Exception as e:
+            self._assist_status_label.setText(f"检测失败: {e}")
+            return
+
+        self._auto_preview_points = points
+        self._image_viewer.set_preview_points(points)
+        self._assist_status_label.setText(f"辅助选点检测到 {len(points)} 个点，点击「应用预览」写入")
+
+        # 回到正常模式
+        self._deactivate_all_tools()
+        self._image_viewer.set_select_mode()
+        self._active_tool = None
+
+    def _on_header_sort(self, col: int):
+        """点击表头排序（含撤销支持）"""
+        if self._current_curve_id is None:
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None or not curve.x_data:
+            return
+
+        if self._sort_col == col:
+            self._sort_order = (Qt.SortOrder.DescendingOrder
+                                if self._sort_order == Qt.SortOrder.AscendingOrder
+                                else Qt.SortOrder.AscendingOrder)
+        else:
+            self._sort_col = col
+            self._sort_order = Qt.SortOrder.AscendingOrder
+
+        reverse = (self._sort_order == Qt.SortOrder.DescendingOrder)
+        key_fn = (lambda i: curve.x_data[i]) if col == 0 else (lambda i: curve.y_data[i])
+        indices = sorted(range(len(curve.x_data)), key=key_fn, reverse=reverse)
+
+        # 记录到撤销栈（保存完整数据）
+        self._record_state("clear_curve", self._current_curve_id, {
+            "points": list(zip(curve.x_data, curve.y_data)),
+            "x_actual": list(curve.x_actual) if curve.x_actual else [],
+            "y_actual": list(curve.y_actual) if curve.y_actual else [],
+        })
+
+        curve.x_data = [curve.x_data[i] for i in indices]
+        curve.y_data = [curve.y_data[i] for i in indices]
+        if curve.x_actual and curve.y_actual and len(curve.x_actual) == len(indices):
+            curve.x_actual = [curve.x_actual[i] for i in indices]
+            curve.y_actual = [curve.y_actual[i] for i in indices]
+
+        self._display_current_curve_on_image()
+        self._update_curve_table()
+        self.project_modified.emit()
+        order_str = "升序" if not reverse else "降序"
+        col_str = "X" if col == 0 else "Y"
+        self._status_label.setText(f"已按 {col_str} {order_str} 排序（可撤销）")
 
     # ==================== 自动选点槽函数 ====================
 
@@ -952,9 +1211,11 @@ class WorkspacePage(QWidget):
             return
 
         from core.auto_extractor import AutoExtractor
-        h_tol = self._h_tol_slider.value()
-        s_tol = self._s_tol_slider.value()
-        v_tol = self._v_tol_slider.value()
+        # 统一容差：将单一容差值映射到 H/S/V
+        tol = self._tol_slider.value()
+        h_tol = max(5, tol // 2)          # H 通道容差（色调，范围 0-180）
+        s_tol = min(255, tol * 4)         # S 通道容差
+        v_tol = min(255, tol * 4)         # V 通道容差
         step = self._auto_step_slider.value()
 
         # 获取蒙版多边形
@@ -1158,6 +1419,8 @@ class WorkspacePage(QWidget):
         self._update_curve_table()
         self.project_modified.emit()
         self._status_label.setText(f"平滑完成（{method}，窗口={window}）")
+
+    def _on_point_size_changed(self, value):
         self._image_viewer.set_point_size(float(value))
         self._point_size_value_label.setText(f"{value} px")
 
@@ -1281,6 +1544,51 @@ class WorkspacePage(QWidget):
     def _on_tree_item_double_clicked(self, item, column):
         pass
 
+    def _on_tree_drop_event(self, event):
+        """处理图片节点跨项目拖放"""
+        target_item = self._project_tree.itemAt(event.position().toPoint())
+        dragged_item = self._project_tree.currentItem()
+        if dragged_item is None or target_item is None:
+            return
+
+        dragged_data = dragged_item.data(0, Qt.ItemDataRole.UserRole)
+        if dragged_data is None or dragged_data[0] != "image":
+            return
+
+        # 找到投放目标的所属项目
+        target_data = target_item.data(0, Qt.ItemDataRole.UserRole)
+        if target_data is None:
+            return
+
+        if target_data[0] == "project":
+            dest_project_id = target_data[1]
+        elif target_data[0] == "image":
+            dest_project_id = target_data[2]
+        else:
+            return
+
+        img_id = dragged_data[1]
+        src_project_id = dragged_data[2]
+
+        if src_project_id == dest_project_id:
+            return
+
+        src_project = project_manager.get_project(src_project_id)
+        dest_project = project_manager.get_project(dest_project_id)
+        if src_project is None or dest_project is None:
+            return
+
+        # 移动图片数据
+        img = next((i for i in src_project.images if i.id == img_id), None)
+        if img is None:
+            return
+
+        src_project.images = [i for i in src_project.images if i.id != img_id]
+        dest_project.images.append(img)
+        self._refresh_project_tree()
+        self.project_modified.emit()
+        event.accept()
+
     def _on_tree_context_menu(self, pos):
         """显示项目树右键菜单"""
         item = self._project_tree.itemAt(pos)
@@ -1288,29 +1596,128 @@ class WorkspacePage(QWidget):
             return
 
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if data is None or data[0] != "curve":
+        if data is None:
             return
 
         menu = QMenu(self)
+        item_type = data[0]
 
-        curve_id = data[1]
-        is_hidden = curve_id in self._hidden_curves if hasattr(self, '_hidden_curves') else False
+        if item_type == "project":
+            project_id = data[1]
+            rename_action = menu.addAction("重命名项目")
+            rename_action.triggered.connect(lambda: self._rename_item("project", project_id))
+            menu.addSeparator()
+            delete_action = menu.addAction("删除项目")
+            delete_action.triggered.connect(lambda: self._delete_project(project_id))
 
-        # 显示/隐藏曲线
-        if is_hidden:
-            # 曲线已隐藏，点击应该显示
-            show_action = menu.addAction("显示曲线")
-            show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
-        else:
-            # 曲线已显示，点击应该隐藏
-            hide_action = menu.addAction("隐藏曲线")
-            hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
+        elif item_type == "image":
+            img_id = data[1]
+            rename_action = menu.addAction("重命名图片")
+            rename_action.triggered.connect(lambda: self._rename_item("image", img_id))
+            menu.addSeparator()
+            delete_action = menu.addAction("删除图片")
+            delete_action.triggered.connect(lambda: self._delete_image(img_id))
 
-        # 删除曲线
-        delete_action = menu.addAction("删除曲线")
-        delete_action.triggered.connect(lambda checked, cid=curve_id: self._delete_curve(cid))
+        elif item_type == "curve":
+            curve_id = data[1]
+            is_hidden = curve_id in self._hidden_curves
+
+            # 显示/隐藏曲线
+            if is_hidden:
+                show_action = menu.addAction("显示曲线")
+                show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
+            else:
+                hide_action = menu.addAction("隐藏曲线")
+                hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
+
+            rename_action = menu.addAction("重命名曲线")
+            rename_action.triggered.connect(lambda: self._rename_item("curve", curve_id))
+            menu.addSeparator()
+            delete_action = menu.addAction("删除曲线")
+            delete_action.triggered.connect(lambda checked, cid=curve_id: self._delete_curve(cid))
 
         menu.exec(self._project_tree.mapToGlobal(pos))
+
+    def _rename_item(self, item_type: str, item_id: str):
+        """重命名项目/图片/曲线"""
+        if item_type == "project":
+            project = project_manager.get_project(item_id)
+            if project is None:
+                return
+            new_name, ok = QInputDialog.getText(self, "重命名项目", "新名称:", text=project.name)
+            if ok and new_name.strip():
+                project.name = new_name.strip()
+                self._refresh_project_tree()
+                self.project_modified.emit()
+        elif item_type == "image":
+            img = project_manager.get_image(item_id)
+            if img is None:
+                return
+            new_name, ok = QInputDialog.getText(self, "重命名图片", "新名称:", text=img.name)
+            if ok and new_name.strip():
+                img.name = new_name.strip()
+                self._refresh_project_tree()
+                self.project_modified.emit()
+        elif item_type == "curve":
+            curve = project_manager.get_curve(item_id)
+            if curve is None:
+                return
+            new_name, ok = QInputDialog.getText(self, "重命名曲线", "新名称:", text=curve.name)
+            if ok and new_name.strip():
+                curve.name = new_name.strip()
+                self._refresh_project_tree()
+                self.project_modified.emit()
+
+    def _delete_project(self, project_id: str):
+        """删除项目"""
+        project = project_manager.get_project(project_id)
+        if project is None:
+            return
+        reply = QMessageBox.question(
+            self, "确认删除", f"确定要删除项目「{project.name}」及其所有图片和曲线吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        project_manager.projects.remove(project)
+        if project_manager.current_project_id == project_id:
+            new_id = project_manager.projects[-1].id if project_manager.projects else None
+            if new_id:
+                project_manager.set_current_project(new_id)
+            else:
+                project_manager._current_project_id = None
+        if self._current_image_id is not None:
+            for img in project.images:
+                if img.id == self._current_image_id:
+                    self._current_image_id = None
+                    self._current_curve_id = None
+                    self._image_viewer.clear_image()
+                    break
+        self._refresh_project_tree()
+        self.project_modified.emit()
+
+    def _delete_image(self, img_id: str):
+        """删除图片"""
+        img = project_manager.get_image(img_id)
+        if img is None:
+            return
+        reply = QMessageBox.question(
+            self, "确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # 从所有项目中找到并删除
+        for project in project_manager.projects:
+            if any(i.id == img_id for i in project.images):
+                project.images = [i for i in project.images if i.id != img_id]
+                break
+        if self._current_image_id == img_id:
+            self._current_image_id = None
+            self._current_curve_id = None
+            self._image_viewer.clear_image()
+        self._refresh_project_tree()
+        self.project_modified.emit()
 
     def _toggle_curve_visibility(self, curve_id: str, hidden: bool):
         """切换曲线可见性"""
@@ -1483,7 +1890,9 @@ class WorkspacePage(QWidget):
         if file_path:
             try:
                 project_manager.save(file_path)
+                project_manager.current_project.is_modified = False
                 self._refresh_project_tree()
+                self.project_modified.emit()
                 QMessageBox.information(self, "成功", f"项目已保存到:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"保存失败:\n{str(e)}")
