@@ -286,6 +286,7 @@ class ImageViewer(QWidget):
     toggle_eraser_mode = Signal()  # 切换橡皮擦模式信号
     mask_changed = Signal()  # 蒙版改变信号
     mask_about_to_add = Signal(object)  # 蒙版即将添加信号，携带多边形数据
+    color_picked = Signal(object)  # 取色信号，发送 QColor
 
     # 工具模式
     MODE_SELECT = "select"
@@ -294,6 +295,7 @@ class ImageViewer(QWidget):
     MODE_ERASER = "eraser"
     MODE_BOX_MASK = "box_mask"
     MODE_BRUSH_MASK = "brush_mask"
+    MODE_COLOR_PICK = "color_pick"
 
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
@@ -332,6 +334,12 @@ class ImageViewer(QWidget):
         self._mask = MaskOverlay()
         self._mask_start_point = None
         self._mask_current_polygon = []
+
+        # 预览点（自动检测结果）
+        self._preview_points: list = []
+
+        # 当前图片路径
+        self._image_path: str = ""
 
         # 鼠标位置(图片坐标)
         self._mouse_image_pos = None
@@ -376,6 +384,7 @@ class ImageViewer(QWidget):
         if pixmap.isNull():
             return False
         self._pixmap = pixmap
+        self._image_path = file_path
         self._scale = 1.0
         self._offset = QPointF()
         self.fit_to_window()
@@ -386,10 +395,12 @@ class ImageViewer(QWidget):
     def clear_image(self):
         """清除图片"""
         self._pixmap = None
+        self._image_path = ""
         self._scale = 1.0
         self._offset = QPointF()
         self._curve_items.clear()
         self._current_curve = None
+        self._preview_points = []
         self._calibration.reset()
         self.update()
 
@@ -535,6 +546,30 @@ class ImageViewer(QWidget):
         """获取当前曲线"""
         return self._current_curve
 
+    def get_image_path(self) -> str:
+        """获取当前图片路径"""
+        return self._image_path
+
+    def set_preview_points(self, points: list) -> None:
+        """设置预览点（自动检测结果），格式 [(x, y), ...]"""
+        self._preview_points = list(points)
+        self.update()
+
+    def clear_preview_points(self) -> None:
+        """清除预览点"""
+        self._preview_points = []
+        self.update()
+
+    def get_preview_points(self) -> list:
+        """获取预览点列表"""
+        return self._preview_points
+
+    def set_color_pick_mode(self) -> None:
+        """切换到取色模式"""
+        self._current_tool = self.MODE_COLOR_PICK
+        self._calibration_step_hint = ""
+        self.update()
+
     # ==================== 校准操作 ====================
 
     def get_calibration(self) -> CalibrationOverlay:
@@ -599,6 +634,7 @@ class ImageViewer(QWidget):
         if self._curves_visible:
             self._draw_curve_points(painter)
 
+        self._draw_preview_points(painter)
         self._draw_mask_overlay(painter)
         self._draw_eraser_cursor(painter)
 
@@ -609,6 +645,12 @@ class ImageViewer(QWidget):
             painter.drawText(self.rect().adjusted(10, 10, -10, -50),
                            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
                            self._calibration_step_hint)
+
+        if self._current_tool == self.MODE_COLOR_PICK:
+            painter.setPen(QColor("#FFD700"))
+            painter.drawText(self.rect().adjusted(10, 10, -10, -50),
+                           Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                           "取色模式：点击图片上的曲线颜色")
 
         scale_text = f"{int(self._scale * 100)}%"
         painter.setPen(Qt.GlobalColor.gray)
@@ -766,6 +808,19 @@ class ImageViewer(QWidget):
         path.closeSubpath()
         painter.drawPath(path)
 
+    def _draw_preview_points(self, painter: QPainter):
+        """绘制预览点（自动检测结果，黄色空心圆）"""
+        if not self._preview_points:
+            return
+        r = max(2.0, self._point_size * 0.7) / self._scale
+        pen = QPen(QColor("#FFD700"))
+        pen.setWidthF(1.5 / self._scale)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for px, py in self._preview_points:
+            painter.drawEllipse(QPointF(px, py), r, r)
+
     def _draw_mask_overlay(self, painter: QPainter):
         """绘制蒙版覆盖层"""
         if self._pixmap is None:
@@ -865,6 +920,9 @@ class ImageViewer(QWidget):
             self._handle_calibrate_click(pos)
         elif self._current_tool == self.MODE_EXTRACT:
             self._handle_extract_click(pos)
+        elif self._current_tool == self.MODE_COLOR_PICK:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._handle_color_pick_click(pos)
         elif self._current_tool == self.MODE_ERASER:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._eraser_pressed = True
@@ -882,6 +940,23 @@ class ImageViewer(QWidget):
             if event.button() == Qt.MouseButton.LeftButton:
                 self._pan = True
                 self._pan_start = pos - self._offset
+
+    def _handle_color_pick_click(self, pos: QPointF):
+        """处理取色模式点击 - 采集该像素颜色"""
+        if self._pixmap is None:
+            return
+        img_pos = self._widget_to_image_coords(pos)
+        x = int(img_pos.x())
+        y = int(img_pos.y())
+        w = self._pixmap.width()
+        h = self._pixmap.height()
+        if 0 <= x < w and 0 <= y < h:
+            qimage = self._pixmap.toImage()
+            color = qimage.pixelColor(x, y)
+            self.color_picked.emit(color)
+        # 取色后自动退回 select 模式
+        self._current_tool = self.MODE_SELECT
+        self.update()
 
     def _handle_eraser_click(self, pos: QPointF):
         """处理橡皮擦点击"""

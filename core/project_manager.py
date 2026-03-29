@@ -77,6 +77,9 @@ class ProjectManager:
 
         self.current_project.file_path = file_path
         self.current_project.is_modified = False
+        # 记录到最近项目
+        from core.recent_projects import add_recent
+        add_recent(file_path, self.current_project.name)
         return file_path
 
     def open(self, file_path: str) -> Project:
@@ -101,6 +104,9 @@ class ProjectManager:
             self._projects.append(project)
 
         self._current_project_id = project.id
+        # 记录到最近项目
+        from core.recent_projects import add_recent
+        add_recent(file_path, project.name)
         return project
 
     def close_current_project(self):

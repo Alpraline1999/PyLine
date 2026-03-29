@@ -38,6 +38,9 @@ class WorkspacePage(QWidget):
         self._redo_stack = []  #重做栈
         self._max_history = 50  #最大历史记录数
         self._is_undo_redo = False  #防止在撤销/重做中重复记录
+        # 自动选点
+        self._sampled_color = None  # 采样颜色 (QColor)
+        self._auto_preview_points = []  # 自动检测预览点
         self.setup_ui()
         self._setup_viewer_signals()
         self._setup_shortcuts()
@@ -83,6 +86,7 @@ class WorkspacePage(QWidget):
         self._image_viewer.toggle_eraser_mode.connect(self._on_toggle_eraser_mode)
         self._image_viewer.mask_changed.connect(self._on_mask_changed)
         self._image_viewer.mask_about_to_add.connect(self._on_mask_about_to_add)
+        self._image_viewer.color_picked.connect(self._on_color_picked)
 
     def _setup_shortcuts(self):
         """设置键盘快捷键"""
@@ -200,6 +204,8 @@ class WorkspacePage(QWidget):
         self._right_tabs.addTab(extract_tab, "手动选点")
         auto_extract_tab = self._create_auto_extract_tab()
         self._right_tabs.addTab(auto_extract_tab, "自动选点")
+        export_tab = self._create_export_tab()
+        self._right_tabs.addTab(export_tab, "数据导出")
 
         layout.addWidget(self._right_tabs)
 
@@ -422,6 +428,33 @@ class WorkspacePage(QWidget):
 
         buttons_layout.addStretch()
         layout.addWidget(buttons_widget)
+
+        # ── 平滑功能 ──
+        sep = QFrame(tab)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet(f"color: {self._border_color()};")
+        layout.addWidget(sep)
+
+        smooth_label = QLabel("数据平滑:", tab)
+        smooth_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        layout.addWidget(smooth_label)
+
+        smooth_row = QWidget(tab)
+        smooth_layout = QHBoxLayout(smooth_row)
+        smooth_layout.setContentsMargins(0, 0, 0, 0)
+        smooth_layout.setSpacing(4)
+
+        from qfluentwidgets import PushButton as QPB2, ComboBox as FComboBox2
+        self._smooth_method_combo = FComboBox2(smooth_row)
+        self._smooth_method_combo.addItems(["移动平均", "Savitzky-Golay"])
+        smooth_layout.addWidget(self._smooth_method_combo, 1)
+
+        self._smooth_btn = QPB2("平滑", smooth_row)
+        self._smooth_btn.setIcon(FIF.EDIT)
+        self._smooth_btn.clicked.connect(self._on_smooth_curve)
+        smooth_layout.addWidget(self._smooth_btn)
+
+        layout.addWidget(smooth_row)
         layout.addStretch()
 
         return tab
@@ -429,54 +462,178 @@ class WorkspacePage(QWidget):
     def _create_auto_extract_tab(self) -> QWidget:
         """创建自动选点功能区"""
         from qfluentwidgets import TransparentTogglePushButton, PushButton
+        from PySide6.QtWidgets import QSlider
 
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
+        layout.setSpacing(4)
 
-        # 第一行按钮
-        buttons_widget = QWidget(tab)
-        buttons_layout = QHBoxLayout(buttons_widget)
-        buttons_layout.setContentsMargins(0, 0, 0, 0)
-        buttons_layout.setSpacing(5)
+        # ── 操作按钮行 ──
+        btn_row = QWidget(tab)
+        btn_layout = QHBoxLayout(btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(4)
 
-        # 框选蒙版
-        self._box_mask_btn = TransparentTogglePushButton("框选蒙版", buttons_widget)
+        self._color_pick_btn = TransparentTogglePushButton("取色", btn_row)
+        self._color_pick_btn.setIcon(FIF.PALETTE)
+        self._color_pick_btn.setCheckable(True)
+        self._color_pick_btn.clicked.connect(self._on_color_pick)
+        btn_layout.addWidget(self._color_pick_btn)
+
+        self._auto_detect_btn = PushButton("自动检测", btn_row)
+        self._auto_detect_btn.setIcon(FIF.SEARCH)
+        self._auto_detect_btn.clicked.connect(self._on_auto_detect)
+        btn_layout.addWidget(self._auto_detect_btn)
+
+        self._apply_auto_btn = PushButton("应用", btn_row)
+        self._apply_auto_btn.setIcon(FIF.ACCEPT)
+        self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
+        btn_layout.addWidget(self._apply_auto_btn)
+
+        btn_layout.addStretch()
+        layout.addWidget(btn_row)
+
+        # ── 颜色预览 ──
+        color_row = QWidget(tab)
+        color_layout = QHBoxLayout(color_row)
+        color_layout.setContentsMargins(0, 0, 0, 0)
+        color_layout.setSpacing(6)
+        color_name_lbl = QLabel("采样颜色:", color_row)
+        color_name_lbl.setFixedWidth(60)
+        color_layout.addWidget(color_name_lbl)
+        self._sampled_color_preview = QLabel(color_row)
+        self._sampled_color_preview.setFixedSize(20, 20)
+        self._sampled_color_preview.setStyleSheet("background: #888888; border: 1px solid #666;")
+        color_layout.addWidget(self._sampled_color_preview)
+        self._sampled_color_hex_lbl = QLabel("#888888", color_row)
+        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        color_layout.addWidget(self._sampled_color_hex_lbl)
+        color_layout.addStretch()
+        layout.addWidget(color_row)
+
+        # ── HSV 容差滑块 ──
+        def _make_slider_row(parent, label: str, lo: int, hi: int, default: int, attr: str):
+            row = QWidget(parent)
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(4)
+            lbl = QLabel(label, row)
+            lbl.setFixedWidth(50)
+            row_layout.addWidget(lbl)
+            slider = QSlider(Qt.Orientation.Horizontal, row)
+            slider.setRange(lo, hi)
+            slider.setValue(default)
+            row_layout.addWidget(slider, 1)
+            val_lbl = QLabel(str(default), row)
+            val_lbl.setFixedWidth(28)
+            val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+            row_layout.addWidget(val_lbl)
+            slider.valueChanged.connect(lambda v, l=val_lbl: l.setText(str(v)))
+            setattr(self, f"_{attr}_slider", slider)
+            return row
+
+        layout.addWidget(_make_slider_row(tab, "H 容差:", 0, 90, 15, "h_tol"))
+        layout.addWidget(_make_slider_row(tab, "S 容差:", 0, 255, 50, "s_tol"))
+        layout.addWidget(_make_slider_row(tab, "V 容差:", 0, 255, 50, "v_tol"))
+        layout.addWidget(_make_slider_row(tab, "步长:", 1, 20, 2, "auto_step"))
+
+        # ── 分隔线 ──
+        sep = QFrame(tab)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet(f"color: {self._border_color()};")
+        layout.addWidget(sep)
+
+        # ── 蒙版工具 ──
+        mask_row = QWidget(tab)
+        mask_layout = QHBoxLayout(mask_row)
+        mask_layout.setContentsMargins(0, 0, 0, 0)
+        mask_layout.setSpacing(4)
+
+        self._box_mask_btn = TransparentTogglePushButton("框选蒙版", mask_row)
         self._box_mask_btn.setIcon(FIF.LAYOUT)
-        self._box_mask_btn.setToolTip("框选蒙版")
         self._box_mask_btn.setCheckable(True)
         self._box_mask_btn.clicked.connect(lambda: self._on_tool_clicked("box_mask"))
-        buttons_layout.addWidget(self._box_mask_btn)
+        mask_layout.addWidget(self._box_mask_btn)
 
-        # 涂刷蒙版
-        self._brush_mask_btn = TransparentTogglePushButton("画笔蒙版", buttons_widget)
+        self._brush_mask_btn = TransparentTogglePushButton("画笔蒙版", mask_row)
         self._brush_mask_btn.setIcon(FIF.BRUSH)
-        self._brush_mask_btn.setToolTip("画笔蒙版")
         self._brush_mask_btn.setCheckable(True)
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
-        buttons_layout.addWidget(self._brush_mask_btn)
+        mask_layout.addWidget(self._brush_mask_btn)
 
-        buttons_layout.addStretch()
-        layout.addWidget(buttons_widget)
+        mask_layout.addStretch()
+        layout.addWidget(mask_row)
 
-        # 第二行按钮
-        clear_widget = QWidget(tab)
-        clear_layout = QHBoxLayout(clear_widget)
+        clear_row = QWidget(tab)
+        clear_layout = QHBoxLayout(clear_row)
         clear_layout.setContentsMargins(0, 0, 0, 0)
-        clear_layout.setSpacing(5)
-
-        # 删除所有蒙版
-        self._clear_masks_btn = PushButton("清除蒙版", clear_widget)
+        self._clear_masks_btn = PushButton("清除蒙版", clear_row)
         self._clear_masks_btn.setIcon(FIF.DELETE)
-        self._clear_masks_btn.setToolTip("删除所有蒙版区域")
         self._clear_masks_btn.clicked.connect(self._on_clear_masks)
         clear_layout.addWidget(self._clear_masks_btn)
-
         clear_layout.addStretch()
-        layout.addWidget(clear_widget)
-        layout.addStretch()
+        layout.addWidget(clear_row)
 
+        # ── 状态标签 ──
+        self._auto_status_label = QLabel("", tab)
+        self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._auto_status_label.setWordWrap(True)
+        layout.addWidget(self._auto_status_label)
+
+        layout.addStretch()
+        return tab
+
+    def _create_export_tab(self) -> QWidget:
+        """创建数据导出功能区"""
+        from qfluentwidgets import PushButton, ComboBox as FComboBox
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(6)
+
+        # ── 导出范围 ──
+        scope_row = QWidget(tab)
+        scope_layout = QHBoxLayout(scope_row)
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(6)
+        scope_lbl = QLabel("范围:", scope_row)
+        scope_lbl.setFixedWidth(40)
+        scope_layout.addWidget(scope_lbl)
+        self._export_scope_combo = FComboBox(scope_row)
+        self._export_scope_combo.addItems(["当前曲线", "全部曲线"])
+        scope_layout.addWidget(self._export_scope_combo, 1)
+        layout.addWidget(scope_row)
+
+        # ── 导出格式 ──
+        fmt_row = QWidget(tab)
+        fmt_layout = QHBoxLayout(fmt_row)
+        fmt_layout.setContentsMargins(0, 0, 0, 0)
+        fmt_layout.setSpacing(6)
+        fmt_lbl = QLabel("格式:", fmt_row)
+        fmt_lbl.setFixedWidth(40)
+        fmt_layout.addWidget(fmt_lbl)
+        self._export_fmt_combo = FComboBox(fmt_row)
+        self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
+        fmt_layout.addWidget(self._export_fmt_combo, 1)
+        layout.addWidget(fmt_row)
+
+        # ── 导出文件按钮 ──
+        from qfluentwidgets import PrimaryPushButton
+        export_file_btn = PrimaryPushButton("导出文件", tab)
+        export_file_btn.setIcon(FIF.SAVE)
+        export_file_btn.clicked.connect(self._on_export_to_file)
+        layout.addWidget(export_file_btn)
+
+        # ── 复制到剪贴板（仅当前曲线） ──
+        clip_btn = PushButton("复制到剪贴板", tab)
+        clip_btn.setIcon(FIF.COPY)
+        clip_btn.setToolTip("将当前曲线数据复制为制表符分隔文本")
+        clip_btn.clicked.connect(self._on_export_to_clipboard)
+        layout.addWidget(clip_btn)
+
+        layout.addStretch()
         return tab
 
     def _border_color(self):
@@ -620,18 +777,11 @@ class WorkspacePage(QWidget):
                     self._status_label.setText(hints.get(next_type, "请继续设置校准点"))
                     return
             # 取消当前工具
-            if self._active_tool == "extract" and self._current_curve_points:
-                # 提取模式下取消，自动保存曲线
-                self._save_extracted_curve()
             self._deactivate_all_tools()
             self._image_viewer.set_select_mode()
             self._active_tool = None
             self._status_label.setText("")
             return
-
-        # 如果切换到其他工具，且当前是提取模式，先保存曲线
-        if self._active_tool == "extract" and self._current_curve_points:
-            self._save_extracted_curve()
 
         self._deactivate_all_tools()
 
@@ -725,6 +875,15 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_brush_mask_mode()
             self._active_tool = tool_name
             self._status_label.setText("点击并拖动绘制多边形蒙版区域")
+        elif tool_name == "color_pick":
+            if self._current_image_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._color_pick_btn)
+            self._image_viewer.set_color_pick_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("取色模式：点击图片上曲线的颜色")
         else:
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -741,6 +900,7 @@ class WorkspacePage(QWidget):
         self._eraser_btn.setChecked(False)
         self._calibrate_btn.setChecked(False)
         self._extract_btn.setChecked(False)
+        self._color_pick_btn.setChecked(False)
 
     def _on_clear_masks(self):
         """清除所有蒙版区域"""
@@ -751,7 +911,253 @@ class WorkspacePage(QWidget):
             self._status_label.setText("已清除所有蒙版区域")
             self.project_modified.emit()
 
-    def _on_point_size_changed(self, value):
+    # ==================== 自动选点槽函数 ====================
+
+    def _on_color_pick(self):
+        """进入取色模式"""
+        if self._current_image_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            self._color_pick_btn.setChecked(False)
+            return
+        self._on_tool_clicked("color_pick")
+
+    def _on_color_picked(self, color):
+        """收到取色信号，更新颜色预览"""
+        from PySide6.QtGui import QColor as _QColor
+        if not isinstance(color, _QColor):
+            color = _QColor(color)
+        self._sampled_color = color
+        hex_str = color.name(_QColor.NameFormat.HexRgb)
+        self._sampled_color_preview.setStyleSheet(f"background: {hex_str}; border: 1px solid #666;")
+        self._sampled_color_hex_lbl.setText(hex_str)
+        # 取色完成后恢复 select 模式
+        self._deactivate_all_tools()
+        self._image_viewer.set_select_mode()
+        self._active_tool = None
+        self._auto_status_label.setText(f"已采样: {hex_str}")
+        self._status_label.setText("")
+
+    def _on_auto_detect(self):
+        """执行自动颜色匹配检测"""
+        if self._sampled_color is None:
+            QMessageBox.warning(self, "警告", "请先使用取色按钮采样颜色")
+            return
+        if self._current_image_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            return
+
+        image_path = self._image_viewer.get_image_path()
+        if not image_path:
+            QMessageBox.warning(self, "警告", "无法获取图片路径")
+            return
+
+        from core.auto_extractor import AutoExtractor
+        h_tol = self._h_tol_slider.value()
+        s_tol = self._s_tol_slider.value()
+        v_tol = self._v_tol_slider.value()
+        step = self._auto_step_slider.value()
+
+        # 获取蒙版多边形
+        mask = self._image_viewer.get_mask()
+        mask_polygons = mask.polygons if mask and mask.enabled else None
+
+        self._auto_status_label.setText("检测中...")
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        try:
+            points = AutoExtractor.extract(
+                image_path,
+                target_r=self._sampled_color.red(),
+                target_g=self._sampled_color.green(),
+                target_b=self._sampled_color.blue(),
+                h_tol=h_tol,
+                s_tol=s_tol,
+                v_tol=v_tol,
+                mask_polygons=mask_polygons,
+                step=step,
+            )
+        except Exception as e:
+            self._auto_status_label.setText(f"检测失败: {e}")
+            return
+
+        self._auto_preview_points = points
+        self._image_viewer.set_preview_points(points)
+        self._auto_status_label.setText(f"检测到 {len(points)} 个点，点击「应用」写入曲线")
+
+    def _on_apply_auto_points(self):
+        """将预览点写入当前曲线"""
+        if not self._auto_preview_points:
+            QMessageBox.information(self, "提示", "没有可应用的检测结果，请先执行自动检测")
+            return
+        if self._current_curve_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            return
+
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None:
+            return
+
+        # 记录应用前的状态到撤销栈
+        self._record_state("clear_curve", self._current_curve_id, {
+            "points": list(zip(curve.x_data, curve.y_data)),
+            "x_actual": list(curve.x_actual) if curve.x_actual else [],
+            "y_actual": list(curve.y_actual) if curve.y_actual else [],
+        })
+
+        # 追加预览点到曲线（保留已有点）
+        for px, py in self._auto_preview_points:
+            curve.x_data.append(px)
+            curve.y_data.append(py)
+            if curve.calibration:
+                xa, ya = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+            else:
+                xa, ya = px, py
+            curve.x_actual.append(xa)
+            curve.y_actual.append(ya)
+
+        # 清除预览
+        self._auto_preview_points = []
+        self._image_viewer.clear_preview_points()
+        self._auto_status_label.setText(f"已写入 {len(curve.x_data)} 个点")
+
+        self._display_current_curve_on_image()
+        self._update_curve_table()
+        self._refresh_project_tree()
+        self.project_modified.emit()
+
+    # ==================== 数据导出槽函数 ====================
+
+    def _on_export_to_file(self):
+        """导出曲线到文件"""
+        from core.exporter import Exporter
+
+        all_curves_mode = (self._export_scope_combo.currentIndex() == 1)
+        fmt_idx = self._export_fmt_combo.currentIndex()
+        fmt_map = {0: ("CSV 文件 (*.csv)", ".csv"), 1: ("Excel 文件 (*.xlsx)", ".xlsx"),
+                   2: ("JSON 文件 (*.json)", ".json"), 3: ("文本文件 (*.txt)", ".txt")}
+        filter_str, ext = fmt_map[fmt_idx]
+
+        # 获取曲线
+        if all_curves_mode:
+            project = project_manager.current_project
+            if project is None:
+                QMessageBox.warning(self, "警告", "没有打开的项目")
+                return
+            curves = []
+            for img in project.images:
+                curves.extend(img.curves)
+            curves.extend(project.imported_curves)
+            if not curves:
+                QMessageBox.information(self, "提示", "项目中没有曲线")
+                return
+        else:
+            if self._current_curve_id is None:
+                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                return
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve is None:
+                return
+            curves = [curve]
+
+        # 选择保存路径
+        default_name = (project_manager.current_project.name if project_manager.current_project else "export") + ext
+        file_path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_name, filter_str)
+        if not file_path:
+            return
+
+        try:
+            if ext == ".csv":
+                if all_curves_mode:
+                    Exporter.export_csv_all(curves, file_path)
+                else:
+                    Exporter.export_csv(curves[0], file_path)
+            elif ext == ".xlsx":
+                if all_curves_mode:
+                    Exporter.export_excel_all(curves, file_path)
+                else:
+                    Exporter.export_excel(curves[0], file_path)
+            elif ext == ".json":
+                if all_curves_mode:
+                    Exporter.export_json_all(curves, file_path)
+                else:
+                    Exporter.export_json(curves[0], file_path)
+            elif ext == ".txt":
+                if all_curves_mode:
+                    Exporter.export_txt_all(curves, file_path)
+                else:
+                    Exporter.export_txt(curves[0], file_path)
+            self._status_label.setText(f"已导出: {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "导出失败", str(e))
+
+    def _on_export_to_clipboard(self):
+        """复制当前曲线数据到剪贴板"""
+        from core.exporter import Exporter
+        if self._current_curve_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None:
+            return
+        Exporter.export_to_clipboard(curve)
+        self._status_label.setText("已复制到剪贴板")
+
+    # ==================== 曲线平滑槽函数 ====================
+
+    def _on_smooth_curve(self):
+        """对当前曲线进行平滑处理"""
+        if self._current_curve_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None or len(curve.x_data) < 3:
+            QMessageBox.information(self, "提示", "曲线点数太少（至少需要 3 个点）")
+            return
+
+        from core.smoother import smooth_moving_average, smooth_savgol
+        method = self._smooth_method_combo.currentText()
+
+        # 按 X 排序
+        pairs = sorted(zip(curve.x_data, curve.y_data))
+        x_sorted = [p[0] for p in pairs]
+        y_sorted = [p[1] for p in pairs]
+
+        try:
+            if method == "移动平均":
+                window = max(3, min(7, len(x_sorted) // 3 | 1))
+                x_new, y_new = smooth_moving_average(x_sorted, y_sorted, window=window)
+            else:
+                window = max(5, min(9, len(x_sorted) // 3 | 1))
+                x_new, y_new = smooth_savgol(x_sorted, y_sorted, window=window, poly=2)
+        except Exception as e:
+            QMessageBox.critical(self, "平滑失败", str(e))
+            return
+
+        # 记录到撤销栈
+        self._record_state("clear_curve", self._current_curve_id, {
+            "points": list(zip(curve.x_data, curve.y_data)),
+            "x_actual": list(curve.x_actual) if curve.x_actual else [],
+            "y_actual": list(curve.y_actual) if curve.y_actual else [],
+        })
+
+        # 更新曲线（重新计算实际坐标）
+        curve.x_data = x_new
+        curve.y_data = y_new
+        curve.x_actual = []
+        curve.y_actual = []
+        for px, py in zip(x_new, y_new):
+            if curve.calibration:
+                xa, ya = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+            else:
+                xa, ya = px, py
+            curve.x_actual.append(xa)
+            curve.y_actual.append(ya)
+
+        self._display_current_curve_on_image()
+        self._update_curve_table()
+        self.project_modified.emit()
+        self._status_label.setText(f"平滑完成（{method}，窗口={window}）")
         self._image_viewer.set_point_size(float(value))
         self._point_size_value_label.setText(f"{value} px")
 
@@ -1380,9 +1786,7 @@ class WorkspacePage(QWidget):
             return
 
         # 先保存当前提取的曲线点（如果有）
-        if self._current_curve_points:
-            self._save_extracted_curve()
-
+        # （点已实时写入，无需保存）
         # 如果曲线没有数据，直接返回
         if not curve.x_data:
             return
@@ -1412,14 +1816,6 @@ class WorkspacePage(QWidget):
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None:
-            return
-
-        # 先保存当前提取的曲线点（如果有）
-        if self._current_curve_points:
-            self._save_extracted_curve()
-
-        # 如果曲线没有数据，直接返回
-        if not curve.y_data:
             return
 
         # 保存校准数据
@@ -1461,7 +1857,6 @@ class WorkspacePage(QWidget):
         curve.y_data = []
         curve.x_actual = []
         curve.y_actual = []
-        self._current_curve_points = []
 
         # 重新显示
         self._display_current_curve_on_image()
