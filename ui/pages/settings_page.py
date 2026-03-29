@@ -25,6 +25,7 @@ class SettingsPage(QWidget):
         self._shortcuts_card = None
         self.theme_combo = None
         self._shortcut_edits: dict[str, QKeySequenceEdit] = {}
+        self._shortcut_labels: list[QLabel] = []
         self.setup_ui()
 
     def setup_ui(self):
@@ -84,6 +85,7 @@ class SettingsPage(QWidget):
         lang_layout.addWidget(self._lang_placeholder)
 
         layout.addWidget(self._lang_card)
+        self._lang_card.hide()  # 暂不实现语言设置
 
         # ── 快捷键自定义 ──
         self._shortcuts_card = CardWidget(content)
@@ -104,11 +106,19 @@ class SettingsPage(QWidget):
         sc_form.setContentsMargins(0, 4, 0, 4)
 
         for action, label in shortcut_manager.LABELS.items():
+            from ui.theme import card_background_color, border_color
             edit = QKeySequenceEdit(sc_content)
             from PySide6.QtGui import QKeySequence
             edit.setKeySequence(QKeySequence(shortcut_manager.get(action)))
-            sc_form.addRow(label + ":", edit)
+            edit.setStyleSheet(
+                f"background: {card_background_color()}; color: {text_color()};"
+                f" border: 1px solid {border_color()}; border-radius: 4px; padding: 3px;"
+            )
+            row_lbl = QLabel(label + ":", sc_content)
+            row_lbl.setStyleSheet(f"color: {text_color()};")
+            sc_form.addRow(row_lbl, edit)
             self._shortcut_edits[action] = edit
+            self._shortcut_labels.append(row_lbl)
 
         shortcuts_layout.addWidget(sc_content)
 
@@ -148,11 +158,27 @@ class SettingsPage(QWidget):
 
     def _update_colors(self):
         """更新界面颜色以适应新主题"""
-        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {text_color()};")
-        self._appearance_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
-        self._theme_label.setStyleSheet(f"color: {text_color()};")
-        self._lang_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
-        self._lang_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
+        from ui.theme import card_background_color, border_color
+        tc = text_color()
+        pc = placeholder_color()
+        self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {tc};")
+        self._appearance_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {tc};")
+        self._theme_label.setStyleSheet(f"color: {tc};")
         if self._shortcuts_title:
-            self._shortcuts_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
-
+            self._shortcuts_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {tc};")
+        # 快捷键行标签
+        for lbl in self._shortcut_labels:
+            lbl.setStyleSheet(f"color: {tc};")
+        # QKeySequenceEdit 样式
+        bg = card_background_color()
+        bc = border_color()
+        for edit in self._shortcut_edits.values():
+            edit.setStyleSheet(
+                f"background: {bg}; color: {tc};"
+                f" border: 1px solid {bc}; border-radius: 4px; padding: 3px;"
+            )
+        # hint label（找到快捷键卡片下方的说明标签）
+        for lbl in self._shortcuts_card.findChildren(QLabel):
+            ss = lbl.styleSheet()
+            if 'font-size: 11px' in ss:
+                lbl.setStyleSheet(f"color: {pc}; font-size: 11px;")

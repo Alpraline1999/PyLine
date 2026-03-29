@@ -352,7 +352,9 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(_vsep())
 
         # 点大小
-        bar_layout.addWidget(QLabel("大小:", bar))
+        _lbl_size = QLabel("大小:", bar)
+        _lbl_size.setStyleSheet(f"color: {text_color()};")
+        bar_layout.addWidget(_lbl_size)
         self._point_size_spin = SpinBox(bar)
         self._point_size_spin.setRange(1, 50)
         self._point_size_spin.setValue(3)
@@ -364,7 +366,9 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._point_size_value_label)
 
         # 步长
-        bar_layout.addWidget(QLabel("步长:", bar))
+        _lbl_step = QLabel("步长:", bar)
+        _lbl_step.setStyleSheet(f"color: {text_color()};")
+        bar_layout.addWidget(_lbl_step)
         self._nudge_step_spin = SpinBox(bar)
         self._nudge_step_spin.setRange(1, 20)
         self._nudge_step_spin.setValue(3)
@@ -376,7 +380,9 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._nudge_step_value_label)
 
         # 橡皮大小
-        bar_layout.addWidget(QLabel("橡皮:", bar))
+        _lbl_eraser = QLabel("橡皮:", bar)
+        _lbl_eraser.setStyleSheet(f"color: {text_color()};")
+        bar_layout.addWidget(_lbl_eraser)
         self._eraser_size_spin = SpinBox(bar)
         self._eraser_size_spin.setRange(1, 100)
         self._eraser_size_spin.setValue(20)
@@ -413,8 +419,10 @@ class WorkspacePage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
         content = QWidget()
+        content.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
@@ -2061,6 +2069,12 @@ class WorkspacePage(QWidget):
         self._apply_tree_theme()
         self._apply_table_theme()
         self._apply_tabs_theme()
+
+        # 更新工具栏中无 bold 的普通 QLabel（大小/步长/橡皮 等说明文字）
+        for lbl in self._viewer_toolbar.findChildren(QLabel):
+            ss = lbl.styleSheet()
+            if 'font-size: 10px' not in ss and 'font-weight' not in ss:
+                lbl.setStyleSheet(f"color: {tc};")
 
     def _apply_tree_theme(self):
         """为 QTreeWidget 应用暗色/亮色主题样式"""
