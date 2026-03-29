@@ -6,6 +6,7 @@ from qfluentwidgets.common.icon import FluentIcon as FIF
 from .pages.home_page import HomePage
 from .pages.workspace_page import WorkspacePage
 from .pages.settings_page import SettingsPage
+from .pages.chart_page import ChartPage
 from core.project_manager import project_manager
 
 
@@ -32,6 +33,9 @@ class MainWindow(FluentWindow):
         self.settings_page = SettingsPage(self)
         self.settings_page.setObjectName("settingsPage")
 
+        self.chart_page = ChartPage(self)
+        self.chart_page.setObjectName("chartPage")
+
         # 添加子页面到导航
         self.addSubInterface(
             interface=self.home_page,
@@ -44,6 +48,13 @@ class MainWindow(FluentWindow):
             interface=self.workspace_page,
             icon=FIF.EDIT,
             text="工作区",
+            position=NavigationItemPosition.TOP
+        )
+
+        self.addSubInterface(
+            interface=self.chart_page,
+            icon=FIF.PIE_SINGLE,
+            text="图表",
             position=NavigationItemPosition.TOP
         )
 
@@ -69,6 +80,10 @@ class MainWindow(FluentWindow):
         self.home_page.project_opened.connect(self._on_project_opened)
         self.workspace_page.project_modified.connect(self._on_project_modified)
         self.workspace_page.project_saved.connect(self._update_window_title)
+        # 同步图表页
+        self.workspace_page.project_modified.connect(self.chart_page._refresh)
+        self.home_page.project_created.connect(lambda _: self.chart_page._refresh())
+        self.home_page.project_opened.connect(lambda _: self.chart_page._refresh())
 
     def _on_project_created(self, name: str):
         """项目创建后的处理"""

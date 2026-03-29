@@ -30,6 +30,7 @@ class AutoExtractor:
         s_tol: int = 50,
         v_tol: int = 50,
         mask_polygons: Optional[List[List[Tuple[float, float]]]] = None,
+        mask_include_mode: bool = True,
         step: int = 2,
     ) -> List[Tuple[float, float]]:
         """
@@ -82,6 +83,9 @@ class AutoExtractor:
                 if len(polygon) >= 3:
                     pts = np.array([(int(p[0]), int(p[1])) for p in polygon], dtype=np.int32)
                     cv2.fillPoly(region_mask, [pts], 255)
+            if not mask_include_mode:
+                # 屏蔽模式：反转掩码，蒙版内的区域不识别
+                region_mask = cv2.bitwise_not(region_mask)
             color_mask = cv2.bitwise_and(color_mask, region_mask)
 
         # 按列扫描，对每列匹配像素求 y 质心

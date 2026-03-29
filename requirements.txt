@@ -4,3 +4,4 @@ pydantic
 opencv-python
 numpy
 openpyxl
+matplotlib

@@ -850,23 +850,48 @@ class ImageViewer(QWidget):
             painter.drawEllipse(QPointF(px, py), r, r)
 
     def _draw_mask_overlay(self, painter: QPainter):
-        """绘制蒙版覆盖层"""
+        """绘制蒙版覆盖层（合并渲染，统一透明度；颜色随 include_mode 变化）"""
         if self._pixmap is None:
             return
 
-        # 绘制已有多边形
         if self._mask.polygons:
-            pen = QPen(QColor("#FF9800"))
-            pen.setWidthF(2.0 / self._scale)
-            painter.setPen(pen)
-            painter.setBrush(QBrush(QColor("#40FF9800")))
+            # 根据 include_mode 选色:
+            #   include_mode=True  (感兴趣区域, 蒙版外不识别): 橙色
+            #   include_mode=False (屏蔽区域, 蒙版内不识别):   蓝色
+            if self._mask.include_mode:
+                stroke_color = QColor("#FF9800")
+                fill_color   = QColor("#50FF9800")
+            else:
+                stroke_color = QColor("#2196F3")
+                fill_color   = QColor("#502196F3")
 
+            # Step 1: 合并所有多边形到一个 QPainterPath，统一填充（无叠加加深）
+            combined = QPainterPath()
             for polygon in self._mask.polygons:
                 if len(polygon) >= 3:
-                    points = [QPointF(p[0], p[1]) for p in polygon]
+                    pts = [QPointF(p[0], p[1]) for p in polygon]
+                    sub = QPainterPath()
+                    sub.moveTo(pts[0])
+                    for p in pts[1:]:
+                        sub.lineTo(p)
+                    sub.closeSubpath()
+                    combined = combined.united(sub)
+
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(fill_color))
+            painter.drawPath(combined)
+
+            # Step 2: 单独描边每个多边形轮廓（保持边界清晰）
+            pen = QPen(stroke_color)
+            pen.setWidthF(1.5 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for polygon in self._mask.polygons:
+                if len(polygon) >= 3:
+                    pts = [QPointF(p[0], p[1]) for p in polygon]
                     path = QPainterPath()
-                    path.moveTo(points[0])
-                    for p in points[1:]:
+                    path.moveTo(pts[0])
+                    for p in pts[1:]:
                         path.lineTo(p)
                     path.closeSubpath()
                     painter.drawPath(path)

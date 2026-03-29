@@ -169,7 +169,7 @@ class WorkspacePage(QWidget):
         toolbar_layout.addWidget(self._open_project_btn)
 
         self._save_project_btn = ToolButton(FIF.SAVE, toolbar_widget)
-        self._save_project_btn.setToolTip("保存项目")
+        self._save_project_btn.setToolTip("保存项目 (Ctrl+S)")
         self._save_project_btn.clicked.connect(self._on_save_project)
         toolbar_layout.addWidget(self._save_project_btn)
 
@@ -302,14 +302,14 @@ class WorkspacePage(QWidget):
 
         # 撤销
         self._undo_btn = ToolButton(FIF.LEFT_ARROW, bar)
-        self._undo_btn.setToolTip("撤销")
+        self._undo_btn.setToolTip("撤销 (Ctrl+Z)")
         self._undo_btn.setFixedSize(32, 32)
         self._undo_btn.clicked.connect(self._undo)
         bar_layout.addWidget(self._undo_btn)
 
         # 重做
         self._redo_btn = ToolButton(FIF.RIGHT_ARROW, bar)
-        self._redo_btn.setToolTip("重做")
+        self._redo_btn.setToolTip("重做 (Ctrl+Y)")
         self._redo_btn.setFixedSize(32, 32)
         self._redo_btn.clicked.connect(self._redo)
         bar_layout.addWidget(self._redo_btn)
@@ -452,13 +452,13 @@ class WorkspacePage(QWidget):
         ml.setSpacing(4)
 
         self._calibrate_btn = ToggleToolButton(FIF.UNIT, manual_row)
-        self._calibrate_btn.setToolTip("校准")
+        self._calibrate_btn.setToolTip("校准 (C)")
         self._calibrate_btn.setFixedSize(34, 34)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         ml.addWidget(self._calibrate_btn)
 
         self._extract_btn = ToggleToolButton(FIF.PENCIL_INK, manual_row)
-        self._extract_btn.setToolTip("手动提取曲线")
+        self._extract_btn.setToolTip("手动提取曲线 (P)")
         self._extract_btn.setFixedSize(34, 34)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         ml.addWidget(self._extract_btn)
@@ -490,13 +490,13 @@ class WorkspacePage(QWidget):
         abl.addWidget(self._screen_pick_btn)
 
         self._auto_detect_btn = ToolButton(FIF.SEARCH, auto_btn_row)
-        self._auto_detect_btn.setToolTip("自动检测")
+        self._auto_detect_btn.setToolTip("自动检测 (A)")
         self._auto_detect_btn.setFixedSize(34, 34)
         self._auto_detect_btn.clicked.connect(self._on_auto_detect)
         abl.addWidget(self._auto_detect_btn)
 
         self._apply_auto_btn = ToolButton(FIF.ACCEPT, auto_btn_row)
-        self._apply_auto_btn.setToolTip("应用自动检测结果")
+        self._apply_auto_btn.setToolTip("应用自动检测结果 (Enter)")
         self._apply_auto_btn.setFixedSize(34, 34)
         self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
         abl.addWidget(self._apply_auto_btn)
@@ -566,10 +566,16 @@ class WorkspacePage(QWidget):
         mml.addWidget(self._brush_mask_btn)
 
         self._clear_masks_btn = ToolButton(FIF.DELETE, mask_row)
-        self._clear_masks_btn.setToolTip("清除蒙版")
+        self._clear_masks_btn.setToolTip("清除蒙版 (Ctrl+Alt+Delete)")
         self._clear_masks_btn.setFixedSize(34, 34)
         self._clear_masks_btn.clicked.connect(self._on_clear_masks)
         mml.addWidget(self._clear_masks_btn)
+
+        self._invert_mask_btn = ToggleToolButton(FIF.RETURN, mask_row)
+        self._invert_mask_btn.setToolTip("反转蒙版\n开启后蒙版内不识别（规避）。\n关闭后蒙版内才识别（感兴趣区域）")
+        self._invert_mask_btn.setFixedSize(34, 34)
+        self._invert_mask_btn.clicked.connect(self._on_invert_mask)
+        mml.addWidget(self._invert_mask_btn)
 
         mml.addStretch()
         layout.addWidget(mask_row)
@@ -976,6 +982,16 @@ class WorkspacePage(QWidget):
             self._status_label.setText("已清除所有蒙版区域")
             self.project_modified.emit()
 
+    def _on_invert_mask(self):
+        """切换蒙版模式（感兴趣区域 / 屏蔽区域）"""
+        mask = self._image_viewer.get_mask()
+        if mask:
+            inverted = self._invert_mask_btn.isChecked()
+            mask.include_mode = not inverted  # 选中=屏蔽, 未选中=感兴趣
+            self._image_viewer.update()
+            mode_text = "屏蔽区域（蒙版内不识别）" if inverted else "感兴趣区域（蒙版内才识别）"
+            self._status_label.setText(f"蒙版模式已切换为: {mode_text}")
+
     def _on_image_file_dropped(self, file_path: str):
         """处理图片拖放到图片查看器"""
         import os
@@ -1243,9 +1259,10 @@ class WorkspacePage(QWidget):
         v_tol = min(255, tol * 4)         # V 通道容差
         step = self._auto_step_slider.value()
 
-        # 获取蒙版多边形
+        # 获取蒙版多边形和模式
         mask = self._image_viewer.get_mask()
         mask_polygons = mask.polygons if mask and mask.enabled else None
+        mask_include_mode = mask.include_mode if mask else True
 
         self._auto_status_label.setText("检测中...")
         from PySide6.QtWidgets import QApplication
@@ -1261,6 +1278,7 @@ class WorkspacePage(QWidget):
                 s_tol=s_tol,
                 v_tol=v_tol,
                 mask_polygons=mask_polygons,
+                mask_include_mode=mask_include_mode,
                 step=step,
             )
         except Exception as e:
