@@ -338,6 +338,8 @@ class ImageViewer(QWidget):
         self._mask_start_point = None
         self._mask_drag_current = None   # 框选蒙版拖动时的当前端点
         self._mask_current_polygon = []  # 画笔蒙版笔触点列表（QPointF）
+        self._brush_painting = False     # 画笔蒙版是否正在按下绘制
+        self._brush_last_pt = None       # 画笔蒙版上次圆心位置（用于间距控制）
 
         # 预览点（自动检测结果）
         self._preview_points: list = []
@@ -869,25 +871,6 @@ class ImageViewer(QWidget):
                     path.closeSubpath()
                     painter.drawPath(path)
 
-        # 绘制当前正在绘制的多边形
-        if self._mask_current_polygon and len(self._mask_current_polygon) >= 2:
-            pen = QPen(QColor("#FF5722"))
-            pen.setWidthF(2.0 / self._scale)
-            painter.setPen(pen)
-            points = self._mask_current_polygon
-            for i in range(len(points) - 1):
-                painter.drawLine(points[i], points[i + 1])
-
-        # 绘制当前正在绘制的画笔蒙版笔触（圆形预览）
-        if self._mask_current_polygon and self._current_tool == self.MODE_BRUSH_MASK:
-            pen = QPen(QColor("#FF9800"))
-            pen.setWidthF(1.5 / self._scale)
-            painter.setPen(pen)
-            painter.setBrush(QBrush(QColor("#50FF9800")))
-            r = self._eraser_size
-            for pt in self._mask_current_polygon:
-                painter.drawEllipse(pt, r, r)
-
         # 绘制框选蒙版实时预览矩形
         if self._mask_start_point and self._mask_drag_current:
             pen = QPen(QColor("#FF5722"))
@@ -911,7 +894,7 @@ class ImageViewer(QWidget):
             painter.drawEllipse(self._mask_start_point, r * 2, r * 2)
 
     def _draw_eraser_cursor(self, painter: QPainter):
-        """绘制橡皮擦光标"""
+        """绘制橡皮擦/画笔蒙版光标（仅在按下时显示）"""
         if self._mouse_image_pos is None:
             return
         if self._current_tool == self.MODE_ERASER and self._eraser_pressed:
@@ -921,7 +904,7 @@ class ImageViewer(QWidget):
             painter.setBrush(QBrush(QColor("#20F44336")))
             r = self._eraser_size
             painter.drawEllipse(self._mouse_image_pos, r, r)
-        elif self._current_tool == self.MODE_BRUSH_MASK:
+        elif self._current_tool == self.MODE_BRUSH_MASK and self._brush_painting:
             pen = QPen(QColor("#FF9800"))
             pen.setWidthF(2.0 / self._scale)
             painter.setPen(pen)
@@ -1033,7 +1016,10 @@ class ImageViewer(QWidget):
                 self._mask_drag_current = None
         elif self._current_tool == self.MODE_BRUSH_MASK:
             if event.button() == Qt.MouseButton.LeftButton:
-                self._mask_current_polygon = [self._widget_to_image_coords(pos)]
+                self._brush_painting = True
+                pt = self._widget_to_image_coords(pos)
+                self._brush_last_pt = pt
+                self._add_brush_circle(pt)
         elif self._current_tool == self.MODE_ASSISTED:
             if event.button() == Qt.MouseButton.LeftButton:
                 img_pos = self._widget_to_image_coords(pos)
@@ -1046,11 +1032,6 @@ class ImageViewer(QWidget):
                         self.assisted_region_selected.emit(x1, y1, x2, y2)
                     self._assist_point1 = None
                 self.update()
-        elif self._current_tool == self.MODE_SELECT:
-            if event.button() == Qt.MouseButton.LeftButton:
-                self._pan = True
-                self._pan_start = pos - self._offset
-
     def _handle_color_pick_click(self, pos: QPointF):
         """处理取色模式点击 - 采集该像素颜色"""
         if self._pixmap is None:
@@ -1144,17 +1125,17 @@ class ImageViewer(QWidget):
             # 框选蒙版实时预览：记录当前鼠标位置
             self._mask_drag_current = self._widget_to_image_coords(event.position())
             self.update()
-        elif self._current_tool == self.MODE_BRUSH_MASK and event.buttons() & Qt.MouseButton.LeftButton:
-            # 画笔蒙版：沿笔触路径收集点（降低最小距离提高流畅度）
+        elif self._current_tool == self.MODE_BRUSH_MASK and self._brush_painting and event.buttons() & Qt.MouseButton.LeftButton:
             new_pt = self._widget_to_image_coords(event.position())
-            if self._mask_current_polygon:
-                last = self._mask_current_polygon[-1]
-                dx = new_pt.x() - last.x()
-                dy = new_pt.y() - last.y()
-                if (dx*dx + dy*dy) ** 0.5 >= self._eraser_size * 0.15:
-                    self._mask_current_polygon.append(new_pt)
+            if self._brush_last_pt is not None:
+                dx = new_pt.x() - self._brush_last_pt.x()
+                dy = new_pt.y() - self._brush_last_pt.y()
+                if (dx*dx + dy*dy) ** 0.5 >= self._eraser_size * 0.5:
+                    self._brush_last_pt = new_pt
+                    self._add_brush_circle(new_pt)
             else:
-                self._mask_current_polygon.append(new_pt)
+                self._brush_last_pt = new_pt
+                self._add_brush_circle(new_pt)
             self.update()
         elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED):
             self.update()
@@ -1167,8 +1148,6 @@ class ImageViewer(QWidget):
             return
 
         if event.button() == Qt.MouseButton.LeftButton:
-            if self._current_tool == self.MODE_SELECT:
-                self._pan = False
             if self._current_tool == self.MODE_ERASER:
                 self._eraser_pressed = False
                 self.update()
@@ -1187,22 +1166,9 @@ class ImageViewer(QWidget):
                 self._mask_start_point = None
                 self._mask_drag_current = None
                 self.update()
-            elif self._current_tool == self.MODE_BRUSH_MASK and self._mask_current_polygon:
-                # 画笔蒙版完成：确保收录最后一点，再转换
-                last_pt = self._widget_to_image_coords(event.position())
-                if self._mask_current_polygon:
-                    prev = self._mask_current_polygon[-1]
-                    dx = last_pt.x() - prev.x()
-                    dy = last_pt.y() - prev.y()
-                    if (dx*dx + dy*dy) ** 0.5 >= 1.0:
-                        self._mask_current_polygon.append(last_pt)
-                points = [(p.x(), p.y()) for p in self._mask_current_polygon]
-                polygon = self._stroke_to_polygon(points, self._eraser_size)
-                if polygon:
-                    self.mask_about_to_add.emit(polygon)
-                    self._mask.add_polygon(polygon)
-                    self.mask_changed.emit()
-                self._mask_current_polygon = []
+            elif self._current_tool == self.MODE_BRUSH_MASK:
+                self._brush_painting = False
+                self._brush_last_pt = None
                 self.update()
 
     def wheelEvent(self, event: QWheelEvent):
@@ -1244,6 +1210,38 @@ class ImageViewer(QWidget):
             file_path = urls[0].toLocalFile()
             if file_path:
                 self.file_dropped.emit(file_path)
+
+    def _add_brush_circle(self, pt: QPointF):
+        """在指定位置添加一个圆形蒙版叠加（类橡皮擦逻辑）"""
+        import math
+        x, y = pt.x(), pt.y()
+        r = self._eraser_size
+        n = 16
+        circle = [
+            (x + r * math.cos(2 * math.pi * i / n),
+             y + r * math.sin(2 * math.pi * i / n))
+            for i in range(n)
+        ]
+        self.mask_about_to_add.emit(circle)
+        self._mask.add_polygon(circle)
+        self.mask_changed.emit()
+        self.update()
+
+    def _add_brush_circle(self, pt: QPointF):
+        """在指定位置添加一个圆形蒙版叠加（类橡皮擦逻辑）"""
+        import math
+        x, y = pt.x(), pt.y()
+        r = self._eraser_size
+        n = 16
+        circle = [
+            (x + r * math.cos(2 * math.pi * i / n),
+             y + r * math.sin(2 * math.pi * i / n))
+            for i in range(n)
+        ]
+        self.mask_about_to_add.emit(circle)
+        self._mask.add_polygon(circle)
+        self.mask_changed.emit()
+        self.update()
 
     @staticmethod
     def _stroke_to_polygon(points: list, radius: float) -> list:

@@ -213,6 +213,7 @@ class WorkspacePage(QWidget):
         self._project_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self._project_tree.dropEvent = self._on_tree_drop_event
         self._refresh_project_tree()
+        self._apply_tree_theme()
         layout.addWidget(self._project_tree)
 
         return panel
@@ -247,6 +248,7 @@ class WorkspacePage(QWidget):
         self._curve_table.verticalHeader().setDefaultSectionSize(22)
         self._curve_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._curve_table.customContextMenuRequested.connect(self._on_curve_table_context_menu)
+        self._apply_table_theme()
         layout.addWidget(self._curve_table)
 
         # 功能区页面
@@ -255,6 +257,7 @@ class WorkspacePage(QWidget):
         self._right_tabs.addTab(combined_tab, "图片选点")
         export_tab = self._create_export_tab()
         self._right_tabs.addTab(export_tab, "数据导出")
+        self._apply_tabs_theme()
         layout.addWidget(self._right_tabs)
 
         # 提示标签
@@ -298,14 +301,14 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._clear_points_btn)
 
         # 撤销
-        self._undo_btn = ToolButton(FIF.CANCEL, bar)
+        self._undo_btn = ToolButton(FIF.LEFT_ARROW, bar)
         self._undo_btn.setToolTip("撤销")
         self._undo_btn.setFixedSize(32, 32)
         self._undo_btn.clicked.connect(self._undo)
         bar_layout.addWidget(self._undo_btn)
 
         # 重做
-        self._redo_btn = ToolButton(FIF.SYNC, bar)
+        self._redo_btn = ToolButton(FIF.RIGHT_ARROW, bar)
         self._redo_btn.setToolTip("重做")
         self._redo_btn.setFixedSize(32, 32)
         self._redo_btn.clicked.connect(self._redo)
@@ -2053,6 +2056,114 @@ class WorkspacePage(QWidget):
                 frame.setStyleSheet(f"background-color: {bc};")
             elif 'color:' in ss and frame.frameShape() in (QFrame.Shape.HLine, QFrame.Shape.VLine):
                 frame.setStyleSheet(f"color: {bc};")
+
+        # 更新原生 Qt 控件主题色
+        self._apply_tree_theme()
+        self._apply_table_theme()
+        self._apply_tabs_theme()
+
+    def _apply_tree_theme(self):
+        """为 QTreeWidget 应用暗色/亮色主题样式"""
+        from ui.theme import text_color, card_background_color, border_color
+        tc = text_color()
+        bg = card_background_color()
+        bc = border_color()
+        self._project_tree.setStyleSheet(f"""
+            QTreeWidget {{
+                background-color: {bg};
+                border: none;
+                color: {tc};
+                outline: none;
+            }}
+            QTreeWidget::item {{
+                padding: 2px 0;
+                color: {tc};
+            }}
+            QTreeWidget::item:selected {{
+                background-color: rgba(0, 120, 212, 0.18);
+                color: {tc};
+            }}
+            QTreeWidget::item:hover {{
+                background-color: rgba(128, 128, 128, 0.10);
+            }}
+            QHeaderView::section {{
+                background-color: {bg};
+                color: {tc};
+                border: none;
+            }}
+        """)
+
+    def _apply_table_theme(self):
+        """为 QTableWidget 应用暗色/亮色主题样式"""
+        from ui.theme import text_color, card_background_color, border_color
+        tc = text_color()
+        bg = card_background_color()
+        bc = border_color()
+        self._curve_table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {bg};
+                alternate-background-color: {'#333333' if bg == '#2d2d2d' else '#f8f8f8'};
+                border: none;
+                color: {tc};
+                gridline-color: {bc};
+                outline: none;
+            }}
+            QTableWidget::item:selected {{
+                background-color: rgba(0, 120, 212, 0.18);
+                color: {tc};
+            }}
+            QHeaderView::section {{
+                background-color: {bg};
+                color: {tc};
+                border: none;
+                border-bottom: 1px solid {bc};
+                padding: 4px;
+                font-weight: bold;
+            }}
+            QScrollBar:vertical {{
+                background: {bg};
+                width: 8px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {bc};
+                border-radius: 4px;
+            }}
+        """)
+
+    def _apply_tabs_theme(self):
+        """为 QTabWidget 应用暗色/亮色主题样式"""
+        from ui.theme import text_color, card_background_color, border_color
+        tc = text_color()
+        bg = card_background_color()
+        bc = border_color()
+        self._right_tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                background-color: {bg};
+                border: 1px solid {bc};
+                border-radius: 4px;
+            }}
+            QTabWidget > QWidget {{
+                background-color: {bg};
+            }}
+            QTabBar::tab {{
+                background-color: transparent;
+                color: {tc};
+                padding: 5px 12px;
+                margin-right: 2px;
+                border: none;
+                border-bottom: 2px solid transparent;
+            }}
+            QTabBar::tab:selected {{
+                color: #0078D4;
+                border-bottom: 2px solid #0078D4;
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: rgba(128, 128, 128, 0.10);
+            }}
+            QTabBar {{
+                background-color: {bg};
+            }}
+        """)
 
     # ==================== 校准和曲线提取 ====================
 

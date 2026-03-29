@@ -54,9 +54,8 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
-        # 导航栏默认折叠（仅显示图标），不常驻展开占据界面空间
+        # 导航栏可折叠（用户可点击汉堡按钮手动收起/展开）
         self.navigationInterface.setCollapsible(True)
-        self.navigationInterface.toggle()  # 初始状态: 折叠（图标模式）
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""

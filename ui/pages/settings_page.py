@@ -31,8 +31,10 @@ class SettingsPage(QWidget):
         outer = QScrollArea(self)
         outer.setWidgetResizable(True)
         outer.setFrameShape(QFrame.Shape.NoFrame)
+        outer.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
         content = QWidget()
+        content.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(content)
         layout.setSpacing(20)
         layout.setContentsMargins(40, 40, 40, 40)

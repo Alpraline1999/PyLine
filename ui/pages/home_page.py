@@ -89,6 +89,8 @@ class HomePage(QWidget):
         self._recent_items_layout.setContentsMargins(0, 0, 0, 0)
         self._recent_items_layout.addStretch()
         self._recent_scroll.setWidget(self._recent_items_widget)
+        self._recent_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._recent_items_widget.setStyleSheet("background: transparent;")
         layout.addWidget(self._recent_scroll)
 
         layout.addStretch()
