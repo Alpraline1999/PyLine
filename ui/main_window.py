@@ -67,6 +67,8 @@ class MainWindow(FluentWindow):
 
         # 隐藏汉堡按钮，禁止用户手动展开导航栏（保持 COMPACT 图标模式）
         self.navigationInterface.panel.setMenuButtonVisible(False)
+        self.navigationInterface.setCollapsible(False)
+        self.navigationInterface.expand()
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
