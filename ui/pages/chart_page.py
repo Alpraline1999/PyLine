@@ -118,6 +118,7 @@ class ChartPage(QWidget):
             s = QFrame(left_card)
             s.setFrameShape(QFrame.HLine)
             s.setFixedHeight(1)
+            s.setStyleSheet("color: #3d3d3d;" if isDarkTheme() else "color: #e0e0e0;")
             return s
 
         lv.addWidget(BodyLabel("数据对比", left_card))
@@ -177,6 +178,7 @@ class ChartPage(QWidget):
             s = QFrame(left_card)
             s.setFrameShape(QFrame.HLine)
             s.setFixedHeight(1)
+            s.setStyleSheet("color: #3d3d3d;" if isDarkTheme() else "color: #e0e0e0;")
             return s
 
         lv.addWidget(_sep())
