@@ -18,16 +18,14 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
-    QLabel,
-    QListWidget,
     QListWidgetItem,
-    QPushButton,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
     BodyLabel,
+    ListWidget,
     CardWidget,
     ComboBox,
     FluentIcon as FIF,
@@ -154,8 +152,8 @@ class ChartPage(QWidget):
 
         lv.addWidget(BodyLabel("曲线选择", left_card))
 
-        self._curve_list = QListWidget(left_card)
-        self._curve_list.setSelectionMode(QListWidget.MultiSelection)
+        self._curve_list = ListWidget(left_card)
+        self._curve_list.setSelectionMode(ListWidget.MultiSelection)
         self._curve_list.itemSelectionChanged.connect(self._on_selection_changed)
         self._curve_list.currentItemChanged.connect(self._on_current_item_changed)
         lv.addWidget(self._curve_list)
@@ -186,7 +184,7 @@ class ChartPage(QWidget):
         # \u66f2\u7ebf\u6837\u5f0f\u533a\u57df
         lv.addWidget(BodyLabel("\u66f2\u7ebf\u6837\u5f0f\uff08\u5355\u51fb\u5217\u8868\u9879\u7f16\u8f91\uff09", left_card))
 
-        self._style_target_label = QLabel("\u2014 \u672a\u9009\u4e2d \u2014", left_card)
+        self._style_target_label = BodyLabel("\u2014 \u672a\u9009\u4e2d \u2014", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
         self._style_target_label.setWordWrap(True)
         lv.addWidget(self._style_target_label)
@@ -194,7 +192,7 @@ class ChartPage(QWidget):
         style_row = QHBoxLayout()
         style_row.setSpacing(6)
         style_row.addWidget(BodyLabel("颜色:", left_card))
-        self._style_color_btn = QPushButton(left_card)
+        self._style_color_btn = PushButton(left_card)
         self._style_color_btn.setFixedSize(28, 28)
         self._style_color_btn.setToolTip("点击选择颜色")
         self._style_color_btn.setEnabled(False)
@@ -220,7 +218,7 @@ class ChartPage(QWidget):
         lv.addWidget(BodyLabel("\u5750\u6807\u8f74", left_card))
 
         ax_form = QHBoxLayout()
-        ax_form.addWidget(QLabel("X\u5c55\u793a\u8303\u56f4:", left_card))
+        ax_form.addWidget(BodyLabel("X\u5c55\u793a\u8303\u56f4:", left_card))
         self._x_min_edit = LineEdit(left_card)
         self._x_min_edit.setPlaceholderText("\u81ea\u52a8")
         self._x_min_edit.setFixedWidth(52)
@@ -235,7 +233,7 @@ class ChartPage(QWidget):
         lv.addLayout(ax_form)
 
         ay_form = QHBoxLayout()
-        ay_form.addWidget(QLabel("Y\u5c55\u793a\u8303\u56f4:", left_card))
+        ay_form.addWidget(BodyLabel("Y\u5c55\u793a\u8303\u56f4:", left_card))
         self._y_min_edit = LineEdit(left_card)
         self._y_min_edit.setPlaceholderText("\u81ea\u52a8")
         self._y_min_edit.setFixedWidth(52)
@@ -250,7 +248,7 @@ class ChartPage(QWidget):
         lv.addLayout(ay_form)
 
         xlabel_row = QHBoxLayout()
-        xlabel_row.addWidget(QLabel("X\u6807\u7b7e:", left_card))
+        xlabel_row.addWidget(BodyLabel("X\u6807\u7b7e:", left_card))
         self._x_label_edit = LineEdit(left_card)
         self._x_label_edit.setPlaceholderText("X")
         self._x_label_edit.textChanged.connect(self._redraw)
@@ -258,7 +256,7 @@ class ChartPage(QWidget):
         lv.addLayout(xlabel_row)
 
         ylabel_row = QHBoxLayout()
-        ylabel_row.addWidget(QLabel("Y\u6807\u7b7e:", left_card))
+        ylabel_row.addWidget(BodyLabel("Y\u6807\u7b7e:", left_card))
         self._y_label_edit = LineEdit(left_card)
         self._y_label_edit.setPlaceholderText("Y")
         self._y_label_edit.textChanged.connect(self._redraw)
@@ -281,7 +279,7 @@ class ChartPage(QWidget):
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)
         else:
-            no_mpl = QLabel("\u6ca1\u6709\u5b89\u88c5 matplotlib\uff0c\u8bf7\u8fd0\u884c\uff1auv pip install matplotlib", self)
+            no_mpl = BodyLabel("\u6ca1\u6709\u5b89\u88c5 matplotlib\uff0c\u8bf7\u8fd0\u884c\uff1auv pip install matplotlib", self)
             no_mpl.setAlignment(Qt.AlignCenter)
             rv.addWidget(no_mpl)
             self._figure = None

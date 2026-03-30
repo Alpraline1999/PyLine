@@ -1,13 +1,34 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QTableWidgetItem, QHeaderView, QMenu
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QSplitter, QFileDialog, QTreeWidgetItem, QAbstractItemView, QFormLayout, QTableWidgetItem, QHeaderView
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, TogglePushButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton, TableWidget, ComboBox
+from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePushButton,
+    LineEdit, SpinBox, ColorPickerButton, BodyLabel, CaptionLabel, SubtitleLabel,
+    PushButton as FPushButton, TableWidget, ComboBox, TreeWidget, TreeItemDelegate,
+    Slider, SmoothScrollArea, TabWidget, MessageBox, InfoBar, RoundMenu, MessageBoxBase)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
 from ui.dialogs import CalibrationDialog, CoordTypeDialog, PolarCalibrationDialog
 from core.project_manager import project_manager
 from models.schemas import CalibrationData
+
+
+class _InputDialog(MessageBoxBase):
+    """输入对话框（替代 QInputDialog.getText）"""
+
+    def __init__(self, title: str, placeholder: str = '', text: str = '', parent=None):
+        super().__init__(parent)
+        self._title_lbl = SubtitleLabel(title, self.widget)
+        self._edit = LineEdit(self.widget)
+        self._edit.setText(text)
+        self._edit.setPlaceholderText(placeholder)
+        self._edit.setClearButtonEnabled(True)
+        self.viewLayout.addWidget(self._title_lbl)
+        self.viewLayout.addWidget(self._edit)
+        self.widget.setMinimumWidth(350)
+
+    def value(self) -> str:
+        return self._edit.text()
 
 
 class WorkspacePage(QWidget):
@@ -203,7 +224,7 @@ class WorkspacePage(QWidget):
         toolbar_layout.addStretch()
         layout.addWidget(toolbar_widget)
 
-        self._project_tree = QTreeWidget(panel)
+        self._project_tree = TreeWidget(panel)
         self._project_tree.setHeaderHidden(True)
         self._project_tree.setIndentation(15)
         self._project_tree.setFont(QFont("Microsoft YaHei", 10))
@@ -235,7 +256,7 @@ class WorkspacePage(QWidget):
         layout.setSpacing(5)
 
         # 标题
-        title_label = QLabel("曲线数据", panel)
+        title_label = BodyLabel("曲线数据", panel)
         title_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
         layout.addWidget(title_label)
 
@@ -257,16 +278,15 @@ class WorkspacePage(QWidget):
         layout.addWidget(self._curve_table)
 
         # 功能区页面
-        self._right_tabs = QTabWidget(panel)
+        self._right_tabs = TabWidget(panel)
         combined_tab = self._create_combined_tab()
         self._right_tabs.addTab(combined_tab, "图片选点")
         export_tab = self._create_export_tab()
         self._right_tabs.addTab(export_tab, "数据导出")
-        self._apply_tabs_theme()
         layout.addWidget(self._right_tabs)
 
         # 提示标签
-        self._status_label = QLabel("", panel)
+        self._status_label = BodyLabel("", panel)
         self._status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px; padding: 2px 0;")
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
@@ -357,7 +377,7 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(_vsep())
 
         # 点大小
-        _lbl_size = QLabel("大小:", bar)
+        _lbl_size = BodyLabel("大小:", bar)
         _lbl_size.setStyleSheet(f"color: {text_color()};")
         bar_layout.addWidget(_lbl_size)
         self._point_size_spin = SpinBox(bar)
@@ -365,13 +385,13 @@ class WorkspacePage(QWidget):
         self._point_size_spin.setValue(3)
         self._point_size_spin.setFixedWidth(72)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
-        self._point_size_value_label = QLabel("3px", bar)
+        self._point_size_value_label = BodyLabel("3px", bar)
         self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         bar_layout.addWidget(self._point_size_spin)
         bar_layout.addWidget(self._point_size_value_label)
 
         # 步长
-        _lbl_step = QLabel("步长:", bar)
+        _lbl_step = BodyLabel("步长:", bar)
         _lbl_step.setStyleSheet(f"color: {text_color()};")
         bar_layout.addWidget(_lbl_step)
         self._nudge_step_spin = SpinBox(bar)
@@ -379,13 +399,13 @@ class WorkspacePage(QWidget):
         self._nudge_step_spin.setValue(3)
         self._nudge_step_spin.setFixedWidth(72)
         self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
-        self._nudge_step_value_label = QLabel("3px", bar)
+        self._nudge_step_value_label = BodyLabel("3px", bar)
         self._nudge_step_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         bar_layout.addWidget(self._nudge_step_spin)
         bar_layout.addWidget(self._nudge_step_value_label)
 
         # 橡皮大小
-        _lbl_eraser = QLabel("橡皮:", bar)
+        _lbl_eraser = BodyLabel("橡皮:", bar)
         _lbl_eraser.setStyleSheet(f"color: {text_color()};")
         bar_layout.addWidget(_lbl_eraser)
         self._eraser_size_spin = SpinBox(bar)
@@ -393,7 +413,7 @@ class WorkspacePage(QWidget):
         self._eraser_size_spin.setValue(20)
         self._eraser_size_spin.setFixedWidth(72)
         self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
-        self._eraser_size_value_label = QLabel("20px", bar)
+        self._eraser_size_value_label = BodyLabel("20px", bar)
         self._eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         bar_layout.addWidget(self._eraser_size_spin)
         bar_layout.addWidget(self._eraser_size_value_label)
@@ -424,7 +444,7 @@ class WorkspacePage(QWidget):
         bar_layout.setSpacing(8)
         bar.setStyleSheet(f"background: transparent;")
 
-        self._status_path_label = QLabel("", bar)
+        self._status_path_label = BodyLabel("", bar)
         self._status_path_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         self._status_path_label.setMaximumWidth(300)
         self._status_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
@@ -432,7 +452,7 @@ class WorkspacePage(QWidget):
 
         bar_layout.addStretch()
 
-        self._status_coord_label = QLabel("", bar)
+        self._status_coord_label = BodyLabel("", bar)
         self._status_coord_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         self._status_coord_label.setMinimumWidth(180)
         bar_layout.addWidget(self._status_coord_label)
@@ -441,14 +461,14 @@ class WorkspacePage(QWidget):
 
     def _create_combined_tab(self) -> QWidget:
         """创建合并的图片选点功能区（手动/自动/辅助三节）"""
-        from PySide6.QtWidgets import QSlider, QScrollArea
+        from qfluentwidgets import Slider, SmoothScrollArea
 
         tab = QWidget()
-        scroll = QScrollArea(tab)
+        scroll = SmoothScrollArea(tab)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setStyleSheet("SmoothScrollArea { background: transparent; border: none; }")
 
         content = QWidget()
         content.setStyleSheet("background: transparent;")
@@ -462,7 +482,7 @@ class WorkspacePage(QWidget):
         scroll.setWidget(content)
 
         def _section_label(text):
-            lbl = QLabel(text, content)
+            lbl = BodyLabel(text, content)
             lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
             return lbl
 
@@ -539,7 +559,7 @@ class WorkspacePage(QWidget):
         abl.addStretch()
         layout.addWidget(auto_btn_row)
 
-        self._sampled_color_hex_lbl = QLabel("#888888", content)
+        self._sampled_color_hex_lbl = BodyLabel("#888888", content)
         self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         layout.addWidget(self._sampled_color_hex_lbl)
 
@@ -548,13 +568,12 @@ class WorkspacePage(QWidget):
         tl.setContentsMargins(0, 0, 0, 0)
         tl.setSpacing(4)
         tol_lbl = BodyLabel("容差:", tol_row)
-        tol_lbl.setFixedWidth(38)
         tl.addWidget(tol_lbl)
-        self._tol_slider = QSlider(Qt.Orientation.Horizontal, tol_row)
+        self._tol_slider = Slider(Qt.Orientation.Horizontal, tol_row)
         self._tol_slider.setRange(1, 80)
         self._tol_slider.setValue(20)
         tl.addWidget(self._tol_slider, 1)
-        self._tol_val_lbl = QLabel("20", tol_row)
+        self._tol_val_lbl = BodyLabel("20", tol_row)
         self._tol_val_lbl.setFixedWidth(24)
         self._tol_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         tl.addWidget(self._tol_val_lbl)
@@ -566,11 +585,11 @@ class WorkspacePage(QWidget):
         sl.setContentsMargins(0, 0, 0, 0)
         sl.setSpacing(4)
         sl.addWidget(BodyLabel("步长:", step_row))
-        self._auto_step_slider = QSlider(Qt.Orientation.Horizontal, step_row)
+        self._auto_step_slider = Slider(Qt.Orientation.Horizontal, step_row)
         self._auto_step_slider.setRange(1, 20)
         self._auto_step_slider.setValue(2)
         sl.addWidget(self._auto_step_slider, 1)
-        self._step_val_lbl = QLabel("2", step_row)
+        self._step_val_lbl = BodyLabel("2", step_row)
         self._step_val_lbl.setFixedWidth(24)
         self._step_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         sl.addWidget(self._step_val_lbl)
@@ -609,7 +628,7 @@ class WorkspacePage(QWidget):
         mml.addStretch()
         layout.addWidget(mask_row)
 
-        self._auto_status_label = QLabel("", content)
+        self._auto_status_label = BodyLabel("", content)
         self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         self._auto_status_label.setWordWrap(True)
         layout.addWidget(self._auto_status_label)
@@ -626,7 +645,7 @@ class WorkspacePage(QWidget):
         assist_sep.setFrameShape(QFrame.Shape.HLine)
         assist_sep.setStyleSheet(f"color: {self._border_color()};")
         ac_layout.addWidget(assist_sep)
-        assist_lbl = QLabel("辅助选点", _assist_container)
+        assist_lbl = BodyLabel("辅助选点", _assist_container)
         assist_lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
         ac_layout.addWidget(assist_lbl)
 
@@ -656,7 +675,7 @@ class WorkspacePage(QWidget):
         al.addStretch()
         ac_layout.addWidget(assist_btn_row)
 
-        self._assist_status_label = QLabel("", _assist_container)
+        self._assist_status_label = BodyLabel("", _assist_container)
         self._assist_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         self._assist_status_label.setWordWrap(True)
         ac_layout.addWidget(self._assist_status_label)
@@ -865,18 +884,13 @@ class WorkspacePage(QWidget):
         if tool_name == "calibrate":
             # 校准需要选中一个曲线
             if self._current_curve_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一个曲线进行校准")
+                InfoBar.warning(title="警告", content="请先选择一个曲线进行校准", parent=self, duration=3000)
                 return
 
             # 检查是否有现有校准坐标
             calib = self._image_viewer.get_calibration()
             if calib.is_complete():
-                reply = QMessageBox.question(
-                    self, "确认", "开始校准将清除当前的校准坐标，确定要继续吗？",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No
-                )
-                if reply != QMessageBox.StandardButton.Yes:
+                if not MessageBox("确认", "开始校准将清除当前的校准坐标，确定要继续吗？", self).exec():
                     return
                 # 重置校准坐标
                 calib.reset()
@@ -902,11 +916,11 @@ class WorkspacePage(QWidget):
         elif tool_name == "extract":
             # 提取曲线需要先选择或创建一个曲线
             if self._current_image_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             if self._current_curve_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._extract_btn)
@@ -924,7 +938,7 @@ class WorkspacePage(QWidget):
         elif tool_name == "eraser":
             # 橡皮擦需要先选择一条曲线
             if self._current_image_id is None or self._current_curve_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片和一条曲线")
+                InfoBar.warning(title="警告", content="请先选择一张图片和一条曲线", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._eraser_btn)
@@ -935,7 +949,7 @@ class WorkspacePage(QWidget):
         elif tool_name == "box_mask":
             # 框选蒙版需要先选择一张图片
             if self._current_image_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._box_mask_btn)
@@ -945,7 +959,7 @@ class WorkspacePage(QWidget):
         elif tool_name == "brush_mask":
             # 画笔蒙版需要先选择一张图片
             if self._current_image_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._brush_mask_btn)
@@ -954,7 +968,7 @@ class WorkspacePage(QWidget):
             self._status_label.setText("涂刷蒙版：按住拖动涂抹遮罩区域")
         elif tool_name == "color_pick":
             if self._current_image_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._screen_pick_btn)
@@ -963,11 +977,11 @@ class WorkspacePage(QWidget):
             self._status_label.setText("取色模式：点击图片上曲线的颜色")
         elif tool_name == "assisted":
             if self._current_image_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一张图片")
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             if self._current_curve_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._assist_btn)
@@ -1048,7 +1062,7 @@ class WorkspacePage(QWidget):
     def _on_assisted_region(self, x1: float, y1: float, x2: float, y2: float):
         """辅助选点：在矩形/椭圆区域内使用自动颜色识别提取点"""
         if self._sampled_color is None:
-            QMessageBox.warning(self, "警告", "请先在「自动选点」区取色后再使用辅助选点")
+            InfoBar.warning(title="警告", content="请先在「自动选点」区取色后再使用辅助选点", parent=self, duration=3000)
             self._deactivate_all_tools()
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -1173,7 +1187,7 @@ class WorkspacePage(QWidget):
         index = self._curve_table.indexAt(pos)
         if index.isValid() and not self._curve_table.selectionModel().isRowSelected(index.row(), index.parent()):
             self._curve_table.selectRow(index.row())
-        menu = QMenu(self)
+        menu = RoundMenu(parent=self)
         delete_action = menu.addAction("删除选中行")
         delete_action.triggered.connect(self._delete_selected_table_rows)
         menu.exec(self._curve_table.viewport().mapToGlobal(pos))
@@ -1232,7 +1246,7 @@ class WorkspacePage(QWidget):
     def _on_color_pick(self):
         """进入图片取色模式"""
         if self._current_image_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
             self._screen_pick_btn.setChecked(False)
             return
         self._on_tool_clicked("color_pick")
@@ -1269,15 +1283,15 @@ class WorkspacePage(QWidget):
     def _on_auto_detect(self):
         """执行自动颜色匹配检测"""
         if self._sampled_color is None:
-            QMessageBox.warning(self, "警告", "请先使用取色按钮采样颜色")
+            InfoBar.warning(title="警告", content="请先使用取色按钮采样颜色", parent=self, duration=3000)
             return
         if self._current_image_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
             return
 
         image_path = self._image_viewer.get_image_path()
         if not image_path:
-            QMessageBox.warning(self, "警告", "无法获取图片路径")
+            InfoBar.warning(title="警告", content="无法获取图片路径", parent=self, duration=3000)
             return
 
         from core.auto_extractor import AutoExtractor
@@ -1321,10 +1335,10 @@ class WorkspacePage(QWidget):
     def _on_apply_auto_points(self):
         """将预览点写入当前曲线"""
         if not self._auto_preview_points:
-            QMessageBox.information(self, "提示", "没有可应用的检测结果，请先执行自动检测")
+            InfoBar.info(title="提示", content="没有可应用的检测结果，请先执行自动检测", parent=self, duration=3000)
             return
         if self._current_curve_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
             return
 
         curve = project_manager.get_curve(self._current_curve_id)
@@ -1378,18 +1392,18 @@ class WorkspacePage(QWidget):
         if all_curves_mode:
             project = project_manager.current_project
             if project is None:
-                QMessageBox.warning(self, "警告", "没有打开的项目")
+                InfoBar.warning(title="警告", content="没有打开的项目", parent=self, duration=3000)
                 return
             curves = []
             for img in project.images:
                 curves.extend(img.curves)
             curves.extend(project.imported_curves)
             if not curves:
-                QMessageBox.information(self, "提示", "项目中没有曲线")
+                InfoBar.info(title="提示", content="项目中没有曲线", parent=self, duration=3000)
                 return
         else:
             if self._current_curve_id is None:
-                QMessageBox.warning(self, "警告", "请先选择一条曲线")
+                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
                 return
             curve = project_manager.get_curve(self._current_curve_id)
             if curve is None:
@@ -1425,14 +1439,14 @@ class WorkspacePage(QWidget):
                     Exporter.export_txt(curves[0], file_path, timestamp=ts_str)
             self._status_label.setText(f"已导出: {file_path}")
         except Exception as e:
-            QMessageBox.critical(self, "导出失败", str(e))
+            InfoBar.error(title="导出失败", content=str(e), parent=self, duration=5000)
 
     def _on_export_to_clipboard(self):
         """复制当前曲线数据到剪贴板"""
         from core.exporter import Exporter
         import datetime
         if self._current_curve_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None:
@@ -1447,11 +1461,11 @@ class WorkspacePage(QWidget):
     def _on_smooth_curve(self):
         """对当前曲线进行平滑处理"""
         if self._current_curve_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一条曲线")
+            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None or len(curve.x_data) < 3:
-            QMessageBox.information(self, "提示", "曲线点数太少（至少需要 3 个点）")
+            InfoBar.info(title="提示", content="曲线点数太少（至少需要 3 个点）", parent=self, duration=3000)
             return
 
         from core.smoother import smooth_moving_average, smooth_savgol
@@ -1470,7 +1484,7 @@ class WorkspacePage(QWidget):
                 window = max(5, min(9, len(x_sorted) // 3 | 1))
                 x_new, y_new = smooth_savgol(x_sorted, y_sorted, window=window, poly=2)
         except Exception as e:
-            QMessageBox.critical(self, "平滑失败", str(e))
+            InfoBar.error(title="平滑失败", content=str(e), parent=self, duration=5000)
             return
 
         # 记录到撤销栈
@@ -1677,7 +1691,7 @@ class WorkspacePage(QWidget):
         if data is None:
             return
 
-        menu = QMenu(self)
+        menu = RoundMenu(parent=self)
         item_type = data[0]
 
         if item_type == "project":
@@ -1722,27 +1736,27 @@ class WorkspacePage(QWidget):
             project = project_manager.get_project(item_id)
             if project is None:
                 return
-            new_name, ok = QInputDialog.getText(self, "重命名项目", "新名称:", text=project.name)
-            if ok and new_name.strip():
-                project.name = new_name.strip()
+            dlg = _InputDialog("重命名项目", "新名称:", text=project.name, parent=self)
+            if dlg.exec() and dlg.value().strip():
+                project.name = dlg.value().strip()
                 self._refresh_project_tree()
                 self.project_modified.emit()
         elif item_type == "image":
             img = project_manager.get_image(item_id)
             if img is None:
                 return
-            new_name, ok = QInputDialog.getText(self, "重命名图片", "新名称:", text=img.name)
-            if ok and new_name.strip():
-                img.name = new_name.strip()
+            dlg = _InputDialog("重命名图片", "新名称:", text=img.name, parent=self)
+            if dlg.exec() and dlg.value().strip():
+                img.name = dlg.value().strip()
                 self._refresh_project_tree()
                 self.project_modified.emit()
         elif item_type == "curve":
             curve = project_manager.get_curve(item_id)
             if curve is None:
                 return
-            new_name, ok = QInputDialog.getText(self, "重命名曲线", "新名称:", text=curve.name)
-            if ok and new_name.strip():
-                curve.name = new_name.strip()
+            dlg = _InputDialog("重命名曲线", "新名称:", text=curve.name, parent=self)
+            if dlg.exec() and dlg.value().strip():
+                curve.name = dlg.value().strip()
                 self._refresh_project_tree()
                 self.project_modified.emit()
 
@@ -1751,11 +1765,7 @@ class WorkspacePage(QWidget):
         project = project_manager.get_project(project_id)
         if project is None:
             return
-        reply = QMessageBox.question(
-            self, "确认删除", f"确定要删除项目「{project.name}」及其所有图片和曲线吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        if not MessageBox("确认删除", f"确定要删除项目「{project.name}」及其所有图片和曲线吗？", self).exec():
             return
         project_manager.projects.remove(project)
         if project_manager.current_project_id == project_id:
@@ -1779,11 +1789,7 @@ class WorkspacePage(QWidget):
         img = project_manager.get_image(img_id)
         if img is None:
             return
-        reply = QMessageBox.question(
-            self, "确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        if not MessageBox("确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？", self).exec():
             return
         # 从所有项目中找到并删除
         for project in project_manager.projects:
@@ -1822,11 +1828,7 @@ class WorkspacePage(QWidget):
 
     def _delete_curve(self, curve_id: str):
         """删除曲线"""
-        reply = QMessageBox.question(
-            self, "确认删除", "确定要删除这条曲线吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        if not MessageBox("确认删除", "确定要删除这条曲线吗？", self).exec():
             return
 
         curve = project_manager.get_curve(curve_id)
@@ -1936,8 +1938,11 @@ class WorkspacePage(QWidget):
         return overlay
 
     def _on_new_project(self):
-        name, ok = QInputDialog.getText(self, "新建项目", "请输入项目名称:")
-        if ok and name:
+        dlg = _InputDialog("新建项目", "请输入项目名称:", parent=self)
+        if not dlg.exec():
+            return
+        name = dlg.value()
+        if name:
             project_manager.create_new(name)
             self._refresh_project_tree()
             self.project_modified.emit()
@@ -1952,11 +1957,11 @@ class WorkspacePage(QWidget):
                 self._refresh_project_tree()
                 self.project_modified.emit()
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"无法打开项目:\n{str(e)}")
+                InfoBar.error(title="错误", content=f"无法打开项目:\n{str(e)}", parent=self, duration=5000)
 
     def _on_save_project(self):
         if project_manager.current_project is None:
-            QMessageBox.warning(self, "警告", "请先选择一个项目")
+            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
             return
 
         file_path = project_manager.current_project.file_path
@@ -1971,24 +1976,21 @@ class WorkspacePage(QWidget):
                 project_manager.current_project.is_modified = False
                 self._refresh_project_tree()
                 self.project_saved.emit()
-                QMessageBox.information(self, "成功", f"项目已保存到:\n{file_path}")
+                InfoBar.success(title="成功", content=f"项目已保存到:\n{file_path}", parent=self, duration=4000)
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"保存失败:\n{str(e)}")
+                InfoBar.error(title="错误", content=f"保存失败:\n{str(e)}", parent=self, duration=5000)
 
     def _on_close_project(self):
         if project_manager.current_project is None:
-            QMessageBox.warning(self, "警告", "请先选择一个项目")
+            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
             return
 
         if project_manager.current_project.is_modified:
-            reply = QMessageBox.question(
-                self, "项目已修改", "当前项目有未保存的更改，是否保存？",
-                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel
-            )
-            if reply == QMessageBox.StandardButton.Save:
+            w = MessageBox("项目已修改", "当前项目有未保存的更改，是否保存？", self)
+            w.yesButton.setText("保存")
+            w.cancelButton.setText("不保存")
+            if w.exec():
                 self._on_save_project()
-            elif reply == QMessageBox.StandardButton.Cancel:
-                return
 
         project_manager.close_current_project()
         self._image_viewer.clear_image()
@@ -1997,7 +1999,7 @@ class WorkspacePage(QWidget):
 
     def _on_add_image(self):
         if project_manager.current_project is None:
-            QMessageBox.warning(self, "警告", "请先选择一个项目")
+            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
             return
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -2014,7 +2016,7 @@ class WorkspacePage(QWidget):
     def _on_add_curve(self):
         """为当前选中图片添加新曲线"""
         if self._current_image_id is None:
-            QMessageBox.warning(self, "警告", "请先选择一张图片")
+            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
             return
 
         img = project_manager.get_image(self._current_image_id)
@@ -2076,7 +2078,8 @@ class WorkspacePage(QWidget):
     def update_theme_colors(self):
         """主题切换后重新应用颜色到所有使用 text_color/placeholder_color/border_color 的组件"""
         from ui.theme import text_color, placeholder_color
-        from PySide6.QtWidgets import QLabel, QFrame
+        from PySide6.QtWidgets import QFrame
+        from qfluentwidgets import BodyLabel
 
         tc = text_color()
         pc = placeholder_color()
@@ -2102,8 +2105,8 @@ class WorkspacePage(QWidget):
                 ss = _re.sub(r'color:\s*#[0-9a-fA-F]{3,8}', f'color: {pc}', ss)
                 lbl.setStyleSheet(ss)
 
-        # 扫描所有子 QLabel（section title 类型，font-weight:bold 样式）
-        for lbl in self.findChildren(QLabel):
+        # 扫描所有子 BodyLabel（section title 类型，font-weight:bold 样式）
+        for lbl in self.findChildren(BodyLabel):
             ss = lbl.styleSheet()
             if 'font-weight: bold' in ss and 'color:' in ss:
                 import re as _re
@@ -2120,10 +2123,9 @@ class WorkspacePage(QWidget):
 
         # 更新原生 Qt 控件主题色
         self._apply_tree_theme()
-        self._apply_tabs_theme()
 
-        # 更新工具栏中无 bold 的普通 QLabel（大小/步长/橡皮 等说明文字）
-        for lbl in self._viewer_toolbar.findChildren(QLabel):
+        # 更新工具栏中无 bold 的普通 BodyLabel（大小/步长/橡皮 等说明文字）
+        for lbl in self._viewer_toolbar.findChildren(BodyLabel):
             ss = lbl.styleSheet()
             if 'font-size: 10px' not in ss and 'font-weight' not in ss:
                 lbl.setStyleSheet(f"color: {tc};")
@@ -2156,41 +2158,6 @@ class WorkspacePage(QWidget):
                 background-color: {bg};
                 color: {tc};
                 border: none;
-            }}
-        """)
-
-    def _apply_tabs_theme(self):
-        """为 QTabWidget 应用暗色/亮色主题样式"""
-        from ui.theme import text_color, card_background_color, border_color
-        tc = text_color()
-        bg = card_background_color()
-        bc = border_color()
-        self._right_tabs.setStyleSheet(f"""
-            QTabWidget::pane {{
-                background-color: {bg};
-                border: 1px solid {bc};
-                border-radius: 4px;
-            }}
-            QTabWidget > QWidget {{
-                background-color: {bg};
-            }}
-            QTabBar::tab {{
-                background-color: transparent;
-                color: {tc};
-                padding: 5px 12px;
-                margin-right: 2px;
-                border: none;
-                border-bottom: 2px solid transparent;
-            }}
-            QTabBar::tab:selected {{
-                color: #0078D4;
-                border-bottom: 2px solid #0078D4;
-            }}
-            QTabBar::tab:hover:!selected {{
-                background-color: rgba(128, 128, 128, 0.10);
-            }}
-            QTabBar {{
-                background-color: {bg};
             }}
         """)
 

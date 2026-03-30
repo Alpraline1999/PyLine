@@ -1,6 +1,5 @@
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMessageBox
-from qfluentwidgets import FluentWindow, NavigationItemPosition, setTheme, Theme
+from qfluentwidgets import FluentWindow, NavigationItemPosition, setTheme, Theme, MessageBox
 from qfluentwidgets.common.icon import FluentIcon as FIF
 
 from .pages.home_page import HomePage
@@ -122,14 +121,12 @@ class MainWindow(FluentWindow):
         unsaved = [p for p in project_manager.projects if p.is_modified]
         if unsaved:
             names = "、".join(p.name for p in unsaved)
-            reply = QMessageBox.question(
-                self,
+            dlg = MessageBox(
                 "未保存的更改",
                 f"以下项目有未保存的更改：\n{names}\n\n确定要退出吗？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
+                self
             )
-            if reply != QMessageBox.StandardButton.Yes:
+            if not dlg.exec():
                 event.ignore()
                 return
         event.accept()

@@ -1,10 +1,30 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFileDialog, QInputDialog, QScrollArea, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QFrame
 from PySide6.QtCore import Qt, Signal
-from qfluentwidgets import PrimaryPushButton, PushButton, FluentIcon as FIF
+from qfluentwidgets import (PrimaryPushButton, PushButton, FluentIcon as FIF,
+    BodyLabel, LargeTitleLabel, SubtitleLabel, SmoothScrollArea,
+    InfoBar, MessageBox, MessageBoxBase, LineEdit)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from core.project_manager import project_manager
 from core.recent_projects import load_recent, remove_recent
+
+
+
+class _InputDialog(MessageBoxBase):
+    """输入对话框"""
+    def __init__(self, title: str, placeholder: str = '', text: str = '', parent=None):
+        super().__init__(parent)
+        self._title_lbl = SubtitleLabel(title, self.widget)
+        self._edit = LineEdit(self.widget)
+        self._edit.setText(text)
+        self._edit.setPlaceholderText(placeholder)
+        self._edit.setClearButtonEnabled(True)
+        self.viewLayout.addWidget(self._title_lbl)
+        self.viewLayout.addWidget(self._edit)
+        self.widget.setMinimumWidth(350)
+
+    def value(self) -> str:
+        return self._edit.text()
 
 
 class HomePage(QWidget):
@@ -33,12 +53,12 @@ class HomePage(QWidget):
         layout.setContentsMargins(40, 40, 40, 40)
 
         # 标题
-        self._title = QLabel("PyLine", self)
+        self._title = BodyLabel("PyLine", self)
         self._title.setStyleSheet("font-size: 48px; font-weight: bold;")
         layout.addWidget(self._title, alignment=Qt.AlignCenter)
 
         # 副标题
-        self._subtitle = QLabel("曲线数据提取工具", self)
+        self._subtitle = BodyLabel("曲线数据提取工具", self)
         self._subtitle.setStyleSheet("font-size: 18px;")
         layout.addWidget(self._subtitle, alignment=Qt.AlignCenter)
 
@@ -64,19 +84,19 @@ class HomePage(QWidget):
         # 最近项目
         layout.addSpacing(40)
         recent_header = QHBoxLayout()
-        self._recent_label = QLabel("最近项目", self)
+        self._recent_label = BodyLabel("最近项目", self)
         self._recent_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         recent_header.addWidget(self._recent_label)
         recent_header.addStretch()
         layout.addLayout(recent_header)
 
         # 无最近项目占位
-        self._no_recent = QLabel("暂无最近项目", self)
+        self._no_recent = BodyLabel("暂无最近项目", self)
         self._no_recent.setStyleSheet("font-style: italic;")
         layout.addWidget(self._no_recent, alignment=Qt.AlignLeft)
 
         # 最近项目scroll区域
-        self._recent_scroll = QScrollArea(self)
+        self._recent_scroll = SmoothScrollArea(self)
         self._recent_scroll.setWidgetResizable(True)
         self._recent_scroll.setFrameShape(QFrame.NoFrame)
         self._recent_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -89,7 +109,7 @@ class HomePage(QWidget):
         self._recent_items_layout.setContentsMargins(0, 0, 0, 0)
         self._recent_items_layout.addStretch()
         self._recent_scroll.setWidget(self._recent_items_widget)
-        self._recent_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._recent_scroll.setStyleSheet("SmoothScrollArea { background: transparent; border: none; }")
         self._recent_items_widget.setStyleSheet("background: transparent;")
         layout.addWidget(self._recent_scroll)
 
@@ -153,16 +173,16 @@ class HomePage(QWidget):
 
             info_col = QVBoxLayout()
             info_col.setSpacing(2)
-            name_lbl = QLabel(name)
+            name_lbl = BodyLabel(name)
             name_lbl.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {tc};")
-            path_lbl = QLabel(path)
+            path_lbl = BodyLabel(path)
             path_lbl.setStyleSheet(f"font-size: 11px; color: {pc};")
             path_lbl.setToolTip(path)
             info_col.addWidget(name_lbl)
             info_col.addWidget(path_lbl)
             row_layout.addLayout(info_col, 1)
 
-            date_lbl = QLabel(opened_at)
+            date_lbl = BodyLabel(opened_at)
             date_lbl.setStyleSheet(f"font-size: 11px; color: {sc};")
             date_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             row_layout.addWidget(date_lbl)
@@ -187,8 +207,7 @@ class HomePage(QWidget):
         """打开最近项目"""
         import os
         if not os.path.exists(path):
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "文件不存在", f"项目文件已移动或删除:\n{path}")
+            InfoBar.warning(title="文件不存在", content=f"项目文件已移动或删除:\n{path}", parent=self, duration=5000)
             remove_recent(path)
             self.refresh_recent()
             return
@@ -196,8 +215,7 @@ class HomePage(QWidget):
             project_manager.open(path)
             self.project_opened.emit(path)
         except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "错误", f"无法打开项目:\n{str(e)}")
+            InfoBar.error(title="错误", content=f"无法打开项目:\n{str(e)}", parent=self, duration=5000)
 
     def _on_remove_recent(self, path: str):
         """从最近列表移除"""
@@ -211,8 +229,11 @@ class HomePage(QWidget):
 
     def on_new_project(self):
         """新建项目"""
-        name, ok = QInputDialog.getText(self, "新建项目", "请输入项目名称:")
-        if ok and name:
+        dlg = _InputDialog("新建项目", "请输入项目名称:", parent=self)
+        if not dlg.exec():
+            return
+        name = dlg.value()
+        if name:
             project_manager.create_new(name)
             self.project_created.emit(name)
 
@@ -229,5 +250,4 @@ class HomePage(QWidget):
                 project_manager.open(file_path)
                 self.project_opened.emit(file_path)
             except Exception as e:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.critical(self, "错误", f"无法打开项目:\n{str(e)}")
+                InfoBar.error(title="错误", content=f"无法打开项目:\n{str(e)}", parent=self, duration=5000)

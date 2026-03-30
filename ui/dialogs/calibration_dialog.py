@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QFormLayout
+from qfluentwidgets import BodyLabel, LineEdit, PrimaryPushButton, PushButton
 
 
 class CalibrationDialog(QDialog):
@@ -16,10 +17,10 @@ class CalibrationDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        info_label = QLabel("请设置坐标轴的实际数值范围:", self)
+        info_label = BodyLabel("请设置坐标轴的实际数值范围:", self)
         layout.addWidget(info_label)
 
-        info = QLabel(
+        info = BodyLabel(
             f"X轴起点: ({self._calibration.x_start.x():.1f}, {self._calibration.x_start.y():.1f})\n"
             f"X轴终点: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})\n"
             f"Y轴起点: ({self._calibration.y_start.x():.1f}, {self._calibration.y_start.y():.1f})\n"
@@ -33,29 +34,29 @@ class CalibrationDialog(QDialog):
 
         # X轴范围
         x_layout = QHBoxLayout()
-        self._x_min_input = QLineEdit("0", self)
-        self._x_max_input = QLineEdit("1", self)
-        x_layout.addWidget(QLabel("最小:", self))
+        self._x_min_input = LineEdit("0", self)
+        self._x_max_input = LineEdit("1", self)
+        x_layout.addWidget(BodyLabel("最小:", self))
         x_layout.addWidget(self._x_min_input)
-        x_layout.addWidget(QLabel("最大:", self))
+        x_layout.addWidget(BodyLabel("最大:", self))
         x_layout.addWidget(self._x_max_input)
         form.addRow("X轴范围:", x_layout)
 
         # Y轴范围
         y_layout = QHBoxLayout()
-        self._y_min_input = QLineEdit("0", self)
-        self._y_max_input = QLineEdit("1", self)
-        y_layout.addWidget(QLabel("最小:", self))
+        self._y_min_input = LineEdit("0", self)
+        self._y_max_input = LineEdit("1", self)
+        y_layout.addWidget(BodyLabel("最小:", self))
         y_layout.addWidget(self._y_min_input)
-        y_layout.addWidget(QLabel("最大:", self))
+        y_layout.addWidget(BodyLabel("最大:", self))
         y_layout.addWidget(self._y_max_input)
         form.addRow("Y轴范围:", y_layout)
 
         layout.addLayout(form)
 
         btn_layout = QHBoxLayout()
-        self._ok_btn = QPushButton("确定", self)
-        self._cancel_btn = QPushButton("取消", self)
+        self._ok_btn = PrimaryPushButton("确定", self)
+        self._cancel_btn = PushButton("取消", self)
         self._ok_btn.clicked.connect(self.accept)
         self._cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()

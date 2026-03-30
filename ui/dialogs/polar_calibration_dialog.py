@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout, QFormLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QFormLayout
+from qfluentwidgets import BodyLabel, LineEdit, PrimaryPushButton, PushButton
 
 
 class PolarCalibrationDialog(QDialog):
@@ -18,11 +19,11 @@ class PolarCalibrationDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        info_label = QLabel("请设置极坐标的实际数值:", self)
+        info_label = BodyLabel("请设置极坐标的实际数值:", self)
         layout.addWidget(info_label)
 
         # 显示校准点信息
-        info_text = QLabel(
+        info_text = BodyLabel(
             f"原点: ({self._calibration.x_start.x():.1f}, {self._calibration.x_start.y():.1f})\n"
             f"角度和极径点A: ({self._calibration.x_end.x():.1f}, {self._calibration.x_end.y():.1f})",
             self
@@ -33,18 +34,18 @@ class PolarCalibrationDialog(QDialog):
         form = QFormLayout()
 
         # 点A的角度
-        self._angle_input = QLineEdit("0", self)
+        self._angle_input = LineEdit("0", self)
         form.addRow("点A的角度 (度):", self._angle_input)
 
         # 点A的极径
-        self._radius_input = QLineEdit("1", self)
+        self._radius_input = LineEdit("1", self)
         form.addRow("点A的极径:", self._radius_input)
 
         layout.addLayout(form)
 
         btn_layout = QHBoxLayout()
-        self._ok_btn = QPushButton("确定", self)
-        self._cancel_btn = QPushButton("取消", self)
+        self._ok_btn = PrimaryPushButton("确定", self)
+        self._cancel_btn = PushButton("取消", self)
         self._ok_btn.clicked.connect(self.accept)
         self._cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()

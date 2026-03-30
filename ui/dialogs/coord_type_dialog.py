@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout
+from qfluentwidgets import BodyLabel, PrimaryPushButton, PushButton
 from qfluentwidgets import ComboBox
 from PySide6.QtCore import Qt
 
@@ -17,7 +18,7 @@ class CoordTypeDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        title_label = QLabel("请选择坐标类型:", self)
+        title_label = BodyLabel("请选择坐标类型:", self)
         layout.addWidget(title_label)
 
         self._type_combo = ComboBox(self)
@@ -26,7 +27,7 @@ class CoordTypeDialog(QDialog):
         layout.addWidget(self._type_combo)
 
         # 说明标签
-        self._desc_label = QLabel(
+        self._desc_label = BodyLabel(
             "二维线性坐标：用X轴和Y轴表示平面上的点\n"
             "二维对数坐标：X轴或Y轴使用对数刻度\n"
             "二维极坐标：用距离和角度表示平面上的点",
@@ -37,8 +38,8 @@ class CoordTypeDialog(QDialog):
         layout.addWidget(self._desc_label)
 
         btn_layout = QHBoxLayout()
-        self._ok_btn = QPushButton("确定", self)
-        self._cancel_btn = QPushButton("取消", self)
+        self._ok_btn = PrimaryPushButton("确定", self)
+        self._cancel_btn = PushButton("取消", self)
         self._ok_btn.clicked.connect(self.accept)
         self._cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()

@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QScrollArea, QFrame, QFormLayout, QKeySequenceEdit)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+                               QFrame, QFormLayout, QKeySequenceEdit)
 from PySide6.QtCore import Qt, QTimer, Signal
-from qfluentwidgets import ComboBox, setTheme, Theme, CardWidget, PushButton
+from qfluentwidgets import (ComboBox, setTheme, Theme, CardWidget, PushButton,
+    BodyLabel, SubtitleLabel, TitleLabel, SmoothScrollArea)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from core.shortcut_manager import shortcut_manager
@@ -25,15 +26,15 @@ class SettingsPage(QWidget):
         self._shortcuts_card = None
         self.theme_combo = None
         self._shortcut_edits: dict[str, QKeySequenceEdit] = {}
-        self._shortcut_labels: list[QLabel] = []
-        self._conflict_labels: dict[str, QLabel] = {}  # action -> red warning label
+        self._shortcut_labels: list[BodyLabel] = []
+        self._conflict_labels: dict[str, BodyLabel] = {}  # action -> red warning label
         self.setup_ui()
 
     def setup_ui(self):
-        outer = QScrollArea(self)
+        outer = SmoothScrollArea(self)
         outer.setWidgetResizable(True)
         outer.setFrameShape(QFrame.Shape.NoFrame)
-        outer.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        outer.setStyleSheet("SmoothScrollArea { background: transparent; border: none; }")
 
         content = QWidget()
         content.setStyleSheet("background: transparent;")
@@ -47,7 +48,7 @@ class SettingsPage(QWidget):
         root_layout.addWidget(outer)
 
         # 标题
-        self._title_label = QLabel("设置", content)
+        self._title_label = BodyLabel("设置", content)
         self._title_label.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {text_color()};")
         layout.addWidget(self._title_label)
 
@@ -55,12 +56,12 @@ class SettingsPage(QWidget):
         self._appearance_card = CardWidget(content)
         appearance_layout = QVBoxLayout(self._appearance_card)
 
-        self._appearance_title = QLabel("外观", self._appearance_card)
+        self._appearance_title = BodyLabel("外观", self._appearance_card)
         self._appearance_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
         appearance_layout.addWidget(self._appearance_title)
 
         theme_layout = QVBoxLayout()
-        self._theme_label = QLabel("主题", content)
+        self._theme_label = BodyLabel("主题", content)
         self._theme_label.setStyleSheet(f"color: {text_color()};")
         theme_layout.addWidget(self._theme_label)
 
@@ -77,11 +78,11 @@ class SettingsPage(QWidget):
         self._lang_card = CardWidget(content)
         lang_layout = QVBoxLayout(self._lang_card)
 
-        self._lang_title = QLabel("语言", self._lang_card)
+        self._lang_title = BodyLabel("语言", self._lang_card)
         self._lang_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
         lang_layout.addWidget(self._lang_title)
 
-        self._lang_placeholder = QLabel("语言设置（预留）", content)
+        self._lang_placeholder = BodyLabel("语言设置（预留）", content)
         self._lang_placeholder.setStyleSheet(f"color: {placeholder_color()}; font-style: italic;")
         lang_layout.addWidget(self._lang_placeholder)
 
@@ -92,11 +93,11 @@ class SettingsPage(QWidget):
         self._shortcuts_card = CardWidget(content)
         shortcuts_layout = QVBoxLayout(self._shortcuts_card)
 
-        self._shortcuts_title = QLabel("快捷键", self._shortcuts_card)
+        self._shortcuts_title = BodyLabel("快捷键", self._shortcuts_card)
         self._shortcuts_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {text_color()};")
         shortcuts_layout.addWidget(self._shortcuts_title)
 
-        hint = QLabel("点击输入框后按下新快捷键即可修改。按 → 应用快捷键 保存。", self._shortcuts_card)
+        hint = BodyLabel("点击输入框后按下新快捷键即可修改。按 → 应用快捷键 保存。", self._shortcuts_card)
         hint.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         hint.setWordWrap(True)
         shortcuts_layout.addWidget(hint)
@@ -115,11 +116,11 @@ class SettingsPage(QWidget):
                 f"background: {card_background_color()}; color: {text_color()};"
                 f" border: 1px solid {border_color()}; border-radius: 4px; padding: 3px;"
             )
-            row_lbl = QLabel(label + ":", sc_content)
+            row_lbl = BodyLabel(label + ":", sc_content)
             row_lbl.setStyleSheet(f"color: {text_color()};")
 
             # 冲突提示标签
-            conflict_lbl = QLabel("", sc_content)
+            conflict_lbl = BodyLabel("", sc_content)
             conflict_lbl.setStyleSheet("color: #e81123; font-size: 10px;")
             conflict_lbl.setVisible(False)
 
@@ -220,7 +221,7 @@ class SettingsPage(QWidget):
                 f" border: 1px solid {bc}; border-radius: 4px; padding: 3px;"
             )
         # hint label（找到快捷键卡片下方的说明标签）
-        for lbl in self._shortcuts_card.findChildren(QLabel):
+        for lbl in self._shortcuts_card.findChildren(BodyLabel):
             ss = lbl.styleSheet()
             if 'font-size: 11px' in ss:
                 lbl.setStyleSheet(f"color: {pc}; font-size: 11px;")
