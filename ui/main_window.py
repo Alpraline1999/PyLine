@@ -66,7 +66,7 @@ class MainWindow(FluentWindow):
         )
 
         # 导航栏可折叠（用户可点击汉堡按钮手动收起/展开）
-        self.navigationInterface.setCollapsible(True)
+        self.navigationInterface.setCollapsible(False)
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""

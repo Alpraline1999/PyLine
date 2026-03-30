@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton
+from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, TogglePushButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -481,16 +481,14 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
-        self._calibrate_btn = FPushButton(FIF.UNIT, "校准", manual_row)
+        self._calibrate_btn = TogglePushButton(FIF.UNIT, "校准", manual_row)
         self._calibrate_btn.setToolTip("校准 (C)")
-        self._calibrate_btn.setCheckable(True)
         self._calibrate_btn.setFixedHeight(34)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         ml.addWidget(self._calibrate_btn)
 
-        self._extract_btn = FPushButton(FIF.PENCIL_INK, "手动取点", manual_row)
+        self._extract_btn = TogglePushButton(FIF.PENCIL_INK, "手动取点", manual_row)
         self._extract_btn.setToolTip("手动提取曲线 (P)")
-        self._extract_btn.setCheckable(True)
         self._extract_btn.setFixedHeight(34)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         ml.addWidget(self._extract_btn)
@@ -2362,6 +2360,12 @@ class WorkspacePage(QWidget):
         if curve.x_actual and index < len(curve.x_actual):
             curve.x_actual[index] = x_actual
             curve.y_actual[index] = y_actual
+        # 直接更新 curve_items 中对应点坐标，避免刷新整个 overlay
+        for item in self._image_viewer.get_curve_items():
+            if index < len(item.points):
+                item.points[index] = (new_px, new_py)
+                break
+        self._image_viewer.update()
         # 更新表格（仅该行）
         self._update_curve_table()
         self.project_modified.emit()

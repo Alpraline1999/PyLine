@@ -14,9 +14,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QColorDialog,
-    QDoubleSpinBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -114,8 +114,44 @@ class ChartPage(QWidget):
         lv.setContentsMargins(12, 12, 12, 12)
         lv.setSpacing(8)
 
-        # \u66f2\u7ebf\u5217\u8868
-        lv.addWidget(BodyLabel("\u66f2\u7ebf\u9009\u62e9", left_card))
+        def _sep():
+            s = QFrame(left_card)
+            s.setFrameShape(QFrame.HLine)
+            s.setFixedHeight(1)
+            return s
+
+        lv.addWidget(BodyLabel("数据对比", left_card))
+
+        btn_grid = QGridLayout()
+        btn_grid.setSpacing(4)
+
+        self._import_btn = PushButton(FIF.DOWNLOAD, "导入数据", left_card)
+        self._import_btn.setFixedHeight(32)
+        self._import_btn.clicked.connect(self._on_import)
+        btn_grid.addWidget(self._import_btn, 0, 0)
+
+        self._clear_import_btn = PushButton(FIF.DELETE, "清除绘图", left_card)
+        self._clear_import_btn.setFixedHeight(32)
+        self._clear_import_btn.clicked.connect(self._on_clear_import)
+        btn_grid.addWidget(self._clear_import_btn, 0, 1)
+
+        self._export_img_btn = PushButton(FIF.SAVE, "导出图片", left_card)
+        self._export_img_btn.setFixedHeight(32)
+        self._export_img_btn.clicked.connect(self._on_export_image)
+        btn_grid.addWidget(self._export_img_btn, 1, 0)
+
+        self._refresh_btn = PushButton(FIF.SYNC, "刷新", left_card)
+        self._refresh_btn.setFixedHeight(32)
+        self._refresh_btn.clicked.connect(self._refresh)
+        btn_grid.addWidget(self._refresh_btn, 1, 1)
+
+        btn_grid.setColumnStretch(0, 1)
+        btn_grid.setColumnStretch(1, 1)
+        lv.addLayout(btn_grid)
+
+        lv.addWidget(_sep())
+
+        lv.addWidget(BodyLabel("曲线选择", left_card))
 
         self._curve_list = QListWidget(left_card)
         self._curve_list.setSelectionMode(QListWidget.MultiSelection)
@@ -147,15 +183,6 @@ class ChartPage(QWidget):
 
         # \u66f2\u7ebf\u6837\u5f0f\u533a\u57df
         lv.addWidget(BodyLabel("\u66f2\u7ebf\u6837\u5f0f\uff08\u5355\u51fb\u5217\u8868\u9879\u7f16\u8f91\uff09", left_card))
-
-        # \u9ed8\u8ba4\u7ebf\u578b\uff08\u5c55\u793a\u6a21\u5f0f\uff09
-        gl_row = QHBoxLayout()
-        gl_row.addWidget(BodyLabel("\u5c55\u793a:", left_card))
-        self._global_line_combo = ComboBox(left_card)
-        self._global_line_combo.addItems(_LINESTYLE_LABELS)
-        self._global_line_combo.currentIndexChanged.connect(self._redraw)
-        gl_row.addWidget(self._global_line_combo)
-        lv.addLayout(gl_row)
 
         self._style_target_label = QLabel("\u2014 \u672a\u9009\u4e2d \u2014", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
@@ -205,7 +232,7 @@ class ChartPage(QWidget):
         self._x_min_edit.setFixedWidth(52)
         self._x_min_edit.textChanged.connect(self._redraw)
         ax_form.addWidget(self._x_min_edit)
-        ax_form.addWidget(QLabel("\u2013", left_card))
+
         self._x_max_edit = LineEdit(left_card)
         self._x_max_edit.setPlaceholderText("\u81ea\u52a8")
         self._x_max_edit.setFixedWidth(52)
@@ -220,7 +247,7 @@ class ChartPage(QWidget):
         self._y_min_edit.setFixedWidth(52)
         self._y_min_edit.textChanged.connect(self._redraw)
         ay_form.addWidget(self._y_min_edit)
-        ay_form.addWidget(QLabel("\u2013", left_card))
+
         self._y_max_edit = LineEdit(left_card)
         self._y_max_edit.setPlaceholderText("\u81ea\u52a8")
         self._y_max_edit.setFixedWidth(52)
@@ -243,29 +270,6 @@ class ChartPage(QWidget):
         self._y_label_edit.textChanged.connect(self._redraw)
         ylabel_row.addWidget(self._y_label_edit)
         lv.addLayout(ylabel_row)
-
-        lv.addWidget(_sep())
-
-        # \u6570\u636e\u5bf9\u6bd4\u533a\u57df
-        lv.addWidget(BodyLabel("\u6570\u636e\u5bf9\u6bd4", left_card))
-
-        self._import_btn = PushButton(FIF.DOWNLOAD, "\u5bfc\u5165\u5bf9\u6bd4\u6570\u636e", left_card)
-        self._import_btn.clicked.connect(self._on_import)
-        lv.addWidget(self._import_btn)
-
-        cmp_row = QHBoxLayout()
-        self._clear_import_btn = PushButton(FIF.DELETE, "\u6e05\u9664\u5bf9\u6bd4", left_card)
-        self._clear_import_btn.clicked.connect(self._on_clear_import)
-        cmp_row.addWidget(self._clear_import_btn)
-
-        self._export_img_btn = PushButton(FIF.SAVE, "\u5bfc\u51fa\u56fe\u7247", left_card)
-        self._export_img_btn.clicked.connect(self._on_export_image)
-        cmp_row.addWidget(self._export_img_btn)
-        lv.addLayout(cmp_row)
-
-        self._refresh_btn = PushButton(FIF.SYNC, "\u5237\u65b0", left_card)
-        self._refresh_btn.clicked.connect(self._refresh)
-        lv.addWidget(self._refresh_btn)
 
         lv.addStretch()
         left_card.setMinimumWidth(220)
@@ -344,7 +348,7 @@ class ChartPage(QWidget):
         name = curve["name"]
         override = self._curve_styles.get(name, {})
         color = override.get("color") or curve.get("color") or None
-        ls = override.get("linestyle") or _LINESTYLE_VALUES[self._global_line_combo.currentIndex()]
+        ls = override.get("linestyle") or "-"
         return {"color": color, "linestyle": ls}
 
     # ──────────────────────────── 绘图 ──────────────────────────────────
@@ -362,7 +366,7 @@ class ChartPage(QWidget):
 
         self._figure.patch.set_facecolor(bg)
         ax.set_facecolor(bg)
-        ax.tick_params(colors=fg)
+        ax.tick_params(colors=fg, labelcolor=fg)
         ax.xaxis.label.set_color(fg)
         ax.yaxis.label.set_color(fg)
         ax.title.set_color(fg)
@@ -370,8 +374,8 @@ class ChartPage(QWidget):
             spine.set_edgecolor(fg)
         ax.grid(True, color=grid_c, linestyle="--", linewidth=0.5, alpha=0.7)
 
-        show_scatter = self._global_line_combo.currentIndex() in (1, 2)
-        show_line    = self._global_line_combo.currentIndex() in (0, 2)
+        show_scatter = False
+        show_line    = True
 
         for c in self._selected_curves():
             style = self._get_curve_style(c)
@@ -442,7 +446,7 @@ class ChartPage(QWidget):
             eff_color = ov.get("color") or curve.get("color") or "#888888"
             self._update_color_btn(eff_color)
             ls = ov.get("linestyle")
-            idx = _LINESTYLE_VALUES.index(ls) if ls in _LINESTYLE_VALUES else self._global_line_combo.currentIndex()
+            idx = _LINESTYLE_VALUES.index(ls) if ls in _LINESTYLE_VALUES else 0
             self._style_line_combo.blockSignals(True)
             self._style_line_combo.setCurrentIndex(idx)
             self._style_line_combo.blockSignals(False)

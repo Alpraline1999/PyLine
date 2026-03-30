@@ -30,7 +30,7 @@ class HomePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
         # 左侧边距需要足够大，避免被导航栏遮挡
-        layout.setContentsMargins(220, 40, 40, 40)
+        layout.setContentsMargins(40, 40, 40, 40)
 
         # 标题
         self._title = QLabel("PyLine", self)
@@ -38,7 +38,7 @@ class HomePage(QWidget):
         layout.addWidget(self._title, alignment=Qt.AlignCenter)
 
         # 副标题
-        self._subtitle = QLabel("曲线提取与数据可视化工具", self)
+        self._subtitle = QLabel("曲线数据提取工具", self)
         self._subtitle.setStyleSheet("font-size: 18px;")
         layout.addWidget(self._subtitle, alignment=Qt.AlignCenter)
 

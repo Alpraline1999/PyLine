@@ -367,6 +367,7 @@ class ImageViewer(QWidget):
         self.setAcceptDrops(True)
         self.setMinimumSize(400, 300)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMouseTracking(True)  # 鼠标移动时无需按下按键即可触发 mouseMoveEvent
 
     def _bg_color(self):
         """获取背景颜色"""
@@ -392,7 +393,25 @@ class ImageViewer(QWidget):
         """获取微调步长"""
         return self._nudge_step
 
-    # ==================== 图片加载 ====================
+    def event(self, ev):
+        """拦截 ShortcutOverride，在提取/校准模式下预先主张方向键和WASD"""
+        from PySide6.QtCore import QEvent
+        if ev.type() == QEvent.Type.ShortcutOverride:
+            mods = ev.modifiers()
+            plain = not (mods & Qt.KeyboardModifier.ControlModifier or
+                         mods & Qt.KeyboardModifier.AltModifier or
+                         mods & Qt.KeyboardModifier.MetaModifier)
+            if plain and self._current_tool in (self.MODE_EXTRACT, self.MODE_CALIBRATE):
+                if ev.key() in (
+                    Qt.Key.Key_Left, Qt.Key.Key_Right,
+                    Qt.Key.Key_Up,   Qt.Key.Key_Down,
+                    Qt.Key.Key_W,    Qt.Key.Key_A,
+                    Qt.Key.Key_S,    Qt.Key.Key_D,
+                    Qt.Key.Key_E,    Qt.Key.Key_Escape,
+                ):
+                    ev.accept()
+                    return True
+        return super().event(ev)
 
     def load_image(self, file_path: str) -> bool:
         """加载图片"""
@@ -487,6 +506,8 @@ class ImageViewer(QWidget):
         self._current_tool = self.MODE_EXTRACT
         self._calibration_step_hint = ""
         self._current_curve = CurveOverlayItem(color=color, point_shape=point_shape)
+        self._selected_point_index = -1
+        self._point_nudge_mode = False
         self.update()
 
     def set_eraser_mode(self):
@@ -1201,6 +1222,7 @@ class ImageViewer(QWidget):
 
     def _handle_extract_click(self, pos: QPointF):
         """处理曲线提取模式点击"""
+        self.setFocus()  # 确保键盘焦点
         img_pos = self._widget_to_image_coords(pos)
 
         if self._current_curve is None:
