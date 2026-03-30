@@ -36,6 +36,38 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
+    from matplotlib import font_manager
+
+    # 配置中文字体：优先直接注册系统 CJK 字体文件
+    _CJK_FONT_FILES = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    ]
+    _cjk_font_prop = None
+    for _f in _CJK_FONT_FILES:
+        import os
+        if os.path.exists(_f):
+            font_manager.fontManager.addfont(_f)
+            _cjk_font_prop = font_manager.FontProperties(fname=_f)
+            matplotlib.rcParams["font.family"] = _cjk_font_prop.get_name()
+            break
+
+    # 也尝试已注册的 CJK 字体名
+    if _cjk_font_prop is None:
+        _CJK_NAMES = ["Noto Sans CJK JP", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "SimHei"]
+        _found = next(
+            (n for n in _CJK_NAMES
+             if any(n == fm.name for fm in font_manager.fontManager.ttflist)),
+            None,
+        )
+        if _found:
+            matplotlib.rcParams["font.family"] = _found
+
+    matplotlib.rcParams["axes.unicode_minus"] = False  # 防止负号显示为方块
+
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
