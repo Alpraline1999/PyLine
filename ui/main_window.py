@@ -65,10 +65,12 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
-        # 隐藏汉堡按钮，禁止用户手动展开导航栏（保持 COMPACT 图标模式）
+        # 永久保持 COMPACT（图标）模式：
+        # 1. 隐藏汉堡按钮，用户无法手动点击展开
+        # 2. minimumExpandWidth 设为超大值，避免 eventFilter 在窗口变宽时触发自动 expand
+        #    （源码：not _isMenuButtonVisible 且 width >= minimumExpandWidth 时会自动 expand）
         self.navigationInterface.panel.setMenuButtonVisible(False)
-        self.navigationInterface.setCollapsible(False)
-        self.navigationInterface.expand()
+        self.navigationInterface.panel.setMinimumExpandWidth(99999)
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
