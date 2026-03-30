@@ -26,6 +26,7 @@ class SettingsPage(QWidget):
         self.theme_combo = None
         self._shortcut_edits: dict[str, QKeySequenceEdit] = {}
         self._shortcut_labels: list[QLabel] = []
+        self._conflict_labels: dict[str, QLabel] = {}  # action -> red warning label
         self.setup_ui()
 
     def setup_ui(self):
@@ -116,9 +117,25 @@ class SettingsPage(QWidget):
             )
             row_lbl = QLabel(label + ":", sc_content)
             row_lbl.setStyleSheet(f"color: {text_color()};")
-            sc_form.addRow(row_lbl, edit)
+
+            # 冲突提示标签
+            conflict_lbl = QLabel("", sc_content)
+            conflict_lbl.setStyleSheet("color: #e81123; font-size: 10px;")
+            conflict_lbl.setVisible(False)
+
+            # 垂直堆叠 edit + conflict_lbl
+            edit_col = QWidget(sc_content)
+            ecol_layout = QVBoxLayout(edit_col)
+            ecol_layout.setContentsMargins(0, 0, 0, 0)
+            ecol_layout.setSpacing(1)
+            ecol_layout.addWidget(edit)
+            ecol_layout.addWidget(conflict_lbl)
+
+            sc_form.addRow(row_lbl, edit_col)
             self._shortcut_edits[action] = edit
             self._shortcut_labels.append(row_lbl)
+            self._conflict_labels[action] = conflict_lbl
+            edit.keySequenceChanged.connect(lambda ks, a=action: self._check_shortcut_conflict(a, ks))
 
         shortcuts_layout.addWidget(sc_content)
 
@@ -142,6 +159,31 @@ class SettingsPage(QWidget):
             mapping[action] = edit.keySequence().toString()
         shortcut_manager.apply_all(mapping)
         self.shortcuts_changed.emit()
+
+    def _check_shortcut_conflict(self, changed_action: str, ks):
+        """实时检测快捷键冲突"""
+        ks_str = ks.toString() if not isinstance(ks, str) else ks
+        # 清空所有冲突提示
+        for a, lbl in self._conflict_labels.items():
+            lbl.setVisible(False)
+        if not ks_str:
+            return
+        # 找所有与此序列重复的 action
+        conflicts = []
+        for a, edit in self._shortcut_edits.items():
+            if a != changed_action and edit.keySequence().toString() == ks_str:
+                conflicts.append(a)
+        if conflicts:
+            from core.shortcut_manager import shortcut_manager as sm
+            conflict_names = " / ".join(sm.LABELS.get(a, a) for a in conflicts)
+            self._conflict_labels[changed_action].setText(f"与「{conflict_names}」冲突")
+            self._conflict_labels[changed_action].setVisible(True)
+            for a in conflicts:
+                if a in self._conflict_labels:
+                    cur_ks = self._shortcut_edits[changed_action].keySequence().toString()
+                    changed_name = sm.LABELS.get(changed_action, changed_action)
+                    self._conflict_labels[a].setText(f"与「{changed_name}」冲突")
+                    self._conflict_labels[a].setVisible(True)
 
     def _on_reset_shortcuts(self):
         """恢复所有快捷键为默认值"""

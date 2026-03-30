@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel
+from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -79,6 +79,10 @@ class WorkspacePage(QWidget):
         self._viewer_toolbar = self._create_viewer_toolbar(center_panel)
         center_layout.addWidget(self._viewer_toolbar)
 
+        # 状态栏：图片路径 + 鼠标坐标
+        self._viewer_status_bar = self._create_viewer_status_bar(center_panel)
+        center_layout.addWidget(self._viewer_status_bar)
+
         self._splitter.addWidget(center_panel)
 
         self._right_panel = self._create_right_panel()
@@ -101,6 +105,8 @@ class WorkspacePage(QWidget):
         self._image_viewer.color_picked.connect(self._on_color_picked)
         self._image_viewer.file_dropped.connect(self._on_image_file_dropped)
         self._image_viewer.assisted_region_selected.connect(self._on_assisted_region)
+        self._image_viewer.curve_point_moved.connect(self._on_curve_point_moved)
+        self._image_viewer.mouse_moved.connect(self._on_viewer_mouse_moved)
 
     def _setup_shortcuts(self):
         """设置键盘快捷键（可在设置页自定义）"""
@@ -244,7 +250,7 @@ class WorkspacePage(QWidget):
         self._curve_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._curve_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._curve_table.setAlternatingRowColors(True)
-        self._curve_table.setFont(QFont("", 9))
+        self._curve_table.setFont(QFont("Noto Sans", 9))
         self._curve_table.verticalHeader().setDefaultSectionSize(22)
         self._curve_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._curve_table.customContextMenuRequested.connect(self._on_curve_table_context_menu)
@@ -410,6 +416,30 @@ class WorkspacePage(QWidget):
         bar_layout.addStretch()
         return bar
 
+    def _create_viewer_status_bar(self, parent) -> QWidget:
+        """创建图片查看器底部状态栏（图片路径 + 鼠标坐标）"""
+        bar = QWidget(parent)
+        bar.setFixedHeight(22)
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(4, 0, 4, 0)
+        bar_layout.setSpacing(8)
+        bar.setStyleSheet(f"background: transparent;")
+
+        self._status_path_label = QLabel("", bar)
+        self._status_path_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._status_path_label.setMaximumWidth(300)
+        self._status_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        bar_layout.addWidget(self._status_path_label)
+
+        bar_layout.addStretch()
+
+        self._status_coord_label = QLabel("", bar)
+        self._status_coord_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._status_coord_label.setMinimumWidth(180)
+        bar_layout.addWidget(self._status_coord_label)
+
+        return bar
+
     def _create_combined_tab(self) -> QWidget:
         """创建合并的图片选点功能区（手动/自动/辅助三节）"""
         from PySide6.QtWidgets import QSlider, QScrollArea
@@ -451,15 +481,17 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
-        self._calibrate_btn = ToggleToolButton(FIF.UNIT, manual_row)
+        self._calibrate_btn = FPushButton(FIF.UNIT, "校准", manual_row)
         self._calibrate_btn.setToolTip("校准 (C)")
-        self._calibrate_btn.setFixedSize(34, 34)
+        self._calibrate_btn.setCheckable(True)
+        self._calibrate_btn.setFixedHeight(34)
         self._calibrate_btn.clicked.connect(lambda: self._on_tool_clicked("calibrate"))
         ml.addWidget(self._calibrate_btn)
 
-        self._extract_btn = ToggleToolButton(FIF.PENCIL_INK, manual_row)
+        self._extract_btn = FPushButton(FIF.PENCIL_INK, "手动取点", manual_row)
         self._extract_btn.setToolTip("手动提取曲线 (P)")
-        self._extract_btn.setFixedSize(34, 34)
+        self._extract_btn.setCheckable(True)
+        self._extract_btn.setFixedHeight(34)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         ml.addWidget(self._extract_btn)
 
@@ -865,11 +897,11 @@ class WorkspacePage(QWidget):
             self._current_curve_points = []
 
             if coord_type == "linear":
-                self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点")
+                self._status_label.setText("请点击设置 X 轴起点 (第1/4)")
             elif coord_type == "log":
-                self._status_label.setText("请依次点击X轴起点、X轴终点、Y轴起点、Y轴终点（对数刻度）")
+                self._status_label.setText("请点击设置 X 轴起点 (第1/4) (对数刻度)")
             elif coord_type == "polar":
-                self._status_label.setText("请依次点击原点、A点(角度θ1)、B点(角度θ2)、C点(极径r1)")
+                self._status_label.setText("请点击设置原点 O (第1/2)")
         elif tool_name == "extract":
             # 提取曲线需要先选择或创建一个曲线
             if self._current_image_id is None:
@@ -2021,6 +2053,12 @@ class WorkspacePage(QWidget):
             self.project_modified.emit()
 
     def _on_image_loaded(self, file_path: str):
+        # 更新底部状态栏路径
+        if hasattr(self, '_status_path_label'):
+            import os as _os
+            short = _os.path.basename(file_path)
+            self._status_path_label.setText(short)
+            self._status_path_label.setToolTip(file_path)
         # 清除图片上的曲线
         self._image_viewer.clear_curves()
 
@@ -2274,20 +2312,59 @@ class WorkspacePage(QWidget):
 
     def _on_calibration_step(self, step_type: str):
         step_hints = {
-            "x_start": "请点击X轴起点",
-            "x_end": "请点击X轴终点",
-            "y_start": "请点击Y轴起点",
-            "y_end": "请点击Y轴终点",
-            "origin": "请点击原点(极点)",
-            "x_axis": "请点击正X轴方向点",
-            "y_axis": "请点击Y轴正方向点",
-            "angle_ref": "请点击角度参考点",
-            "complete": "校准完成！"
+            "x_start":            "请点击设置 X 轴起点 (第1/4)",
+            "x_end":              "请点击设置 X 轴终点 (第2/4)",
+            "y_start":            "请点击设置 Y 轴起点 (第3/4)",
+            "y_end":              "请点击设置 Y 轴终点 (第4/4)",
+            "origin":             "请点击设置原点 O (第1/2)",
+            "angle_radius_point": "请点击设置角度+极径参考点 A (第2/2)",
+            "x_axis":             "请点击正X轴方向点",
+            "y_axis":             "请点击正Y轴方向点",
+            "angle_ref":          "请点击角度参考点",
+            "complete":           "校准点已设置完成，请再次点击校准按钮完成校准"
         }
         self._status_label.setText(step_hints.get(step_type, ""))
 
     def _on_calibration_nudge(self, dx: float, dy: float):
         pass
+
+    def _on_viewer_mouse_moved(self, px: float, py: float):
+        """鼠标在图片上移动 - 更新底部状态栏坐标"""
+        if not hasattr(self, '_status_coord_label'):
+            return
+        # 计算校准坐标（如果可用）
+        if self._current_curve_id is not None:
+            curve = project_manager.get_curve(self._current_curve_id)
+            if curve and curve.calibration:
+                try:
+                    cx, cy = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                    self._status_coord_label.setText(f"像素: ({px:.1f}, {py:.1f})  坐标: ({cx:.4g}, {cy:.4g})")
+                    return
+                except Exception:
+                    pass
+        self._status_coord_label.setText(f"像素: ({px:.1f}, {py:.1f})")
+
+    def _on_curve_point_moved(self, index: int, new_px: float, new_py: float):
+        """曲线点被键盘微调后更新数据"""
+        if self._current_curve_id is None:
+            return
+        curve = project_manager.get_curve(self._current_curve_id)
+        if curve is None or index >= len(curve.x_data):
+            return
+        # 更新像素坐标
+        curve.x_data[index] = new_px
+        curve.y_data[index] = new_py
+        # 重新计算实际坐标
+        if curve.calibration:
+            x_actual, y_actual = project_manager.pixel_to_actual_coords(self._current_curve_id, new_px, new_py)
+        else:
+            x_actual, y_actual = new_px, new_py
+        if curve.x_actual and index < len(curve.x_actual):
+            curve.x_actual[index] = x_actual
+            curve.y_actual[index] = y_actual
+        # 更新表格（仅该行）
+        self._update_curve_table()
+        self.project_modified.emit()
 
     def _on_curve_point_added(self, px: float, py: float):
         """处理曲线点添加 - 直接写入 curve.x_data"""

@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QColorDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -30,6 +31,7 @@ from qfluentwidgets import (
     CardWidget,
     ComboBox,
     FluentIcon as FIF,
+    LineEdit,
     PushButton,
     SubtitleLabel,
     ToolButton,
@@ -103,39 +105,17 @@ class ChartPage(QWidget):
         root.setContentsMargins(20, 20, 20, 20)
         root.setSpacing(12)
 
-        header = QHBoxLayout()
-        header.addWidget(SubtitleLabel("图表", self))
-        header.addStretch()
-
-        self._import_btn = PushButton(FIF.DOWNLOAD, "导入对比数据", self)
-        self._import_btn.clicked.connect(self._on_import)
-        header.addWidget(self._import_btn)
-
-        self._clear_import_btn = PushButton(FIF.DELETE, "清除对比", self)
-        self._clear_import_btn.clicked.connect(self._on_clear_import)
-        header.addWidget(self._clear_import_btn)
-
-        self._export_img_btn = PushButton(FIF.SAVE, "导出图片", self)
-        self._export_img_btn.clicked.connect(self._on_export_image)
-        header.addWidget(self._export_img_btn)
-
-        self._refresh_btn = ToolButton(FIF.SYNC, self)
-        self._refresh_btn.setToolTip("刷新")
-        self._refresh_btn.clicked.connect(self._refresh)
-        header.addWidget(self._refresh_btn)
-
-        root.addLayout(header)
-
         splitter = QSplitter(Qt.Horizontal, self)
         splitter.setHandleWidth(6)
 
-        # ── 左侧面板 ─────────────────────────────────────────────────────
+        # \u2500\u2500 \u5de6\u4fa7\u9762\u677f \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         left_card = CardWidget(self)
         lv = QVBoxLayout(left_card)
         lv.setContentsMargins(12, 12, 12, 12)
         lv.setSpacing(8)
 
-        lv.addWidget(BodyLabel("曲线选择", left_card))
+        # \u66f2\u7ebf\u5217\u8868
+        lv.addWidget(BodyLabel("\u66f2\u7ebf\u9009\u62e9", left_card))
 
         self._curve_list = QListWidget(left_card)
         self._curve_list.setSelectionMode(QListWidget.MultiSelection)
@@ -143,50 +123,55 @@ class ChartPage(QWidget):
         self._curve_list.currentItemChanged.connect(self._on_current_item_changed)
         lv.addWidget(self._curve_list)
 
+        # \u5168\u9009 + \u5220\u9664\u5bfc\u5165\u66f2\u7ebf\uff08\u5e76\u6392\uff09
+        sel_row = QHBoxLayout()
+        self._select_all_btn = PushButton(FIF.CHECKBOX, "\u5168\u9009", left_card)
+        self._select_all_btn.setFixedHeight(30)
+        self._select_all_btn.clicked.connect(self._select_all)
+        sel_row.addWidget(self._select_all_btn)
+
+        self._delete_import_btn = PushButton(FIF.DELETE, "\u5220\u9664\u5bfc\u5165", left_card)
+        self._delete_import_btn.setFixedHeight(30)
+        self._delete_import_btn.setEnabled(False)
+        self._delete_import_btn.clicked.connect(self._on_delete_import_curve)
+        sel_row.addWidget(self._delete_import_btn)
+        lv.addLayout(sel_row)
+
+        def _sep():
+            s = QFrame(left_card)
+            s.setFrameShape(QFrame.HLine)
+            s.setFixedHeight(1)
+            return s
+
+        lv.addWidget(_sep())
+
+        # \u66f2\u7ebf\u6837\u5f0f\u533a\u57df
+        lv.addWidget(BodyLabel("\u66f2\u7ebf\u6837\u5f0f\uff08\u5355\u51fb\u5217\u8868\u9879\u7f16\u8f91\uff09", left_card))
+
+        # \u9ed8\u8ba4\u7ebf\u578b\uff08\u5c55\u793a\u6a21\u5f0f\uff09
         gl_row = QHBoxLayout()
-        gl_row.addWidget(BodyLabel("默认线型:", left_card))
+        gl_row.addWidget(BodyLabel("\u5c55\u793a:", left_card))
         self._global_line_combo = ComboBox(left_card)
         self._global_line_combo.addItems(_LINESTYLE_LABELS)
         self._global_line_combo.currentIndexChanged.connect(self._redraw)
         gl_row.addWidget(self._global_line_combo)
         lv.addLayout(gl_row)
 
-        self._select_all_btn = PushButton(FIF.CHECKBOX, "全选", left_card)
-        self._select_all_btn.clicked.connect(self._select_all)
-        lv.addWidget(self._select_all_btn)
-
-        sep = QFrame(left_card)
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFixedHeight(1)
-        lv.addWidget(sep)
-
-        # 样式面板标题 + 删除按钮
-        style_title_row = QHBoxLayout()
-        style_title_row.addWidget(BodyLabel("曲线样式（单击列表项编辑）", left_card))
-        style_title_row.addStretch()
-        self._delete_import_btn = ToolButton(FIF.DELETE, left_card)
-        self._delete_import_btn.setToolTip("删除该导入曲线")
-        self._delete_import_btn.setFixedSize(24, 24)
-        self._delete_import_btn.setEnabled(False)
-        self._delete_import_btn.clicked.connect(self._on_delete_import_curve)
-        style_title_row.addWidget(self._delete_import_btn)
-        lv.addLayout(style_title_row)
-
-        self._style_target_label = QLabel("— 未选中 —", left_card)
+        self._style_target_label = QLabel("\u2014 \u672a\u9009\u4e2d \u2014", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
         self._style_target_label.setWordWrap(True)
         lv.addWidget(self._style_target_label)
 
         color_row = QHBoxLayout()
-        color_row.addWidget(BodyLabel("颜色:", left_card))
+        color_row.addWidget(BodyLabel("\u989c\u8272:", left_card))
         self._style_color_btn = QPushButton(left_card)
         self._style_color_btn.setFixedSize(28, 28)
-        self._style_color_btn.setToolTip("点击选择颜色")
+        self._style_color_btn.setToolTip("\u70b9\u51fb\u9009\u62e9\u989c\u8272")
         self._style_color_btn.setEnabled(False)
         self._style_color_btn.clicked.connect(self._on_style_color_click)
         color_row.addWidget(self._style_color_btn)
         self._style_reset_color_btn = ToolButton(FIF.CANCEL, left_card)
-        self._style_reset_color_btn.setToolTip("重置为默认颜色")
+        self._style_reset_color_btn.setToolTip("\u91cd\u7f6e\u4e3a\u9ed8\u8ba4\u989c\u8272")
         self._style_reset_color_btn.setFixedSize(24, 24)
         self._style_reset_color_btn.setEnabled(False)
         self._style_reset_color_btn.clicked.connect(self._on_style_reset_color)
@@ -196,7 +181,7 @@ class ChartPage(QWidget):
 
         line_row = QHBoxLayout()
         line_row.setSpacing(6)
-        line_lbl = BodyLabel("线型:", left_card)
+        line_lbl = BodyLabel("\u7ebf\u578b:", left_card)
         line_lbl.setFixedWidth(36)
         line_row.addWidget(line_lbl)
         self._style_line_combo = ComboBox(left_card)
@@ -208,12 +193,86 @@ class ChartPage(QWidget):
         line_row.addStretch()
         lv.addLayout(line_row)
 
+        lv.addWidget(_sep())
+
+        # \u5750\u6807\u8f74\u8bbe\u7f6e
+        lv.addWidget(BodyLabel("\u5750\u6807\u8f74", left_card))
+
+        ax_form = QHBoxLayout()
+        ax_form.addWidget(QLabel("X\u5c55\u793a\u8303\u56f4:", left_card))
+        self._x_min_edit = LineEdit(left_card)
+        self._x_min_edit.setPlaceholderText("\u81ea\u52a8")
+        self._x_min_edit.setFixedWidth(52)
+        self._x_min_edit.textChanged.connect(self._redraw)
+        ax_form.addWidget(self._x_min_edit)
+        ax_form.addWidget(QLabel("\u2013", left_card))
+        self._x_max_edit = LineEdit(left_card)
+        self._x_max_edit.setPlaceholderText("\u81ea\u52a8")
+        self._x_max_edit.setFixedWidth(52)
+        self._x_max_edit.textChanged.connect(self._redraw)
+        ax_form.addWidget(self._x_max_edit)
+        lv.addLayout(ax_form)
+
+        ay_form = QHBoxLayout()
+        ay_form.addWidget(QLabel("Y\u5c55\u793a\u8303\u56f4:", left_card))
+        self._y_min_edit = LineEdit(left_card)
+        self._y_min_edit.setPlaceholderText("\u81ea\u52a8")
+        self._y_min_edit.setFixedWidth(52)
+        self._y_min_edit.textChanged.connect(self._redraw)
+        ay_form.addWidget(self._y_min_edit)
+        ay_form.addWidget(QLabel("\u2013", left_card))
+        self._y_max_edit = LineEdit(left_card)
+        self._y_max_edit.setPlaceholderText("\u81ea\u52a8")
+        self._y_max_edit.setFixedWidth(52)
+        self._y_max_edit.textChanged.connect(self._redraw)
+        ay_form.addWidget(self._y_max_edit)
+        lv.addLayout(ay_form)
+
+        xlabel_row = QHBoxLayout()
+        xlabel_row.addWidget(QLabel("X\u6807\u7b7e:", left_card))
+        self._x_label_edit = LineEdit(left_card)
+        self._x_label_edit.setPlaceholderText("X")
+        self._x_label_edit.textChanged.connect(self._redraw)
+        xlabel_row.addWidget(self._x_label_edit)
+        lv.addLayout(xlabel_row)
+
+        ylabel_row = QHBoxLayout()
+        ylabel_row.addWidget(QLabel("Y\u6807\u7b7e:", left_card))
+        self._y_label_edit = LineEdit(left_card)
+        self._y_label_edit.setPlaceholderText("Y")
+        self._y_label_edit.textChanged.connect(self._redraw)
+        ylabel_row.addWidget(self._y_label_edit)
+        lv.addLayout(ylabel_row)
+
+        lv.addWidget(_sep())
+
+        # \u6570\u636e\u5bf9\u6bd4\u533a\u57df
+        lv.addWidget(BodyLabel("\u6570\u636e\u5bf9\u6bd4", left_card))
+
+        self._import_btn = PushButton(FIF.DOWNLOAD, "\u5bfc\u5165\u5bf9\u6bd4\u6570\u636e", left_card)
+        self._import_btn.clicked.connect(self._on_import)
+        lv.addWidget(self._import_btn)
+
+        cmp_row = QHBoxLayout()
+        self._clear_import_btn = PushButton(FIF.DELETE, "\u6e05\u9664\u5bf9\u6bd4", left_card)
+        self._clear_import_btn.clicked.connect(self._on_clear_import)
+        cmp_row.addWidget(self._clear_import_btn)
+
+        self._export_img_btn = PushButton(FIF.SAVE, "\u5bfc\u51fa\u56fe\u7247", left_card)
+        self._export_img_btn.clicked.connect(self._on_export_image)
+        cmp_row.addWidget(self._export_img_btn)
+        lv.addLayout(cmp_row)
+
+        self._refresh_btn = PushButton(FIF.SYNC, "\u5237\u65b0", left_card)
+        self._refresh_btn.clicked.connect(self._refresh)
+        lv.addWidget(self._refresh_btn)
+
         lv.addStretch()
-        left_card.setMinimumWidth(210)
-        left_card.setMaximumWidth(310)
+        left_card.setMinimumWidth(220)
+        left_card.setMaximumWidth(320)
         splitter.addWidget(left_card)
 
-        # ── 右侧图表 ──────────────────────────────────────────────────────
+        # \u2500\u2500 \u53f3\u4fa7\u56fe\u8868 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         right_card = CardWidget(self)
         rv = QVBoxLayout(right_card)
         rv.setContentsMargins(8, 8, 8, 8)
@@ -224,7 +283,7 @@ class ChartPage(QWidget):
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)
         else:
-            no_mpl = QLabel("matplotlib 未安装，请运行：uv pip install matplotlib", self)
+            no_mpl = QLabel("\u6ca1\u6709\u5b89\u88c5 matplotlib\uff0c\u8bf7\u8fd0\u884c\uff1auv pip install matplotlib", self)
             no_mpl.setAlignment(Qt.AlignCenter)
             rv.addWidget(no_mpl)
             self._figure = None
@@ -333,9 +392,38 @@ class ChartPage(QWidget):
         if self._selected_curves():
             ax.legend(facecolor=bg, edgecolor=fg, labelcolor=fg, fontsize=8)
 
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_title("曲线图表")
+        x_label = self._x_label_edit.text().strip() if hasattr(self, '_x_label_edit') else ""
+        y_label = self._y_label_edit.text().strip() if hasattr(self, '_y_label_edit') else ""
+        ax.set_xlabel(x_label or "X")
+        ax.set_ylabel(y_label or "Y")
+        ax.set_title("")
+
+        def _parse(edit):
+            try:
+                return float(edit.text().strip())
+            except Exception:
+                return None
+
+        if hasattr(self, '_x_min_edit') and hasattr(self, '_x_max_edit'):
+            x_min = _parse(self._x_min_edit)
+            x_max = _parse(self._x_max_edit)
+            if x_min is not None and x_max is not None and x_min < x_max:
+                ax.set_xlim(x_min, x_max)
+            elif x_min is not None and x_max is None:
+                ax.set_xlim(left=x_min)
+            elif x_min is None and x_max is not None:
+                ax.set_xlim(right=x_max)
+
+        if hasattr(self, '_y_min_edit') and hasattr(self, '_y_max_edit'):
+            y_min = _parse(self._y_min_edit)
+            y_max = _parse(self._y_max_edit)
+            if y_min is not None and y_max is not None and y_min < y_max:
+                ax.set_ylim(y_min, y_max)
+            elif y_min is not None and y_max is None:
+                ax.set_ylim(bottom=y_min)
+            elif y_min is None and y_max is not None:
+                ax.set_ylim(top=y_max)
+
         self._canvas.draw()
 
     # ──────────────────────────── 样式面板 ──────────────────────────────

@@ -280,6 +280,7 @@ class ImageViewer(QWidget):
     image_loaded = Signal(str)  # 图片加载信号
     calibration_complete = Signal(object)  # 校准完成信号，发送 CalibrationOverlay
     curve_point_added = Signal(float, float)  # 曲线点添加信号 (x, y 像素坐标)
+    curve_point_moved = Signal(int, float, float)  # 曲线点移动信号 (index, x, y 像素坐标)
     calibration_step = Signal(str)  # 校准步骤信号，发送下一个需要设置的点类型
     calibration_nudge = Signal(float, float)  # 微调信号 (dx, dy)
     eraser_point = Signal(float, float)  # 橡皮擦信号 (x, y 像素坐标)
@@ -289,6 +290,7 @@ class ImageViewer(QWidget):
     color_picked = Signal(object)  # 取色信号，发送 QColor
     file_dropped = Signal(str)  # 文件拖入信号，发送文件路径
     assisted_region_selected = Signal(float, float, float, float)  # 辅助选点区域信号 (x1,y1,x2,y2)
+    mouse_moved = Signal(float, float)  # 鼠标移动信号 (x, y 图片像素坐标)
 
     # 工具模式
     MODE_SELECT = "select"
@@ -324,6 +326,10 @@ class ImageViewer(QWidget):
 
         # 工具模式
         self._current_tool = self.MODE_SELECT
+
+        # 曲线点选中/微调
+        self._selected_point_index: int = -1
+        self._point_nudge_mode: bool = False
 
         # 校准状态
         self._calibration_step_hint = ""
@@ -692,10 +698,44 @@ class ImageViewer(QWidget):
         if self._calibration.x_start is None:
             return
 
-        # 获取图片尺寸用于绘制延伸到边缘的线
         if self._pixmap is None:
             return
 
+        # ── 极坐标：十字标记 + 连线 ──────────────────────────────────────
+        if self._calibration.coord_type == "polar":
+            arm = 14.0 / self._scale
+            pen = QPen(QColor("#FF9800"))
+            pen.setWidthF(1.5 / self._scale)
+            painter.setPen(pen)
+
+            origin_pt = self._calibration.x_start
+            a_pt = self._calibration.x_end
+
+            # 十字：原点
+            ox, oy = origin_pt.x(), origin_pt.y()
+            painter.drawLine(QPointF(ox - arm, oy), QPointF(ox + arm, oy))
+            painter.drawLine(QPointF(ox, oy - arm), QPointF(ox, oy + arm))
+
+            if a_pt:
+                # 十字：A 点
+                ax, ay = a_pt.x(), a_pt.y()
+                painter.drawLine(QPointF(ax - arm, ay), QPointF(ax + arm, ay))
+                painter.drawLine(QPointF(ax, ay - arm), QPointF(ax, ay + arm))
+
+                # 两点连线
+                pen_line = QPen(QColor("#FF9800"))
+                pen_line.setWidthF(1.5 / self._scale)
+                pen_line.setStyle(Qt.PenStyle.DashLine)
+                painter.setPen(pen_line)
+                painter.drawLine(origin_pt, a_pt)
+
+            # 标记标签
+            self._draw_point_marker(painter, origin_pt, "#FF5722", "O")
+            if a_pt:
+                self._draw_point_marker(painter, a_pt, "#4CAF50", "A")
+            return
+
+        # ── 线性/对数：纵横延长线 ────────────────────────────────────────
         img_width = self._pixmap.width()
         img_height = self._pixmap.height()
 
@@ -729,7 +769,6 @@ class ImageViewer(QWidget):
             painter.drawLine(QPointF(0, y2), QPointF(img_width, y2))
 
         # 绘制校准点标记
-        r = self._point_size / self._scale
         self._draw_point_marker(painter, self._calibration.x_start, "#FF5722", "Xs")
         if self._calibration.x_end:
             self._draw_point_marker(painter, self._calibration.x_end, "#4CAF50", "Xe")
@@ -757,9 +796,10 @@ class ImageViewer(QWidget):
 
         # 只在提取模式下绘制当前正在提取的曲线
         if self._current_tool == self.MODE_EXTRACT and self._current_curve and self._current_curve.points:
-            self._draw_single_curve(painter, self._current_curve)
+            sel_idx = self._selected_point_index if self._point_nudge_mode else -1
+            self._draw_single_curve(painter, self._current_curve, selected_index=sel_idx)
 
-    def _draw_single_curve(self, painter: QPainter, curve_item: CurveOverlayItem):
+    def _draw_single_curve(self, painter: QPainter, curve_item: CurveOverlayItem, selected_index: int = -1):
         """绘制单条曲线"""
         if not curve_item.points:
             return
@@ -771,7 +811,17 @@ class ImageViewer(QWidget):
 
         shape = getattr(curve_item, 'point_shape', 'circle')
 
-        for px, py in curve_item.points:
+        for idx, (px, py) in enumerate(curve_item.points):
+            # 选中点：外圈高亮
+            if idx == selected_index:
+                ring_r = r * 2.2
+                painter.save()
+                painter.setPen(QPen(QColor("#FFD700"), 2.0 / self._scale))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(QPointF(px, py), ring_r, ring_r)
+                painter.restore()
+                painter.setPen(QPen(color, 2.0 / self._scale))
+                painter.setBrush(QBrush(color))
             if shape == 'square':
                 rect = QRectF(px - r, py - r, r * 2, r * 2)
                 painter.drawRect(rect)
@@ -998,8 +1048,42 @@ class ImageViewer(QWidget):
             self._calibration.nudge_current_point(dx, dy)
             self.calibration_nudge.emit(dx, dy)
             self.update()
-        elif self._current_tool in (self.MODE_EXTRACT, self.MODE_ERASER):
+        elif self._current_tool == self.MODE_EXTRACT:
             # E键切换橡皮擦和提取模式
+            if event.key() == Qt.Key_E:
+                self.toggle_eraser_mode.emit()
+                return
+            # Escape 退出微调模式
+            if event.key() == Qt.Key_Escape:
+                self._selected_point_index = -1
+                self._point_nudge_mode = False
+                self.update()
+                return
+            # 方向键微调选中点
+            if self._point_nudge_mode and self._selected_point_index >= 0 and self._current_curve:
+                pts = self._current_curve.points
+                if self._selected_point_index < len(pts):
+                    dx, dy = 0, 0
+                    if event.key() in (Qt.Key_Left, Qt.Key_A):
+                        dx = -self._nudge_step
+                    elif event.key() in (Qt.Key_Right, Qt.Key_D):
+                        dx = self._nudge_step
+                    elif event.key() in (Qt.Key_Up, Qt.Key_W):
+                        dy = -self._nudge_step
+                    elif event.key() in (Qt.Key_Down, Qt.Key_S):
+                        dy = self._nudge_step
+                    else:
+                        super().keyPressEvent(event)
+                        return
+                    old_x, old_y = pts[self._selected_point_index]
+                    new_x = old_x + dx
+                    new_y = old_y + dy
+                    self._current_curve.points[self._selected_point_index] = (new_x, new_y)
+                    self.curve_point_moved.emit(self._selected_point_index, new_x, new_y)
+                    self.update()
+                    return
+            super().keyPressEvent(event)
+        elif self._current_tool == self.MODE_ERASER:
             if event.key() == Qt.Key_E:
                 self.toggle_eraser_mode.emit()
             else:
@@ -1123,14 +1207,41 @@ class ImageViewer(QWidget):
             self._current_curve = CurveOverlayItem()
 
         self._current_curve.add_point(img_pos.x(), img_pos.y())
+        # 新取的点自动进入微调模式
+        self._selected_point_index = len(self._current_curve.points) - 1
+        self._point_nudge_mode = True
         self.curve_point_added.emit(img_pos.x(), img_pos.y())
         self.update()
+
+    def mouseDoubleClickEvent(self, event):
+        """双击 - 在提取模式下选中最近的曲线点进入微调"""
+        if self._current_tool != self.MODE_EXTRACT:
+            super().mouseDoubleClickEvent(event)
+            return
+        if self._current_curve is None or not self._current_curve.points:
+            return
+        pos = event.position()
+        img_pos = self._widget_to_image_coords(pos)
+        mx, my = img_pos.x(), img_pos.y()
+        threshold = (self._point_size / self._scale) * 4.0  # 选中判定半径
+        best_idx = -1
+        best_dist = float('inf')
+        for i, (px, py) in enumerate(self._current_curve.points):
+            dist = ((px - mx) ** 2 + (py - my) ** 2) ** 0.5
+            if dist < threshold and dist < best_dist:
+                best_dist = dist
+                best_idx = i
+        if best_idx >= 0:
+            self._selected_point_index = best_idx
+            self._point_nudge_mode = True
+            self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         """鼠标移动"""
         # 跟踪鼠标位置
         if self._pixmap:
             self._mouse_image_pos = self._widget_to_image_coords(event.position())
+            self.mouse_moved.emit(self._mouse_image_pos.x(), self._mouse_image_pos.y())
         else:
             self._mouse_image_pos = None
 
