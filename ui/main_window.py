@@ -65,8 +65,10 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
-        # 导航栏可折叠（用户可点击汉堡按钮手动收起/展开）
-        self.navigationInterface.setCollapsible(False)
+        # 导航栏展开时以浮层方式覆盖内容（而非推开内容）
+        # 设置 minimumExpandWidth 超大，使展开始终走 MENU（overlay）模式
+        self.navigationInterface.setMinimumExpandWidth(99999)
+        self.navigationInterface.setAcrylicEnabled(True)
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
