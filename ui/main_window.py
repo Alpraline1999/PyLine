@@ -65,8 +65,8 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
-        # 永远保持缩起状态，禁止展开
-        self.navigationInterface.setCollapsible(False)
+        # 隐藏汉堡按钮，禁止用户手动展开导航栏（保持 COMPACT 图标模式）
+        self.navigationInterface.panel.setMenuButtonVisible(False)
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""
