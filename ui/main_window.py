@@ -65,10 +65,8 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM
         )
 
-        # 导航栏展开时以浮层方式覆盖内容（而非推开内容）
-        # 设置 minimumExpandWidth 超大，使展开始终走 MENU（overlay）模式
-        self.navigationInterface.setMinimumExpandWidth(99999)
-        self.navigationInterface.setAcrylicEnabled(True)
+        # 永远保持缩起状态，禁止展开
+        self.navigationInterface.setCollapsible(False)
 
     def _setup_theme_watcher(self):
         """监听主题变化并更新各页面颜色"""

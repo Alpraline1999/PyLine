@@ -1,7 +1,7 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, TogglePushButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton
+from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, TogglePushButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel, PushButton as FPushButton, TableWidget, ComboBox
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -240,21 +240,20 @@ class WorkspacePage(QWidget):
         layout.addWidget(title_label)
 
         # 曲线数据表格（带可点击排序表头）
-        self._curve_table = QTableWidget(panel)
+        self._curve_table = TableWidget(panel)
         self._curve_table.setColumnCount(2)
         self._curve_table.setHorizontalHeaderLabels(["X", "Y"])
         self._curve_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self._curve_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self._curve_table.horizontalHeader().setSectionsClickable(True)
         self._curve_table.horizontalHeader().sectionClicked.connect(self._on_header_sort)
-        self._curve_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._curve_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._curve_table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
+        self._curve_table.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
         self._curve_table.setAlternatingRowColors(True)
         self._curve_table.setFont(QFont("Noto Sans", 9))
         self._curve_table.verticalHeader().setDefaultSectionSize(22)
         self._curve_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._curve_table.customContextMenuRequested.connect(self._on_curve_table_context_menu)
-        self._apply_table_theme()
         layout.addWidget(self._curve_table)
 
         # 功能区页面
@@ -348,7 +347,7 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._color_btn)
 
         # 形状
-        self._shape_combo = QComboBox(bar)
+        self._shape_combo = ComboBox(bar)
         self._shape_combo.addItems(["●", "■", "▲", "◆", "▼", "✕", "★"])
         self._shape_combo.setToolTip("曲线点形状")
         self._shape_combo.setFixedWidth(52)
@@ -642,7 +641,7 @@ class WorkspacePage(QWidget):
         self._assist_btn.clicked.connect(lambda: self._on_tool_clicked("assisted"))
         al.addWidget(self._assist_btn)
 
-        self._assist_shape_combo = QComboBox(assist_btn_row)
+        self._assist_shape_combo = ComboBox(assist_btn_row)
         self._assist_shape_combo.addItems(["▭", "◯"])
         self._assist_shape_combo.setFixedWidth(70)
         self._assist_shape_combo.setToolTip("辅助区域形状")
@@ -678,7 +677,7 @@ class WorkspacePage(QWidget):
         # 导出范围
         scope_row = QHBoxLayout()
         scope_row.addWidget(BodyLabel("导出范围:", tab))
-        self._export_scope_combo = QComboBox(tab)
+        self._export_scope_combo = ComboBox(tab)
         self._export_scope_combo.addItems(["当前曲线", "全部曲线"])
         scope_row.addWidget(self._export_scope_combo)
         layout.addLayout(scope_row)
@@ -686,7 +685,7 @@ class WorkspacePage(QWidget):
         # 格式
         fmt_row = QHBoxLayout()
         fmt_row.addWidget(BodyLabel("文件格式:", tab))
-        self._export_fmt_combo = QComboBox(tab)
+        self._export_fmt_combo = ComboBox(tab)
         self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
         fmt_row.addWidget(self._export_fmt_combo)
         layout.addLayout(fmt_row)
@@ -2121,7 +2120,6 @@ class WorkspacePage(QWidget):
 
         # 更新原生 Qt 控件主题色
         self._apply_tree_theme()
-        self._apply_table_theme()
         self._apply_tabs_theme()
 
         # 更新工具栏中无 bold 的普通 QLabel（大小/步长/橡皮 等说明文字）
@@ -2158,43 +2156,6 @@ class WorkspacePage(QWidget):
                 background-color: {bg};
                 color: {tc};
                 border: none;
-            }}
-        """)
-
-    def _apply_table_theme(self):
-        """为 QTableWidget 应用暗色/亮色主题样式"""
-        from ui.theme import text_color, card_background_color, border_color
-        tc = text_color()
-        bg = card_background_color()
-        bc = border_color()
-        self._curve_table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {bg};
-                alternate-background-color: {'#333333' if bg == '#2d2d2d' else '#f8f8f8'};
-                border: none;
-                color: {tc};
-                gridline-color: {bc};
-                outline: none;
-            }}
-            QTableWidget::item:selected {{
-                background-color: rgba(0, 120, 212, 0.18);
-                color: {tc};
-            }}
-            QHeaderView::section {{
-                background-color: {bg};
-                color: {tc};
-                border: none;
-                border-bottom: 1px solid {bc};
-                padding: 4px;
-                font-weight: bold;
-            }}
-            QScrollBar:vertical {{
-                background: {bg};
-                width: 8px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {bc};
-                border-radius: 4px;
             }}
         """)
 
