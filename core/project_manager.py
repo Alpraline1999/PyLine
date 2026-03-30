@@ -230,7 +230,7 @@ class ProjectManager:
             else:
                 t_y = 0
 
-        y_actual = calib.y_range[1] - t_y * (calib.y_range[1] - calib.y_range[0])  # Y轴反转
+        y_actual = calib.y_range[0] + t_y * (calib.y_range[1] - calib.y_range[0])  # Y轴（dy<0时自动反转）
 
         return (x_actual, y_actual)
 
@@ -278,7 +278,7 @@ class ProjectManager:
 
         log_min_y = math.log10(max(calib.y_range[0], 1e-10))
         log_max_y = math.log10(max(calib.y_range[1], 1e-10))
-        y_actual = math.pow(10, log_min_y + (1 - t_y) * (log_max_y - log_min_y))
+        y_actual = math.pow(10, log_min_y + t_y * (log_max_y - log_min_y))
 
         return (x_actual, y_actual)
 
