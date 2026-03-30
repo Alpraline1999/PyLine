@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QSplitter, QFileDialog, QInputDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QAbstractItemView, QTabWidget, QSpinBox, QFormLayout, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMenu
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton
+from qfluentwidgets import CardWidget, ToolButton, ToggleToolButton, LineEdit, SpinBox, ColorPickerButton, BodyLabel
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -518,7 +518,7 @@ class WorkspacePage(QWidget):
         tl = QHBoxLayout(tol_row)
         tl.setContentsMargins(0, 0, 0, 0)
         tl.setSpacing(4)
-        tol_lbl = QLabel("容差:", tol_row)
+        tol_lbl = BodyLabel("容差:", tol_row)
         tol_lbl.setFixedWidth(38)
         tl.addWidget(tol_lbl)
         self._tol_slider = QSlider(Qt.Orientation.Horizontal, tol_row)
@@ -536,7 +536,7 @@ class WorkspacePage(QWidget):
         sl = QHBoxLayout(step_row)
         sl.setContentsMargins(0, 0, 0, 0)
         sl.setSpacing(4)
-        sl.addWidget(QLabel("步长:", step_row))
+        sl.addWidget(BodyLabel("步长:", step_row))
         self._auto_step_slider = QSlider(Qt.Orientation.Horizontal, step_row)
         self._auto_step_slider.setRange(1, 20)
         self._auto_step_slider.setValue(2)
@@ -647,7 +647,7 @@ class WorkspacePage(QWidget):
 
         # 导出范围
         scope_row = QHBoxLayout()
-        scope_row.addWidget(QLabel("导出范围:", tab))
+        scope_row.addWidget(BodyLabel("导出范围:", tab))
         self._export_scope_combo = QComboBox(tab)
         self._export_scope_combo.addItems(["当前曲线", "全部曲线"])
         scope_row.addWidget(self._export_scope_combo)
@@ -655,7 +655,7 @@ class WorkspacePage(QWidget):
 
         # 格式
         fmt_row = QHBoxLayout()
-        fmt_row.addWidget(QLabel("文件格式:", tab))
+        fmt_row.addWidget(BodyLabel("文件格式:", tab))
         self._export_fmt_combo = QComboBox(tab)
         self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
         fmt_row.addWidget(self._export_fmt_combo)

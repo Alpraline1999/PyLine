@@ -141,3 +141,4 @@ class MainWindow(FluentWindow):
         self.home_page.update_theme()
         self.settings_page._update_colors()
         self.workspace_page.update_theme_colors()
+        self.chart_page._redraw()

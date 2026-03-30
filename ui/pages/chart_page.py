@@ -160,7 +160,17 @@ class ChartPage(QWidget):
         sep.setFixedHeight(1)
         lv.addWidget(sep)
 
-        lv.addWidget(BodyLabel("曲线样式（单击选中后编辑）", left_card))
+        # 样式面板标题 + 删除按钮
+        style_title_row = QHBoxLayout()
+        style_title_row.addWidget(BodyLabel("曲线样式（单击列表项编辑）", left_card))
+        style_title_row.addStretch()
+        self._delete_import_btn = ToolButton(FIF.DELETE, left_card)
+        self._delete_import_btn.setToolTip("删除该导入曲线")
+        self._delete_import_btn.setFixedSize(24, 24)
+        self._delete_import_btn.setEnabled(False)
+        self._delete_import_btn.clicked.connect(self._on_delete_import_curve)
+        style_title_row.addWidget(self._delete_import_btn)
+        lv.addLayout(style_title_row)
 
         self._style_target_label = QLabel("— 未选中 —", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
@@ -185,12 +195,17 @@ class ChartPage(QWidget):
         lv.addLayout(color_row)
 
         line_row = QHBoxLayout()
-        line_row.addWidget(BodyLabel("线型:", left_card))
+        line_row.setSpacing(6)
+        line_lbl = BodyLabel("线型:", left_card)
+        line_lbl.setFixedWidth(36)
+        line_row.addWidget(line_lbl)
         self._style_line_combo = ComboBox(left_card)
         self._style_line_combo.addItems(_LINESTYLE_LABELS)
         self._style_line_combo.setEnabled(False)
+        self._style_line_combo.setMaximumWidth(140)
         self._style_line_combo.currentIndexChanged.connect(self._on_style_line_changed)
         line_row.addWidget(self._style_line_combo)
+        line_row.addStretch()
         lv.addLayout(line_row)
 
         lv.addStretch()
@@ -329,6 +344,8 @@ class ChartPage(QWidget):
         self._style_color_btn.setEnabled(enabled)
         self._style_reset_color_btn.setEnabled(enabled)
         self._style_line_combo.setEnabled(enabled)
+        is_import = enabled and curve is not None and curve.get("source") == "import"
+        self._delete_import_btn.setEnabled(is_import)
         if enabled and curve:
             name = curve["name"]
             self._style_target = name
@@ -386,6 +403,15 @@ class ChartPage(QWidget):
             return
         self._curve_styles.setdefault(self._style_target, {})["linestyle"] = _LINESTYLE_VALUES[idx]
         self._redraw()
+
+    def _on_delete_import_curve(self):
+        """删除当前选中的导入曲线"""
+        if not self._style_target:
+            return
+        self._import_curves = [c for c in self._import_curves if c["name"] != self._style_target]
+        self._curve_styles.pop(self._style_target, None)
+        self._style_target = None
+        self._refresh()
 
     def _find_curve_by_name(self, name: str) -> Optional[dict]:
         for i in range(self._curve_list.count()):
