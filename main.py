@@ -1,4 +1,11 @@
 import sys
+import os
+
+# 确保项目根目录在 sys.path 中，无论从哪里启动
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets.common.config import qconfig, Theme
 from qfluentwidgets.common.style_sheet import setTheme
