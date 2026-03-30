@@ -274,7 +274,7 @@ class ChartPage(QWidget):
         rv.setContentsMargins(8, 8, 8, 8)
 
         if HAS_MATPLOTLIB:
-            self._figure = Figure(tight_layout=True)
+            self._figure = Figure(constrained_layout=True)
             self._canvas = FigureCanvas(self._figure)
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)

@@ -4,7 +4,8 @@ from PySide6.QtGui import QFont, QColor
 from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePushButton,
     LineEdit, SpinBox, ColorPickerButton, BodyLabel, CaptionLabel, SubtitleLabel,
     PushButton as FPushButton, TableWidget, ComboBox, TreeWidget, TreeItemDelegate,
-    Slider, SmoothScrollArea, TabWidget, MessageBox, InfoBar, RoundMenu, MessageBoxBase)
+    Slider, SmoothScrollArea, TabWidget, TabCloseButtonDisplayMode,
+    MessageBox, InfoBar, RoundMenu, MessageBoxBase)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -279,6 +280,8 @@ class WorkspacePage(QWidget):
 
         # 功能区页面
         self._right_tabs = TabWidget(panel)
+        self._right_tabs.tabBar.setAddButtonVisible(False)
+        self._right_tabs.tabBar.setCloseButtonDisplayMode(TabCloseButtonDisplayMode.NEVER)
         combined_tab = self._create_combined_tab()
         self._right_tabs.addTab(combined_tab, "图片选点")
         export_tab = self._create_export_tab()
