@@ -626,7 +626,7 @@ class WorkspacePage(QWidget):
         mml.addWidget(self._brush_mask_btn)
 
         self._clear_masks_btn = ToolButton(FIF.DELETE, mask_row)
-        self._clear_masks_btn.setToolTip("清除蒙版 (Ctrl+Alt+Delete)")
+        self._clear_masks_btn.setToolTip("清除蒙版 (Ctrl+Shift+Delete)")
         self._clear_masks_btn.setFixedSize(34, 34)
         self._clear_masks_btn.clicked.connect(self._on_clear_masks)
         mml.addWidget(self._clear_masks_btn)
