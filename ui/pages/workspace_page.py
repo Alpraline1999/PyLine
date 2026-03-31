@@ -864,7 +864,7 @@ class WorkspacePage(QWidget):
                         self._curve_table.setItem(row, 0, x_item)
                         self._curve_table.setItem(row, 1, y_item)
 
-    def _refresh_project_tree(self):
+    def _refresh_project_tree(self, show_indicator: bool = False):
         self._project_tree.clear()
 
         current_img_id = self._current_image_id
@@ -881,16 +881,17 @@ class WorkspacePage(QWidget):
                 font.setBold(True)
                 project_item.setFont(0, font)
                 self._current_project_item = project_item
-                from PySide6.QtGui import QBrush, QColor
-                bg_color = QColor(self._selection_background_color())
-                project_item.setBackground(0, QBrush(bg_color))
+                if show_indicator:
+                    from PySide6.QtGui import QBrush, QColor
+                    bg_color = QColor(self._selection_background_color())
+                    project_item.setBackground(0, QBrush(bg_color))
 
             for img in project.images:
                 img_item = QTreeWidgetItem(project_item)
                 img_item.setText(0, f"🖼️ {img.name}")
                 img_item.setData(0, Qt.ItemDataRole.UserRole, ("image", img.id, project.id))
                 img_item.setExpanded(True)
-                if img.id == current_img_id:
+                if show_indicator and img.id == current_img_id:
                     from PySide6.QtGui import QBrush, QColor
                     bg_color = QColor(self._selection_background_color())
                     img_item.setBackground(0, QBrush(bg_color))
@@ -904,7 +905,7 @@ class WorkspacePage(QWidget):
                     else:
                         curve_item.setText(0, f"📈 {curve.name}")
                     curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id, img.id))
-                    if curve.id == current_curve_id:
+                    if show_indicator and curve.id == current_curve_id:
                         from PySide6.QtGui import QBrush, QColor
                         bg_color = QColor(self._selection_background_color())
                         curve_item.setBackground(0, QBrush(bg_color))
@@ -917,7 +918,7 @@ class WorkspacePage(QWidget):
                 else:
                     curve_item.setText(0, f"📈 {curve.name}")
                 curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id))
-                if curve.id == current_curve_id:
+                if show_indicator and curve.id == current_curve_id:
                     from PySide6.QtGui import QBrush, QColor
                     bg_color = QColor(self._selection_background_color())
                     curve_item.setBackground(0, QBrush(bg_color))
@@ -1882,6 +1883,10 @@ class WorkspacePage(QWidget):
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if data is None:
             return
+
+        # 右键时先选中该项（同左键逻辑），然后带指示标志刷新
+        self._on_tree_item_clicked(item, 0)
+        self._refresh_project_tree(show_indicator=True)
 
         menu = RoundMenu(parent=self)
         item_type = data[0]
