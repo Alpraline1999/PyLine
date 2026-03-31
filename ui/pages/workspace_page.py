@@ -375,7 +375,7 @@ class WorkspacePage(QWidget):
         self._shape_combo = ComboBox(bar)
         self._shape_combo.addItems(["●", "■", "▲", "◆", "▼", "✕", "★"])
         self._shape_combo.setToolTip("曲线点形状")
-        self._shape_combo.setFixedWidth(80)
+        self._shape_combo.setFixedWidth(75)
         self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
         bar_layout.addWidget(self._shape_combo)
 
@@ -388,26 +388,28 @@ class WorkspacePage(QWidget):
         self._point_size_spin = SpinBox(bar)
         self._point_size_spin.setRange(1, 50)
         self._point_size_spin.setValue(3)
-        self._point_size_spin.setFixedWidth(72)
+        self._point_size_spin.setFixedWidth(60)
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         self._point_size_value_label = BodyLabel("3px", bar)
+        self._point_size_value_label.setFixedWidth(24)
         self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         bar_layout.addWidget(self._point_size_spin)
         bar_layout.addWidget(self._point_size_value_label)
 
-        # 步长
-        _lbl_step = BodyLabel("步长:", bar)
-        _lbl_step.setStyleSheet(f"color: {text_color()};")
-        bar_layout.addWidget(_lbl_step)
-        self._nudge_step_spin = SpinBox(bar)
-        self._nudge_step_spin.setRange(1, 20)
-        self._nudge_step_spin.setValue(3)
-        self._nudge_step_spin.setFixedWidth(72)
-        self._nudge_step_spin.valueChanged.connect(self._on_nudge_step_changed)
-        self._nudge_step_value_label = BodyLabel("3px", bar)
-        self._nudge_step_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
-        bar_layout.addWidget(self._nudge_step_spin)
-        bar_layout.addWidget(self._nudge_step_value_label)
+        # 选点区域
+        _lbl_sel_area = BodyLabel("选点:", bar)
+        _lbl_sel_area.setStyleSheet(f"color: {text_color()};")
+        bar_layout.addWidget(_lbl_sel_area)
+        self._select_area_slider = Slider(Qt.Orientation.Horizontal, bar)
+        self._select_area_slider.setRange(2, 30)
+        self._select_area_slider.setValue(10)
+        self._select_area_slider.setFixedWidth(80)
+        self._select_area_slider.valueChanged.connect(self._on_select_area_changed)
+        self._select_area_value_label = BodyLabel("10px", bar)
+        self._select_area_value_label.setFixedWidth(30)
+        self._select_area_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        bar_layout.addWidget(self._select_area_slider)
+        bar_layout.addWidget(self._select_area_value_label)
 
         # 橡皮大小
         _lbl_eraser = BodyLabel("橡皮:", bar)
@@ -415,10 +417,11 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(_lbl_eraser)
         self._eraser_size_spin = SpinBox(bar)
         self._eraser_size_spin.setRange(1, 100)
-        self._eraser_size_spin.setValue(20)
-        self._eraser_size_spin.setFixedWidth(72)
+        self._eraser_size_spin.setValue(15)
+        self._eraser_size_spin.setFixedWidth(60)
         self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
-        self._eraser_size_value_label = BodyLabel("20px", bar)
+        self._eraser_size_value_label = BodyLabel("15px", bar)
+        self._eraser_size_value_label.setFixedWidth(24)
         self._eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
         bar_layout.addWidget(self._eraser_size_spin)
         bar_layout.addWidget(self._eraser_size_value_label)
@@ -610,6 +613,23 @@ class WorkspacePage(QWidget):
         self._tol_slider.valueChanged.connect(lambda v: self._tol_val_lbl.setText(str(v)))
         layout.addWidget(self._tol_widget)
 
+        # --- 搜索步长 ---
+        step_row = QWidget(content)
+        sl = QHBoxLayout(step_row)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.setSpacing(4)
+        sl.addWidget(BodyLabel("搜索步长:", step_row))
+        self._auto_step_slider = Slider(Qt.Orientation.Horizontal, step_row)
+        self._auto_step_slider.setRange(1, 20)
+        self._auto_step_slider.setValue(5)
+        sl.addWidget(self._auto_step_slider, 1)
+        self._step_val_lbl = BodyLabel("5", step_row)
+        self._step_val_lbl.setFixedWidth(24)
+        self._step_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        sl.addWidget(self._step_val_lbl)
+        self._auto_step_slider.valueChanged.connect(lambda v: self._step_val_lbl.setText(str(v)))
+        layout.addWidget(step_row)
+
         # --- 匹配阈值（图形识别 / 综合识别 时显示）---
         self._match_thr_widget = QWidget(content)
         mtl = QHBoxLayout(self._match_thr_widget)
@@ -655,23 +675,6 @@ class WorkspacePage(QWidget):
         )
         self._color_weight_widget.setVisible(False)
         layout.addWidget(self._color_weight_widget)
-
-        # --- 搜索步长 ---
-        step_row = QWidget(content)
-        sl = QHBoxLayout(step_row)
-        sl.setContentsMargins(0, 0, 0, 0)
-        sl.setSpacing(4)
-        sl.addWidget(BodyLabel("搜索步长:", step_row))
-        self._auto_step_slider = Slider(Qt.Orientation.Horizontal, step_row)
-        self._auto_step_slider.setRange(1, 20)
-        self._auto_step_slider.setValue(5)
-        sl.addWidget(self._auto_step_slider, 1)
-        self._step_val_lbl = BodyLabel("5", step_row)
-        self._step_val_lbl.setFixedWidth(24)
-        self._step_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        sl.addWidget(self._step_val_lbl)
-        self._auto_step_slider.valueChanged.connect(lambda v: self._step_val_lbl.setText(str(v)))
-        layout.addWidget(step_row)
 
         mask_row = QWidget(content)
         mml = QHBoxLayout(mask_row)
@@ -870,6 +873,9 @@ class WorkspacePage(QWidget):
         current_img_id = self._current_image_id
         current_curve_id = self._current_curve_id
 
+        # 记录需要选中的节点（用于 setCurrentItem）
+        _target_item = None
+
         for project in project_manager.projects:
             project_item = QTreeWidgetItem(self._project_tree)
             project_item.setText(0, f"📁 {project.name}")
@@ -881,20 +887,16 @@ class WorkspacePage(QWidget):
                 font.setBold(True)
                 project_item.setFont(0, font)
                 self._current_project_item = project_item
-                if show_indicator:
-                    from PySide6.QtGui import QBrush, QColor
-                    bg_color = QColor(self._selection_background_color())
-                    project_item.setBackground(0, QBrush(bg_color))
+                if show_indicator and current_img_id is None and current_curve_id is None:
+                    _target_item = project_item
 
             for img in project.images:
                 img_item = QTreeWidgetItem(project_item)
                 img_item.setText(0, f"🖼️ {img.name}")
                 img_item.setData(0, Qt.ItemDataRole.UserRole, ("image", img.id, project.id))
                 img_item.setExpanded(True)
-                if show_indicator and img.id == current_img_id:
-                    from PySide6.QtGui import QBrush, QColor
-                    bg_color = QColor(self._selection_background_color())
-                    img_item.setBackground(0, QBrush(bg_color))
+                if show_indicator and img.id == current_img_id and current_curve_id is None:
+                    _target_item = img_item
 
                 # 图片的曲线作为图片的子节点
                 for curve in img.curves:
@@ -906,9 +908,7 @@ class WorkspacePage(QWidget):
                         curve_item.setText(0, f"📈 {curve.name}")
                     curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id, img.id))
                     if show_indicator and curve.id == current_curve_id:
-                        from PySide6.QtGui import QBrush, QColor
-                        bg_color = QColor(self._selection_background_color())
-                        curve_item.setBackground(0, QBrush(bg_color))
+                        _target_item = curve_item
 
             # 项目级别的导入曲线
             for curve in project.imported_curves:
@@ -919,9 +919,11 @@ class WorkspacePage(QWidget):
                     curve_item.setText(0, f"📈 {curve.name}")
                 curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id))
                 if show_indicator and curve.id == current_curve_id:
-                    from PySide6.QtGui import QBrush, QColor
-                    bg_color = QColor(self._selection_background_color())
-                    curve_item.setBackground(0, QBrush(bg_color))
+                    _target_item = curve_item
+
+        # 使用 TreeWidget 原生选中高亮（TreeItemDelegate 会正确绘制）
+        if _target_item is not None:
+            self._project_tree.setCurrentItem(_target_item)
 
     def _on_tool_clicked(self, tool_name: str):
         """处理工具按钮点击"""
@@ -1709,9 +1711,9 @@ class WorkspacePage(QWidget):
         self._image_viewer.set_point_size(float(value))
         self._point_size_value_label.setText(f"{value} px")
 
-    def _on_nudge_step_changed(self, value):
-        self._image_viewer.set_nudge_step(float(value))
-        self._nudge_step_value_label.setText(f"{value} px")
+    def _on_select_area_changed(self, value):
+        self._image_viewer.set_select_threshold(float(value))
+        self._select_area_value_label.setText(f"{value}px")
 
     def _on_eraser_size_changed(self, value):
         self._image_viewer.set_eraser_size(float(value))
@@ -2294,7 +2296,7 @@ class WorkspacePage(QWidget):
         known_placeholder = [
             self._status_label,
             self._point_size_value_label,
-            self._nudge_step_value_label,
+            self._select_area_value_label,
             self._eraser_size_value_label,
             self._sampled_color_hex_lbl,
             self._tol_val_lbl,

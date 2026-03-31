@@ -308,6 +308,7 @@ class ImageViewer(QWidget):
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
     DEFAULT_NUDGE_STEP = 3.0
+    DEFAULT_SELECT_THRESHOLD = 10.0
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -340,6 +341,7 @@ class ImageViewer(QWidget):
         # 配置参数
         self._point_size = self.DEFAULT_POINT_SIZE
         self._nudge_step = self.DEFAULT_NUDGE_STEP
+        self._select_threshold = self.DEFAULT_SELECT_THRESHOLD
         self._eraser_size = 20.0
 
         # 蒙版
@@ -401,6 +403,10 @@ class ImageViewer(QWidget):
     def get_nudge_step(self) -> float:
         """获取微调步长"""
         return self._nudge_step
+
+    def set_select_threshold(self, value: float):
+        """设置选点区域半径（像素）"""
+        self._select_threshold = max(2.0, value)
 
     def event(self, ev):
         """拦截 ShortcutOverride，在提取/校准模式下预先主张方向键和WASD"""
@@ -1325,7 +1331,7 @@ class ImageViewer(QWidget):
         pos = event.position()
         img_pos = self._widget_to_image_coords(pos)
         mx, my = img_pos.x(), img_pos.y()
-        threshold = (self._point_size / self._scale) * 4.0  # 选中判定半径
+        threshold = self._select_threshold / self._scale  # 选中判定半径
         best_idx = -1
         best_dist = float('inf')
         for i, (px, py) in enumerate(self._current_curve.points):
