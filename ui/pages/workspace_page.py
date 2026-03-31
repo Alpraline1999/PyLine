@@ -250,7 +250,6 @@ class WorkspacePage(QWidget):
         self._project_tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self._project_tree.dropEvent = self._on_tree_drop_event
         self._refresh_project_tree()
-        self._apply_tree_theme()
         layout.addWidget(self._project_tree)
 
         return panel
@@ -2148,45 +2147,11 @@ class WorkspacePage(QWidget):
             elif 'color:' in ss and frame.frameShape() in (QFrame.Shape.HLine, QFrame.Shape.VLine):
                 frame.setStyleSheet(f"color: {bc};")
 
-        # 更新原生 Qt 控件主题色
-        self._apply_tree_theme()
-
         # 更新工具栏中无 bold 的普通 BodyLabel（大小/步长/橡皮 等说明文字）
         for lbl in self._viewer_toolbar.findChildren(BodyLabel):
             ss = lbl.styleSheet()
             if 'font-size: 10px' not in ss and 'font-weight' not in ss:
                 lbl.setStyleSheet(f"color: {tc};")
-
-    def _apply_tree_theme(self):
-        """为 QTreeWidget 应用暗色/亮色主题样式"""
-        from ui.theme import text_color, card_background_color, border_color
-        tc = text_color()
-        bg = card_background_color()
-        bc = border_color()
-        self._project_tree.setStyleSheet(f"""
-            QTreeWidget {{
-                background-color: {bg};
-                border: none;
-                color: {tc};
-                outline: none;
-            }}
-            QTreeWidget::item {{
-                padding: 2px 0;
-                color: {tc};
-            }}
-            QTreeWidget::item:selected {{
-                background-color: rgba(0, 120, 212, 0.18);
-                color: {tc};
-            }}
-            QTreeWidget::item:hover {{
-                background-color: rgba(128, 128, 128, 0.10);
-            }}
-            QHeaderView::section {{
-                background-color: {bg};
-                color: {tc};
-                border: none;
-            }}
-        """)
 
     # ==================== 校准和曲线提取 ====================
 
