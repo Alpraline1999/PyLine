@@ -1,14 +1,12 @@
-"""图形识别提取器（测试功能）
+"""图形识别提取器（V1.2.1 — 轮廓形状描述子方案）
 
-改进管线（V1.2.0）：
-  Phase 1 — 颜色引导：从模板提取主色，在颜色相似度图上匹配，消除不同色曲线干扰
-  Phase 2 — 形状遮罩：用 matchTemplate mask 参数屏蔽背景像素，评分仅计形状前景
-  Phase 3 — 边缘辅助：在 Canny 边缘图上做轮廓匹配，加权融合（适合黑白标记）
+核心思路：
+  1. 从截图模板中提取最大轮廓 → 计算 Hu 矩作为形状描述子
+  2. 全图颜色过滤 → 连通域分析 → 面积过滤
+  3. 对每个候选连通域提取轮廓 → cv2.matchShapes() 与模板比对
+  4. 匹配连通域的质心作为结果点
 
-三个阶段可通过 color_weight 参数调节：
-  color_weight = 1.0  → 仅颜色+形状遮罩（Phase 1+2）
-  color_weight = 0.0  → 仅边缘轮廓（Phase 3）
-  color_weight = 0.7  → 默认，加权融合
+优势：尺度不敏感、旋转不敏感、抗背景干扰
 """
 
 from __future__ import annotations
@@ -19,10 +17,10 @@ import numpy as np
 
 
 class ShapeExtractor:
-    """基于多阶段模板匹配的图形识别曲线点提取器（测试功能）"""
+    """基于轮廓形状描述子的图形识别曲线点提取器"""
 
     # ------------------------------------------------------------------ #
-    #  预处理：从图片截取区域并提取有效形状作为模板                         #
+    #  预处理：从图片截取区域并提取形状描述子                               #
     # ------------------------------------------------------------------ #
 
     @staticmethod
@@ -33,16 +31,14 @@ class ShapeExtractor:
         x2: float,
         y2: float,
     ) -> dict:
-        """从图片中截取矩形区域，提取多阶段匹配所需的模板信息。
+        """从图片中截取矩形区域，提取轮廓形状描述子。
 
         Returns:
             dict 包含:
               'raw'              : ndarray (BGR)  — 原始截图
-              'template'         : ndarray uint8  — 灰度图（兼容旧接口）
               'binary'           : ndarray uint8  — 实心二值形状（前景=255）
-              'binary_float'     : ndarray float32 [0,1] — 与 mask 配合使用
-              'edges'            : ndarray uint8  — Canny 边缘图（轮廓匹配用）
-              'edges_float'      : ndarray float32 [0,1]
+              'contour'          : ndarray        — 模板最大轮廓 (用于 matchShapes)
+              'contour_area'     : float          — 模板轮廓面积（像素）
               'dominant_hsv'     : (H, S, V) int  — 前景主色（HSV）
               'color_tol_hsv'    : (dH, dS, dV)   — 建议容差
               'has_color'        : bool            — 主色是否有足够饱和度可用
@@ -84,31 +80,31 @@ class ShapeExtractor:
             _, binary = cv2.threshold(
                 gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
             )
+            # 从二值图重新提取轮廓
+            contours, _ = cv2.findContours(
+                binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if contours:
+                largest = max(contours, key=cv2.contourArea)
+            else:
+                raise ValueError("无法从截图区域提取有效轮廓")
 
-        # ---- 提取前景主色（Phase 1）----
+        contour_area = cv2.contourArea(largest)
+        if contour_area < 4:
+            raise ValueError("截图区域中的形状面积过小")
+
+        # ---- 提取前景主色 ----
         hsv_raw = cv2.cvtColor(raw, cv2.COLOR_BGR2HSV)
         fg_mask = binary > 0
         dominant_hsv, color_tol_hsv, has_color = ShapeExtractor._extract_dominant_color(
             hsv_raw, fg_mask
         )
 
-        # ---- 边缘图（Phase 3）----
-        # 用更激进的参数提取轮廓（线宽 1px，不填充）
-        edges_outline = cv2.Canny(blurred, 20, 80)
-        # 膨胀 1px，使轮廓对微小偏移更宽容
-        k1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-        edges_outline = cv2.dilate(edges_outline, k1, iterations=1)
-
-        binary_float = binary.astype(np.float32) / 255.0
-        edges_float = edges_outline.astype(np.float32) / 255.0
-
         return {
             "raw": raw,
-            "template": gray,
             "binary": binary,
-            "binary_float": binary_float,
-            "edges": edges_outline,
-            "edges_float": edges_float,
+            "contour": largest,
+            "contour_area": float(contour_area),
             "dominant_hsv": dominant_hsv,
             "color_tol_hsv": color_tol_hsv,
             "has_color": has_color,
@@ -116,7 +112,7 @@ class ShapeExtractor:
         }
 
     # ------------------------------------------------------------------ #
-    #  提取：多阶段管线                                                     #
+    #  提取：轮廓描述子管线                                                 #
     # ------------------------------------------------------------------ #
 
     @staticmethod
@@ -129,22 +125,24 @@ class ShapeExtractor:
         threshold: float = 0.55,
         color_weight: float = 0.7,
     ) -> List[Tuple[float, float]]:
-        """在图片中搜索与模板相似的形状，返回各匹配中心点的像素坐标列表。
+        """在图片中搜索与模板形状相似的连通域，返回各匹配中心点坐标。
 
-        三阶段管线：
-          Phase 1+2: 颜色相似度图 × 形状遮罩匹配
-          Phase 3:   边缘轮廓匹配
-          融合: final = color_weight * score_12 + (1 - color_weight) * score_3
+        管线：
+          1. 颜色过滤（或自适应二值化）→ 前景掩膜
+          2. 连通域分析 → 面积过滤
+          3. 逐候选连通域 → matchShapes 与模板轮廓比对
+          4. 相似度 ≤ 阈值 → 质心作为结果点
 
         Args:
             image_path:        图片路径
             template_info:     preprocess_region() 返回的字典
             mask_polygons:     蒙版多边形列表
             mask_include_mode: True = 蒙版内才识别；False = 蒙版内不识别
-            step:              NMS 抑制半径倍率，越大点越稀疏
-            threshold:         融合评分阈值 [0, 1]
-            color_weight:      颜色+形状评分的权重（0.0~1.0）；
-                               若标记颜色饱和度不足则自动降权
+            step:              未使用（保留接口兼容）
+            threshold:         形状相似度阈值 [0, 1]；越大越宽松
+                               (内部映射到 matchShapes 距离阈值)
+            color_weight:      颜色过滤的严格程度 (0.0~1.0)；
+                               越高 → 颜色容差越小，过滤越严格
         Returns:
             list of (x, y) 图片像素坐标
         """
@@ -155,173 +153,168 @@ class ShapeExtractor:
             raise ValueError(f"无法读取图片: {image_path}")
 
         img_h, img_w = img.shape[:2]
-        tw, th = template_info["size"]
+        template_contour = template_info["contour"]
+        template_area = template_info["contour_area"]
 
-        if tw >= img_w or th >= img_h:
-            raise ValueError("模板尺寸超过图片尺寸，请缩小截图区域")
-
-        # ---- 若主色不可靠，自动降低颜色权重 ----
-        effective_cw = color_weight
-        if not template_info.get("has_color", True):
-            effective_cw = min(color_weight, 0.3)
-
-        # ---- Phase 1+2: 颜色相似度图 + 形状遮罩匹配 ----
-        score_12 = ShapeExtractor._phase12_score(img, template_info, img_h, img_w)
-
-        # ---- Phase 3: 边缘轮廓匹配 ----
-        score_3 = ShapeExtractor._phase3_score(img, template_info, img_h, img_w)
-
-        # ---- 对齐尺寸（matchTemplate 输出比输入小 tw-1 × th-1）----
-        rh = img_h - th + 1
-        rw = img_w - tw + 1
-        if score_12 is not None:
-            score_12 = score_12[:rh, :rw]
-        if score_3 is not None:
-            score_3 = score_3[:rh, :rw]
-
-        # ---- 加权融合 ----
-        if score_12 is not None and score_3 is not None:
-            result = effective_cw * score_12 + (1 - effective_cw) * score_3
-        elif score_12 is not None:
-            result = score_12
-        elif score_3 is not None:
-            result = score_3
-        else:
-            return []
+        # ---- 构建前景掩膜 ----
+        fg_mask = ShapeExtractor._build_foreground_mask(
+            img, template_info, color_weight
+        )
 
         # ---- 应用搜索蒙版 ----
         if mask_polygons:
-            mask_img = np.zeros((img_h, img_w), dtype=np.uint8)
+            search_mask = np.zeros((img_h, img_w), dtype=np.uint8)
             pts_list = [
                 np.array([(int(x), int(y)) for x, y in poly], dtype=np.int32)
                 for poly in mask_polygons
             ]
-            import cv2 as _cv2
-            _cv2.fillPoly(mask_img, pts_list, 255)
+            cv2.fillPoly(search_mask, pts_list, 255)
 
-            half_tw, half_th = tw // 2, th // 2
-            m_crop = mask_img[half_th: half_th + rh, half_tw: half_tw + rw]
-            if m_crop.shape == result.shape:
-                if mask_include_mode:
-                    result[m_crop == 0] = -1.0
-                else:
-                    result[m_crop > 0] = -1.0
+            if mask_include_mode:
+                # 仅保留蒙版内
+                fg_mask = cv2.bitwise_and(fg_mask, search_mask)
+            else:
+                # 排除蒙版内
+                fg_mask = cv2.bitwise_and(fg_mask, cv2.bitwise_not(search_mask))
 
-        # ---- NMS ----
-        nms_radius = max(2, max(tw, th) // 2 * step)
-        raw_points = ShapeExtractor._nms(result, threshold, nms_radius)
+        # ---- 形态学清理 ----
+        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, k_close, iterations=1)
 
-        cx_off = tw / 2.0
-        cy_off = th / 2.0
-        return [(x + cx_off, y + cy_off) for x, y in raw_points]
+        # ---- 连通域分析 ----
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+            fg_mask, connectivity=8
+        )
+
+        # 面积过滤范围：模板面积的 0.15x ~ 6x
+        area_lo = template_area * 0.15
+        area_hi = template_area * 6.0
+
+        # 形状相似度阈值：threshold 映射到 matchShapes 距离
+        # threshold=1.0 → 非常宽松(dist_thr=1.0)  threshold=0.0 → 极严格(dist_thr=0.02)
+        dist_thr = 0.02 + threshold * 0.98
+
+        results: List[Tuple[float, float]] = []
+
+        for i in range(1, num_labels):  # 跳过背景 label=0
+            area = stats[i, cv2.CC_STAT_AREA]
+            if area < area_lo or area > area_hi:
+                continue
+
+            # 提取该连通域的轮廓
+            blob_mask = (labels == i).astype(np.uint8) * 255
+            blob_contours, _ = cv2.findContours(
+                blob_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if not blob_contours:
+                continue
+
+            blob_contour = max(blob_contours, key=cv2.contourArea)
+            if cv2.contourArea(blob_contour) < 4:
+                continue
+
+            # Hu 矩形状比对
+            dist = cv2.matchShapes(
+                template_contour, blob_contour, cv2.CONTOURS_MATCH_I1, 0.0
+            )
+
+            if dist <= dist_thr:
+                cx, cy = centroids[i]
+                results.append((float(cx), float(cy)))
+
+        return results
 
     # ------------------------------------------------------------------ #
-    #  Phase 1+2：颜色相似度图 + 形状遮罩匹配                              #
+    #  颜色前景掩膜构建                                                     #
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _phase12_score(
+    def _build_foreground_mask(
         img: np.ndarray,
         template_info: dict,
-        img_h: int,
-        img_w: int,
-    ) -> Optional[np.ndarray]:
-        """
-        在颜色相似度图（0~1 float）上用实心形状模板做 TM_CCORR_NORMED 匹配。
-        mask 参数只评分形状前景像素，排除背景干扰。
+        color_weight: float,
+    ) -> np.ndarray:
+        """根据模板颜色信息构建前景二值掩膜。
+
+        - 颜色可靠时：HSV inRange 颜色过滤
+        - 颜色不可靠时：自适应阈值二值化
+        - color_weight 控制颜色容差的缩放（越高越严格）
         """
         import cv2
 
-        binary_float = template_info.get("binary_float")
-        if binary_float is None:
-            return None
-
+        has_color = template_info.get("has_color", False)
         dominant_hsv = template_info.get("dominant_hsv")
         color_tol_hsv = template_info.get("color_tol_hsv")
-        has_color = template_info.get("has_color", False)
 
         if has_color and dominant_hsv is not None and color_tol_hsv is not None:
-            # 构建颜色相似度图（前景颜色范围内=1，否则=0）
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             h, s, v = dominant_hsv
             dh, ds, dv = color_tol_hsv
-            lower = np.array([max(0, h - dh), max(0, s - ds), max(0, v - dv)], dtype=np.uint8)
-            upper = np.array([min(180, h + dh), min(255, s + ds), min(255, v + dv)], dtype=np.uint8)
 
-            if h - dh < 0:
-                # 跨越 H=0 的红色区域，分两段
-                m1 = cv2.inRange(hsv_img, np.array([0, max(0, s - ds), max(0, v - dv)], np.uint8),
-                                 np.array([h + dh, min(255, s + ds), min(255, v + dv)], np.uint8))
-                m2 = cv2.inRange(hsv_img, np.array([180 + (h - dh), max(0, s - ds), max(0, v - dv)], np.uint8),
-                                 np.array([180, min(255, s + ds), min(255, v + dv)], np.uint8))
-                color_mask = cv2.bitwise_or(m1, m2)
-            elif h + dh > 180:
-                m1 = cv2.inRange(hsv_img, lower, np.array([180, min(255, s + ds), min(255, v + dv)], np.uint8))
-                m2 = cv2.inRange(hsv_img, np.array([0, max(0, s - ds), max(0, v - dv)], np.uint8),
-                                 np.array([(h + dh) - 180, min(255, s + ds), min(255, v + dv)], np.uint8))
-                color_mask = cv2.bitwise_or(m1, m2)
-            else:
-                color_mask = cv2.inRange(hsv_img, lower, upper)
+            # color_weight 调节容差：weight=1.0 → 容差×0.5（严格），weight=0.0 → 容差×2.0（宽松）
+            tol_scale = 2.0 - 1.5 * color_weight
+            dh = max(5, int(dh * tol_scale))
+            ds = max(20, int(ds * tol_scale))
+            dv = max(30, int(dv * tol_scale))
 
-            search_map = color_mask.astype(np.float32) / 255.0
+            color_mask = ShapeExtractor._hsv_in_range(hsv_img, h, s, v, dh, ds, dv)
+            return color_mask
         else:
-            # 颜色不可靠 → 退化为灰度图归一化
-            gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            search_map = gray_img.astype(np.float32) / 255.0
-
-        # 形状遮罩：只评分 binary 前景位置
-        tmpl_uint8 = (binary_float * 255).astype(np.uint8)
-        mask_uint8 = tmpl_uint8  # mask 与 template 相同（前景=255）
-
-        try:
-            score = cv2.matchTemplate(
-                search_map, binary_float, cv2.TM_CCORR_NORMED, mask=mask_uint8
+            # 颜色不可靠 → 灰度自适应二值化
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            binary = cv2.adaptiveThreshold(
+                blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY_INV, 11, 4
             )
-        except cv2.error:
-            # opencv 版本不支持 float32 mask fallback
-            score = cv2.matchTemplate(search_map, binary_float, cv2.TM_CCORR_NORMED)
-
-        return score
+            return binary
 
     # ------------------------------------------------------------------ #
-    #  Phase 3：边缘轮廓匹配                                               #
+    #  HSV 范围过滤（处理 H 通道环绕）                                     #
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _phase3_score(
-        img: np.ndarray,
-        template_info: dict,
-        img_h: int,
-        img_w: int,
-    ) -> Optional[np.ndarray]:
-        """
-        在搜索图的 Canny 边缘图上用模板边缘做 TM_CCORR_NORMED 匹配。
-        """
+    def _hsv_in_range(
+        hsv_img: np.ndarray,
+        h: int, s: int, v: int,
+        dh: int, ds: int, dv: int,
+    ) -> np.ndarray:
+        """HSV inRange，自动处理 H 通道在 0/180 边界的环绕。"""
         import cv2
 
-        edges_float = template_info.get("edges_float")
-        if edges_float is None:
-            return None
+        s_lo, s_hi = max(0, s - ds), min(255, s + ds)
+        v_lo, v_hi = max(0, v - dv), min(255, v + dv)
 
-        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray_img, (3, 3), 0)
-        # 使用与 preprocess_region 相同的参数，保证边缘风格一致
-        edges_search = cv2.Canny(blurred, 20, 80)
-        k1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-        edges_search = cv2.dilate(edges_search, k1, iterations=1)
-
-        search_map = edges_search.astype(np.float32) / 255.0
-
-        # 模板边缘的膨胀图也作为 mask（只评分有轮廓的位置）
-        edges_uint8 = (edges_float * 255).astype(np.uint8)
-        try:
-            score = cv2.matchTemplate(
-                search_map, edges_float, cv2.TM_CCORR_NORMED, mask=edges_uint8
+        if h - dh < 0:
+            m1 = cv2.inRange(
+                hsv_img,
+                np.array([0, s_lo, v_lo], np.uint8),
+                np.array([h + dh, s_hi, v_hi], np.uint8),
             )
-        except cv2.error:
-            score = cv2.matchTemplate(search_map, edges_float, cv2.TM_CCORR_NORMED)
-
-        return score
+            m2 = cv2.inRange(
+                hsv_img,
+                np.array([180 + (h - dh), s_lo, v_lo], np.uint8),
+                np.array([180, s_hi, v_hi], np.uint8),
+            )
+            return cv2.bitwise_or(m1, m2)
+        elif h + dh > 180:
+            m1 = cv2.inRange(
+                hsv_img,
+                np.array([h - dh, s_lo, v_lo], np.uint8),
+                np.array([180, s_hi, v_hi], np.uint8),
+            )
+            m2 = cv2.inRange(
+                hsv_img,
+                np.array([0, s_lo, v_lo], np.uint8),
+                np.array([(h + dh) - 180, s_hi, v_hi], np.uint8),
+            )
+            return cv2.bitwise_or(m1, m2)
+        else:
+            return cv2.inRange(
+                hsv_img,
+                np.array([h - dh, s_lo, v_lo], np.uint8),
+                np.array([h + dh, s_hi, v_hi], np.uint8),
+            )
 
     # ------------------------------------------------------------------ #
     #  辅助：提取主色                                                       #
@@ -367,34 +360,3 @@ class ShapeExtractor:
         has_color = s_median > 40
 
         return (h_median, s_median, v_median), (h_mad, s_mad, v_mad), has_color
-
-    # ------------------------------------------------------------------ #
-    #  辅助：非极大值抑制                                                  #
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def _nms(
-        score_map: np.ndarray,
-        threshold: float,
-        radius: int,
-    ) -> List[Tuple[int, int]]:
-        """在 radius 邻域内抑制非极大值，返回 (x, y) 列表（按得分降序）。"""
-        import cv2
-
-        above = (score_map >= threshold).astype(np.uint8)
-
-        kernel_size = max(3, radius * 2 + 1)
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT, (kernel_size, kernel_size)
-        )
-        dilated = cv2.dilate(score_map, kernel)
-        local_max = (score_map == dilated) & (above > 0)
-
-        ys, xs = np.where(local_max)
-        if len(xs) == 0:
-            return []
-
-        scores = score_map[ys, xs]
-        order = np.argsort(-scores)
-        ys, xs = ys[order], xs[order]
-        return [(int(x), int(y)) for x, y in zip(xs, ys)]
