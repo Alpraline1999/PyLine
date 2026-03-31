@@ -6,7 +6,7 @@ from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePush
     PushButton as FPushButton, TableWidget, ComboBox, TreeWidget, TreeItemDelegate,
     Slider, SmoothScrollArea, TabWidget, TabCloseButtonDisplayMode,
     MessageBox, InfoBar, RoundMenu, MessageBoxBase,
-    ToolTipFilter, ToolTipPosition)
+    ToolTipFilter, ToolTipPosition, Action)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -1200,8 +1200,9 @@ class WorkspacePage(QWidget):
         if index.isValid() and not self._curve_table.selectionModel().isRowSelected(index.row(), index.parent()):
             self._curve_table.selectRow(index.row())
         menu = RoundMenu(parent=self)
-        delete_action = menu.addAction("删除选中行")
+        delete_action = Action("删除选中行")
         delete_action.triggered.connect(self._delete_selected_table_rows)
+        menu.addAction(delete_action)
         menu.exec(self._curve_table.viewport().mapToGlobal(pos))
 
     def _delete_selected_table_rows(self):
@@ -1708,19 +1709,23 @@ class WorkspacePage(QWidget):
 
         if item_type == "project":
             project_id = data[1]
-            rename_action = menu.addAction("重命名项目")
+            rename_action = Action("重命名项目")
             rename_action.triggered.connect(lambda: self._rename_item("project", project_id))
+            menu.addAction(rename_action)
             menu.addSeparator()
-            delete_action = menu.addAction("删除项目")
+            delete_action = Action("删除项目")
             delete_action.triggered.connect(lambda: self._delete_project(project_id))
+            menu.addAction(delete_action)
 
         elif item_type == "image":
             img_id = data[1]
-            rename_action = menu.addAction("重命名图片")
+            rename_action = Action("重命名图片")
             rename_action.triggered.connect(lambda: self._rename_item("image", img_id))
+            menu.addAction(rename_action)
             menu.addSeparator()
-            delete_action = menu.addAction("删除图片")
+            delete_action = Action("删除图片")
             delete_action.triggered.connect(lambda: self._delete_image(img_id))
+            menu.addAction(delete_action)
 
         elif item_type == "curve":
             curve_id = data[1]
@@ -1728,17 +1733,21 @@ class WorkspacePage(QWidget):
 
             # 显示/隐藏曲线
             if is_hidden:
-                show_action = menu.addAction("显示曲线")
+                show_action = Action("显示曲线")
                 show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
+                menu.addAction(show_action)
             else:
-                hide_action = menu.addAction("隐藏曲线")
+                hide_action = Action("隐藏曲线")
                 hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
+                menu.addAction(hide_action)
 
-            rename_action = menu.addAction("重命名曲线")
+            rename_action = Action("重命名曲线")
             rename_action.triggered.connect(lambda: self._rename_item("curve", curve_id))
+            menu.addAction(rename_action)
             menu.addSeparator()
-            delete_action = menu.addAction("删除曲线")
+            delete_action = Action("删除曲线")
             delete_action.triggered.connect(lambda checked, cid=curve_id: self._delete_curve(cid))
+            menu.addAction(delete_action)
 
         menu.exec(self._project_tree.mapToGlobal(pos))
 
