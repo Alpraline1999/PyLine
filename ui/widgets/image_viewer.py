@@ -27,7 +27,7 @@ class MaskOverlay:
     """蒙版覆盖层"""
     def __init__(self):
         self.enabled = False
-        self.include_mode = True  # True=包含模式, False=排除模式
+        self.include_mode = False  # False=排除模式(默认/不感兴趣区域), True=包含模式(感兴趣区域)
         self.polygons = []  # 多边形列表，每个多边形是 [(x,y), ...] 点列表
 
     def reset(self):
@@ -541,6 +541,7 @@ class ImageViewer(QWidget):
         self._current_tool = self.MODE_BRUSH_MASK
         self._calibration_step_hint = ""
         self._mask_current_polygon = []
+        self._pending_brush_circles = []
         self.update()
 
     def set_assisted_mode(self, shape: str = "rect"):
@@ -1020,6 +1021,32 @@ class ImageViewer(QWidget):
             painter.setBrush(QBrush(QColor("#40FF5722")))
             painter.drawEllipse(self._mask_start_point, r * 2, r * 2)
 
+        # 绘制画笔蒙版实时预览（笔触尚未提交，鼠标释放后合并为一个区域）
+        if self._pending_brush_circles and self._current_tool == self.MODE_BRUSH_MASK:
+            if self._mask.include_mode:
+                stroke_color = QColor("#FF9800")
+                fill_color   = QColor("#50FF9800")
+            else:
+                stroke_color = QColor("#2196F3")
+                fill_color   = QColor("#502196F3")
+            combined = QPainterPath()
+            for circle in self._pending_brush_circles:
+                sub = QPainterPath()
+                pts_qp = [QPointF(p[0], p[1]) for p in circle]
+                sub.moveTo(pts_qp[0])
+                for p in pts_qp[1:]:
+                    sub.lineTo(p)
+                sub.closeSubpath()
+                combined = combined.united(sub)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(fill_color))
+            painter.drawPath(combined)
+            pen = QPen(stroke_color)
+            pen.setWidthF(1.5 / self._scale)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(combined)
+
     def _draw_eraser_cursor(self, painter: QPainter):
         """绘制橡皮擦/画笔蒙版光标（仅在按下时显示）"""
         if self._mouse_image_pos is None:
@@ -1389,6 +1416,24 @@ class ImageViewer(QWidget):
             elif self._current_tool == self.MODE_BRUSH_MASK:
                 self._brush_painting = False
                 self._brush_last_pt = None
+                # 将本次笔触的所有圆合并为一个统一的蒙版多边形
+                if self._pending_brush_circles:
+                    combined = QPainterPath()
+                    for circle in self._pending_brush_circles:
+                        sub = QPainterPath()
+                        pts_qp = [QPointF(p[0], p[1]) for p in circle]
+                        sub.moveTo(pts_qp[0])
+                        for p in pts_qp[1:]:
+                            sub.lineTo(p)
+                        sub.closeSubpath()
+                        combined = combined.united(sub)
+                    polygon_qpf = combined.toFillPolygon()
+                    polygon = [(pt.x(), pt.y()) for pt in polygon_qpf]
+                    if len(polygon) >= 3:
+                        self.mask_about_to_add.emit(polygon)
+                        self._mask.add_polygon(polygon)
+                        self.mask_changed.emit()
+                    self._pending_brush_circles = []
                 self.update()
             elif self._current_tool == self.MODE_CROP and self._crop_start_point:
                 end_point = self._widget_to_image_coords(event.position())
@@ -1443,36 +1488,17 @@ class ImageViewer(QWidget):
                 self.file_dropped.emit(file_path)
 
     def _add_brush_circle(self, pt: QPointF):
-        """在指定位置添加一个圆形蒙版叠加（类橡皮擦逻辑）"""
+        """将当前笔触圆加入待合并缓冲区（鼠标释放时统一合并为一个蒙版区域）"""
         import math
         x, y = pt.x(), pt.y()
         r = self._eraser_size
-        n = 16
+        n = 24  # 用更多顶点使圆形更光滑，合并后轮廓更准确
         circle = [
             (x + r * math.cos(2 * math.pi * i / n),
              y + r * math.sin(2 * math.pi * i / n))
             for i in range(n)
         ]
-        self.mask_about_to_add.emit(circle)
-        self._mask.add_polygon(circle)
-        self.mask_changed.emit()
-        self.update()
-
-    def _add_brush_circle(self, pt: QPointF):
-        """在指定位置添加一个圆形蒙版叠加（类橡皮擦逻辑）"""
-        import math
-        x, y = pt.x(), pt.y()
-        r = self._eraser_size
-        n = 16
-        circle = [
-            (x + r * math.cos(2 * math.pi * i / n),
-             y + r * math.sin(2 * math.pi * i / n))
-            for i in range(n)
-        ]
-        self.mask_about_to_add.emit(circle)
-        self._mask.add_polygon(circle)
-        self.mask_changed.emit()
-        self.update()
+        self._pending_brush_circles.append(circle)
 
     @staticmethod
     def _stroke_to_polygon(points: list, radius: float) -> list:

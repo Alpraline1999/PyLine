@@ -520,7 +520,7 @@ class WorkspacePage(QWidget):
         mode_rl.setSpacing(4)
         mode_rl.addWidget(BodyLabel("识别模式:", mode_row))
         self._auto_mode_combo = ComboBox(mode_row)
-        self._auto_mode_combo.addItems(["颜色识别", "图形识别 (测试功能)", "综合识别 (测试功能)"])
+        self._auto_mode_combo.addItems(["颜色识别", "图形识别 (测试功能)"])
         self._auto_mode_combo.setFixedHeight(32)
         self._auto_mode_combo.setMinimumWidth(160)
         self._auto_mode_combo.currentIndexChanged.connect(self._on_auto_mode_changed)
@@ -691,7 +691,7 @@ class WorkspacePage(QWidget):
         mml.addWidget(self._brush_mask_btn)
 
         self._invert_mask_btn = ToggleToolButton(FIF.UPDATE, mask_row)
-        self._invert_mask_btn.setToolTip("反转蒙版\n开启后蒙版内不识别（规避）。\n关闭后蒙版内才识别（感兴趣区域）")
+        self._invert_mask_btn.setToolTip("反转蒙版\n关闭时蒙版内不识别（默认/规避）。\n开启后蒙版内才识别（感兴趣区域）")
         self._invert_mask_btn.setFixedSize(34, 34)
         self._invert_mask_btn.clicked.connect(self._on_invert_mask)
         mml.addWidget(self._invert_mask_btn)
@@ -1117,9 +1117,9 @@ class WorkspacePage(QWidget):
         mask = self._image_viewer.get_mask()
         if mask:
             inverted = self._invert_mask_btn.isChecked()
-            mask.include_mode = not inverted  # 选中=屏蔽, 未选中=感兴趣
+            mask.include_mode = inverted  # 选中=感兴趣(include), 未选中=屏蔽(默认)
             self._image_viewer.update()
-            mode_text = "屏蔽区域（蒙版内不识别）" if inverted else "感兴趣区域（蒙版内才识别）"
+            mode_text = "感兴趣区域（蒙版内才识别）" if inverted else "屏蔽区域（蒙版内不识别）"
             self._status_label.setText(f"蒙版模式已切换为: {mode_text}")
 
     def _on_image_file_dropped(self, file_path: str):
@@ -1323,9 +1323,9 @@ class WorkspacePage(QWidget):
     # ==================== 自动选点槽函数 ====================
 
     def _on_auto_mode_changed(self, index: int):
-        """识别模式切换：0=颜色识别, 1=图形识别, 2=综合识别"""
-        color_mode = index in (0, 2)   # 颜色相关按钮
-        shape_mode = index in (1, 2)   # 图形相关按钮
+        """识别模式切换：0=颜色识别, 1=图形识别"""
+        color_mode = index == 0
+        shape_mode = index == 1
 
         # 颜色相关控件
         self._sample_color_btn.setEnabled(color_mode)
@@ -1446,7 +1446,7 @@ class WorkspacePage(QWidget):
             InfoBar.warning(title="警告", content="无法获取图片路径", parent=self, duration=3000)
             return
 
-        mode = self._auto_mode_combo.currentIndex()  # 0=颜色, 1=图形, 2=综合
+        mode = self._auto_mode_combo.currentIndex()  # 0=颜色, 1=图形
         step = self._auto_step_slider.value()
 
         # 获取蒙版多边形和模式
@@ -1462,7 +1462,7 @@ class WorkspacePage(QWidget):
         shape_points = []
 
         # ---- 颜色识别 ----
-        if mode in (0, 2):
+        if mode == 0:
             if self._sampled_color is None:
                 InfoBar.warning(title="警告", content="请先使用取色按钮采样颜色", parent=self, duration=3000)
                 self._auto_status_label.setText("")
@@ -1490,7 +1490,7 @@ class WorkspacePage(QWidget):
                 return
 
         # ---- 图形识别 ----
-        if mode in (1, 2):
+        if mode == 1:
             if self._shape_template is None:
                 InfoBar.warning(title="警告", content="请先使用截图按钮截取图例形状", parent=self, duration=3000)
                 self._auto_status_label.setText("")
@@ -1511,18 +1511,8 @@ class WorkspacePage(QWidget):
                 self._auto_status_label.setText(f"图形识别失败: {e}")
                 return
 
-        # ---- 合并结果（综合识别去重）----
-        if mode == 2 and color_points and shape_points:
-            # 以两倍搜索步长作为去重距离
-            merge_d2 = (step * 2) ** 2
-            merged = list(color_points)
-            for sx, sy in shape_points:
-                if not any((sx - cx) ** 2 + (sy - cy) ** 2 <= merge_d2
-                           for cx, cy in merged):
-                    merged.append((sx, sy))
-            points = merged
-            desc = f"综合识别到 {len(points)} 个点（颜色 {len(color_points)}，图形 {len(shape_points)}）"
-        elif mode == 1:
+        # ---- 汇总结果 ----
+        if mode == 1:
             points = shape_points
             desc = f"图形识别到 {len(points)} 个点"
         else:
