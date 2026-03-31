@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(*)",
-      "Bash(python -c \"from ui.main_window import MainWindow, ProjectTreePanel, ToolBar, ToolInterface; print\\(''All imports OK''\\)\")"
-    ]
-  }
-}

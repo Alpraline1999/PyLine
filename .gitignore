@@ -6,8 +6,8 @@ dist/
 wheels/
 *.egg-info
 elegant-munching-rivest.md
-.claude/
-.vscode/
+.claude
+.vscode
 
 # Virtual environments
 .venv
