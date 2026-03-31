@@ -8,6 +8,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
+from ui.theme import text_color
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -119,7 +120,12 @@ class ChartPage(QWidget):
             s.setStyleSheet("color: #3d3d3d;" if isDarkTheme() else "color: #e0e0e0;")
             return s
 
-        lv.addWidget(BodyLabel("数据对比", left_card))
+        def _section_label(text):
+            lbl = BodyLabel(text, left_card)
+            lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
+            return lbl
+
+        lv.addWidget(_section_label("数据对比"))
 
         btn_grid = QGridLayout()
         btn_grid.setSpacing(4)
@@ -150,7 +156,7 @@ class ChartPage(QWidget):
 
         lv.addWidget(_sep())
 
-        lv.addWidget(BodyLabel("曲线选择", left_card))
+        lv.addWidget(_section_label("曲线选择"))
 
         self._curve_list = ListWidget(left_card)
         self._curve_list.setSelectionMode(ListWidget.MultiSelection)
@@ -160,31 +166,25 @@ class ChartPage(QWidget):
 
         # \u5168\u9009 + \u5220\u9664\u5bfc\u5165\u66f2\u7ebf\uff08\u5e76\u6392\uff09
         sel_row = QHBoxLayout()
-        self._select_all_btn = PushButton(FIF.CHECKBOX, "\u5168\u9009", left_card)
+        self._select_all_btn = PushButton(FIF.CHECKBOX, "全选", left_card)
         self._select_all_btn.setFixedHeight(30)
         self._select_all_btn.clicked.connect(self._select_all)
         sel_row.addWidget(self._select_all_btn)
 
-        self._delete_import_btn = PushButton(FIF.DELETE, "\u5220\u9664\u5bfc\u5165", left_card)
+        self._delete_import_btn = PushButton(FIF.DELETE, "删除导入", left_card)
         self._delete_import_btn.setFixedHeight(30)
         self._delete_import_btn.setEnabled(False)
         self._delete_import_btn.clicked.connect(self._on_delete_import_curve)
         sel_row.addWidget(self._delete_import_btn)
         lv.addLayout(sel_row)
 
-        def _sep():
-            s = QFrame(left_card)
-            s.setFrameShape(QFrame.HLine)
-            s.setFixedHeight(1)
-            s.setStyleSheet("color: #3d3d3d;" if isDarkTheme() else "color: #e0e0e0;")
-            return s
 
         lv.addWidget(_sep())
 
         # \u66f2\u7ebf\u6837\u5f0f\u533a\u57df
-        lv.addWidget(BodyLabel("\u66f2\u7ebf\u6837\u5f0f\uff08\u5355\u51fb\u5217\u8868\u9879\u7f16\u8f91\uff09", left_card))
+        lv.addWidget(_section_label("曲线样式(选择曲线进行设置)"))
 
-        self._style_target_label = BodyLabel("\u2014 \u672a\u9009\u4e2d \u2014", left_card)
+        self._style_target_label = BodyLabel("- 未选择 -", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
         self._style_target_label.setWordWrap(True)
         lv.addWidget(self._style_target_label)
@@ -215,40 +215,40 @@ class ChartPage(QWidget):
         lv.addWidget(_sep())
 
         # \u5750\u6807\u8f74\u8bbe\u7f6e
-        lv.addWidget(BodyLabel("\u5750\u6807\u8f74", left_card))
+        lv.addWidget(_section_label("坐标轴"))
 
         ax_form = QHBoxLayout()
-        ax_form.addWidget(BodyLabel("X\u5c55\u793a\u8303\u56f4:", left_card))
+        ax_form.addWidget(BodyLabel("X 范围:", left_card))
         self._x_min_edit = LineEdit(left_card)
         self._x_min_edit.setPlaceholderText("\u81ea\u52a8")
-        self._x_min_edit.setFixedWidth(52)
+        self._x_min_edit.setFixedWidth(72)
         self._x_min_edit.textChanged.connect(self._redraw)
         ax_form.addWidget(self._x_min_edit)
 
         self._x_max_edit = LineEdit(left_card)
         self._x_max_edit.setPlaceholderText("\u81ea\u52a8")
-        self._x_max_edit.setFixedWidth(52)
+        self._x_max_edit.setFixedWidth(72)
         self._x_max_edit.textChanged.connect(self._redraw)
         ax_form.addWidget(self._x_max_edit)
         lv.addLayout(ax_form)
 
         ay_form = QHBoxLayout()
-        ay_form.addWidget(BodyLabel("Y\u5c55\u793a\u8303\u56f4:", left_card))
+        ay_form.addWidget(BodyLabel("Y 范围:", left_card))
         self._y_min_edit = LineEdit(left_card)
         self._y_min_edit.setPlaceholderText("\u81ea\u52a8")
-        self._y_min_edit.setFixedWidth(52)
+        self._y_min_edit.setFixedWidth(72)
         self._y_min_edit.textChanged.connect(self._redraw)
         ay_form.addWidget(self._y_min_edit)
 
         self._y_max_edit = LineEdit(left_card)
         self._y_max_edit.setPlaceholderText("\u81ea\u52a8")
-        self._y_max_edit.setFixedWidth(52)
+        self._y_max_edit.setFixedWidth(72)
         self._y_max_edit.textChanged.connect(self._redraw)
         ay_form.addWidget(self._y_max_edit)
         lv.addLayout(ay_form)
 
         xlabel_row = QHBoxLayout()
-        xlabel_row.addWidget(BodyLabel("X\u6807\u7b7e:", left_card))
+        xlabel_row.addWidget(BodyLabel("X 轴标签:", left_card))
         self._x_label_edit = LineEdit(left_card)
         self._x_label_edit.setPlaceholderText("X")
         self._x_label_edit.textChanged.connect(self._redraw)
@@ -256,7 +256,7 @@ class ChartPage(QWidget):
         lv.addLayout(xlabel_row)
 
         ylabel_row = QHBoxLayout()
-        ylabel_row.addWidget(BodyLabel("Y\u6807\u7b7e:", left_card))
+        ylabel_row.addWidget(BodyLabel("Y 轴标签:", left_card))
         self._y_label_edit = LineEdit(left_card)
         self._y_label_edit.setPlaceholderText("Y")
         self._y_label_edit.textChanged.connect(self._redraw)
