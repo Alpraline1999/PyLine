@@ -396,21 +396,6 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._point_size_spin)
         bar_layout.addWidget(self._point_size_value_label)
 
-        # 选点区域
-        _lbl_sel_area = BodyLabel("选点:", bar)
-        _lbl_sel_area.setStyleSheet(f"color: {text_color()};")
-        bar_layout.addWidget(_lbl_sel_area)
-        self._select_area_slider = Slider(Qt.Orientation.Horizontal, bar)
-        self._select_area_slider.setRange(2, 30)
-        self._select_area_slider.setValue(10)
-        self._select_area_slider.setFixedWidth(80)
-        self._select_area_slider.valueChanged.connect(self._on_select_area_changed)
-        self._select_area_value_label = BodyLabel("10px", bar)
-        self._select_area_value_label.setFixedWidth(30)
-        self._select_area_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
-        bar_layout.addWidget(self._select_area_slider)
-        bar_layout.addWidget(self._select_area_value_label)
-
         # 橡皮大小
         _lbl_eraser = BodyLabel("橡皮:", bar)
         _lbl_eraser.setStyleSheet(f"color: {text_color()};")
@@ -511,6 +496,23 @@ class WorkspacePage(QWidget):
 
         ml.addStretch()
         layout.addWidget(manual_row)
+
+        # --- 微调步长 ---
+        nudge_row = QWidget(content)
+        nl = QHBoxLayout(nudge_row)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(4)
+        nl.addWidget(BodyLabel("微调步长:", nudge_row))
+        self._select_area_slider = Slider(Qt.Orientation.Horizontal, nudge_row)
+        self._select_area_slider.setRange(2, 30)
+        self._select_area_slider.setValue(10)
+        nl.addWidget(self._select_area_slider, 1)
+        self._select_area_value_label = BodyLabel("10", nudge_row)
+        self._select_area_value_label.setFixedWidth(24)
+        self._select_area_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        nl.addWidget(self._select_area_value_label)
+        self._select_area_slider.valueChanged.connect(self._on_select_area_changed)
+        layout.addWidget(nudge_row)
 
         # ══════════ 自动选点（置于辅助选点之前）══════════
         layout.addWidget(make_hsep(content))
@@ -1713,7 +1715,7 @@ class WorkspacePage(QWidget):
 
     def _on_select_area_changed(self, value):
         self._image_viewer.set_select_threshold(float(value))
-        self._select_area_value_label.setText(f"{value}px")
+        self._select_area_value_label.setText(str(value))
 
     def _on_eraser_size_changed(self, value):
         self._image_viewer.set_eraser_size(float(value))
