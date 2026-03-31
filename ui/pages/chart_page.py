@@ -274,7 +274,7 @@ class ChartPage(QWidget):
         rv.setContentsMargins(8, 8, 8, 8)
 
         if HAS_MATPLOTLIB:
-            self._figure = Figure(constrained_layout=True)
+            self._figure = Figure()
             self._canvas = FigureCanvas(self._figure)
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)
@@ -420,6 +420,7 @@ class ChartPage(QWidget):
             elif y_min is None and y_max is not None:
                 ax.set_ylim(top=y_max)
 
+        self._figure.subplots_adjust(left=0.12, right=0.96, top=0.96, bottom=0.10)
         self._canvas.draw()
 
     # ──────────────────────────── 样式面板 ──────────────────────────────

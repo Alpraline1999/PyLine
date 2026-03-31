@@ -5,7 +5,8 @@ from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePush
     LineEdit, SpinBox, ColorPickerButton, BodyLabel, CaptionLabel, SubtitleLabel,
     PushButton as FPushButton, TableWidget, ComboBox, TreeWidget, TreeItemDelegate,
     Slider, SmoothScrollArea, TabWidget, TabCloseButtonDisplayMode,
-    MessageBox, InfoBar, RoundMenu, MessageBoxBase)
+    MessageBox, InfoBar, RoundMenu, MessageBoxBase,
+    ToolTipFilter, ToolTipPosition)
 
 from ui.theme import text_color, secondary_color, placeholder_color
 from ui.widgets import ImageViewer
@@ -72,6 +73,14 @@ class WorkspacePage(QWidget):
         self._setup_shortcuts()
         # 初始化点大小
         self._image_viewer.set_point_size(self._point_size_spin.value())
+        # 为所有带 tooltip 的 widget 安装 Fluent 样式过滤器
+        self._install_tooltip_filters()
+
+    def _install_tooltip_filters(self):
+        """为所有带 tooltip 的子 widget 安装 Fluent ToolTipFilter"""
+        for w in self.findChildren(QWidget):
+            if w.toolTip():
+                w.installEventFilter(ToolTipFilter(w, 500, ToolTipPosition.TOP))
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
