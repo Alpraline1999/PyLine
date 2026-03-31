@@ -630,6 +630,32 @@ class WorkspacePage(QWidget):
         self._match_thr_widget.setVisible(False)
         layout.addWidget(self._match_thr_widget)
 
+        # --- 颜色权重（图形识别 / 综合识别 时显示）---
+        self._color_weight_widget = QWidget(content)
+        cwl = QHBoxLayout(self._color_weight_widget)
+        cwl.setContentsMargins(0, 0, 0, 0)
+        cwl.setSpacing(4)
+        cwl.addWidget(BodyLabel("颜色权重:", self._color_weight_widget))
+        self._color_weight_slider = Slider(Qt.Orientation.Horizontal, self._color_weight_widget)
+        self._color_weight_slider.setRange(0, 100)
+        self._color_weight_slider.setValue(70)
+        self._color_weight_slider.setToolTip(
+            "颜色匹配权重 vs 边缘轮廓权重\n"
+            "100% = 仅靠颜色匹配（彩色标记）\n"
+            "0% = 仅靠边缘轮廓（黑白标记）\n"
+            "70% = 默认，融合两种评分"
+        )
+        cwl.addWidget(self._color_weight_slider, 1)
+        self._color_weight_val_lbl = BodyLabel("70%", self._color_weight_widget)
+        self._color_weight_val_lbl.setFixedWidth(32)
+        self._color_weight_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        cwl.addWidget(self._color_weight_val_lbl)
+        self._color_weight_slider.valueChanged.connect(
+            lambda v: self._color_weight_val_lbl.setText(f"{v}%")
+        )
+        self._color_weight_widget.setVisible(False)
+        layout.addWidget(self._color_weight_widget)
+
         # --- 搜索步长 ---
         step_row = QWidget(content)
         sl = QHBoxLayout(step_row)
@@ -1311,6 +1337,7 @@ class WorkspacePage(QWidget):
         self._crop_template_btn.setEnabled(shape_mode)
         self._shape_template_lbl.setVisible(shape_mode)
         self._match_thr_widget.setVisible(shape_mode)
+        self._color_weight_widget.setVisible(shape_mode)
 
         # 若退出取色模式，恢复 select
         if not color_mode and self._screen_pick_btn.isChecked():
@@ -1478,6 +1505,7 @@ class WorkspacePage(QWidget):
                     mask_include_mode=mask_include_mode,
                     step=step,
                     threshold=threshold,
+                    color_weight=self._color_weight_slider.value() / 100.0,
                 )
             except Exception as e:
                 self._auto_status_label.setText(f"图形识别失败: {e}")
