@@ -2,11 +2,14 @@
 
 核心思路：
   1. 从截图模板中提取最大轮廓 → 计算 Hu 矩作为形状描述子
-  2. 全图颜色过滤 → 连通域分析 → 面积过滤
-  3. 对每个候选连通域提取轮廓 → cv2.matchShapes() 与模板比对
+  2. 全图颜色过滤 → 多级形态学开运算剥离曲线 → 连通域分析 → 面积/形状过滤
+  3. 对每个候选连通域 → cv2.matchShapes() + 实心度 + 宽高比 综合评判
   4. 匹配连通域的质心作为结果点
 
-优势：尺度不敏感、旋转不敏感、抗背景干扰
+优势：
+  - 多级开运算：先用递增核剥离曲线细线，保留标记块体
+  - 多指标融合：Hu 矩 + 实心度 + 宽高比三重过滤
+  - 尺度/旋转不敏感，抗背景干扰
 """
 
 from __future__ import annotations
@@ -39,6 +42,8 @@ class ShapeExtractor:
               'binary'           : ndarray uint8  — 实心二值形状（前景=255）
               'contour'          : ndarray        — 模板最大轮廓 (用于 matchShapes)
               'contour_area'     : float          — 模板轮廓面积（像素）
+              'solidity'         : float          — 模板实心度 (area / convexHullArea)
+              'aspect_ratio'     : float          — 模板宽高比 (w/h of bounding rect)
               'dominant_hsv'     : (H, S, V) int  — 前景主色（HSV）
               'color_tol_hsv'    : (dH, dS, dV)   — 建议容差
               'has_color'        : bool            — 主色是否有足够饱和度可用
@@ -80,7 +85,6 @@ class ShapeExtractor:
             _, binary = cv2.threshold(
                 gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
             )
-            # 从二值图重新提取轮廓
             contours, _ = cv2.findContours(
                 binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -92,6 +96,14 @@ class ShapeExtractor:
         contour_area = cv2.contourArea(largest)
         if contour_area < 4:
             raise ValueError("截图区域中的形状面积过小")
+
+        # 计算实心度和宽高比
+        hull = cv2.convexHull(largest)
+        hull_area = cv2.contourArea(hull)
+        solidity = contour_area / hull_area if hull_area > 0 else 0.0
+
+        _, _, bw, bh = cv2.boundingRect(largest)
+        aspect_ratio = bw / bh if bh > 0 else 1.0
 
         # ---- 提取前景主色 ----
         hsv_raw = cv2.cvtColor(raw, cv2.COLOR_BGR2HSV)
@@ -105,6 +117,8 @@ class ShapeExtractor:
             "binary": binary,
             "contour": largest,
             "contour_area": float(contour_area),
+            "solidity": float(solidity),
+            "aspect_ratio": float(aspect_ratio),
             "dominant_hsv": dominant_hsv,
             "color_tol_hsv": color_tol_hsv,
             "has_color": has_color,
@@ -129,9 +143,9 @@ class ShapeExtractor:
 
         管线：
           1. 颜色过滤（或自适应二值化）→ 前景掩膜
-          2. 连通域分析 → 面积过滤
-          3. 逐候选连通域 → matchShapes 与模板轮廓比对
-          4. 相似度 ≤ 阈值 → 质心作为结果点
+          2. 多级形态学开运算 → 逐级连通域分析 → 面积/形状过滤
+          3. 多指标评判：Hu 矩 + 实心度 + 宽高比
+          4. NMS 去重 → 质心作为结果点
 
         Args:
             image_path:        图片路径
@@ -140,9 +154,7 @@ class ShapeExtractor:
             mask_include_mode: True = 蒙版内才识别；False = 蒙版内不识别
             step:              未使用（保留接口兼容）
             threshold:         形状相似度阈值 [0, 1]；越大越宽松
-                               (内部映射到 matchShapes 距离阈值)
-            color_weight:      颜色过滤的严格程度 (0.0~1.0)；
-                               越高 → 颜色容差越小，过滤越严格
+            color_weight:      颜色过滤的严格程度 (0.0~1.0)
         Returns:
             list of (x, y) 图片像素坐标
         """
@@ -155,6 +167,8 @@ class ShapeExtractor:
         img_h, img_w = img.shape[:2]
         template_contour = template_info["contour"]
         template_area = template_info["contour_area"]
+        template_solidity = template_info.get("solidity", 0.8)
+        template_ar = template_info.get("aspect_ratio", 1.0)
 
         # ---- 构建前景掩膜 ----
         fg_mask = ShapeExtractor._build_foreground_mask(
@@ -171,56 +185,175 @@ class ShapeExtractor:
             cv2.fillPoly(search_mask, pts_list, 255)
 
             if mask_include_mode:
-                # 仅保留蒙版内
                 fg_mask = cv2.bitwise_and(fg_mask, search_mask)
             else:
-                # 排除蒙版内
                 fg_mask = cv2.bitwise_and(fg_mask, cv2.bitwise_not(search_mask))
 
-        # ---- 形态学清理 ----
-        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, k_close, iterations=1)
+        # ---- 面积过滤范围 ----
+        area_lo = template_area * 0.1
+        area_hi = template_area * 8.0
 
-        # ---- 连通域分析 ----
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-            fg_mask, connectivity=8
+        # ---- 形状相似度阈值映射 ----
+        # threshold=1.0 → 非常宽松(dist_thr=1.5)  threshold=0.0 → 极严格(dist_thr=0.05)
+        dist_thr = 0.05 + threshold * 1.45
+
+        # ---- 多级开运算 + 原始掩膜，收集所有候选 ----
+        # 开运算可剥离细曲线（1-2px 宽），保留较粗的标记形状
+        raw_candidates: list[Tuple[float, float, float]] = []  # (cx, cy, score)
+
+        # 确定开运算核大小范围：基于模板尺寸
+        tw, th = template_info["size"]
+        min_dim = min(tw, th)
+        # 核大小从 0（原始）到 min_dim//3，最少 2 级
+        max_ksize = max(3, min(min_dim // 3, 7))
+        open_ksizes = [0] + list(range(2, max_ksize + 1))
+
+        seen_centers: set = set()  # 粗去重（网格化）
+        dedup_radius = max(3, min(tw, th) // 2)
+
+        for ksize in open_ksizes:
+            if ksize == 0:
+                working_mask = fg_mask.copy()
+            else:
+                k_open = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE, (ksize, ksize)
+                )
+                working_mask = cv2.morphologyEx(
+                    fg_mask, cv2.MORPH_OPEN, k_open, iterations=1
+                )
+
+            # 闭运算填补小孔
+            k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            working_mask = cv2.morphologyEx(
+                working_mask, cv2.MORPH_CLOSE, k_close, iterations=1
+            )
+
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+                working_mask, connectivity=8
+            )
+
+            for i in range(1, num_labels):
+                area = stats[i, cv2.CC_STAT_AREA]
+                if area < area_lo or area > area_hi:
+                    continue
+
+                cx, cy = centroids[i]
+
+                # 粗网格去重：避免同一标记在不同开运算级别被重复评估
+                grid_key = (int(cx) // dedup_radius, int(cy) // dedup_radius)
+                if grid_key in seen_centers:
+                    continue
+
+                # 提取该连通域的轮廓
+                blob_mask = (labels == i).astype(np.uint8) * 255
+                blob_contours, _ = cv2.findContours(
+                    blob_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+                if not blob_contours:
+                    continue
+
+                blob_contour = max(blob_contours, key=cv2.contourArea)
+                blob_area = cv2.contourArea(blob_contour)
+                if blob_area < 4:
+                    continue
+
+                # ---- 多指标评判 ----
+                score = ShapeExtractor._evaluate_candidate(
+                    template_contour, template_solidity, template_ar,
+                    blob_contour, blob_area, dist_thr,
+                )
+
+                if score >= 0:
+                    seen_centers.add(grid_key)
+                    raw_candidates.append((float(cx), float(cy), score))
+
+        # ---- NMS 去重 ----
+        results = ShapeExtractor._nms_points(raw_candidates, dedup_radius)
+
+        return results
+
+    # ------------------------------------------------------------------ #
+    #  多指标候选评判                                                       #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _evaluate_candidate(
+        template_contour: np.ndarray,
+        template_solidity: float,
+        template_ar: float,
+        blob_contour: np.ndarray,
+        blob_area: float,
+        dist_thr: float,
+    ) -> float:
+        """评判单个候选连通域与模板的相似度。
+
+        返回 >= 0 的评分（越小越像）表示通过，返回 -1 表示不通过。
+        """
+        import cv2
+
+        # 1. Hu 矩形状比对（主要指标，使用三种方法取最小）
+        d1 = cv2.matchShapes(
+            template_contour, blob_contour, cv2.CONTOURS_MATCH_I1, 0.0
         )
+        d2 = cv2.matchShapes(
+            template_contour, blob_contour, cv2.CONTOURS_MATCH_I2, 0.0
+        )
+        d3 = cv2.matchShapes(
+            template_contour, blob_contour, cv2.CONTOURS_MATCH_I3, 0.0
+        )
+        # 取最小距离（最宽松的方法通过即可）
+        hu_dist = min(d1, d2, d3)
 
-        # 面积过滤范围：模板面积的 0.15x ~ 6x
-        area_lo = template_area * 0.15
-        area_hi = template_area * 6.0
+        if hu_dist > dist_thr:
+            return -1.0
 
-        # 形状相似度阈值：threshold 映射到 matchShapes 距离
-        # threshold=1.0 → 非常宽松(dist_thr=1.0)  threshold=0.0 → 极严格(dist_thr=0.02)
-        dist_thr = 0.02 + threshold * 0.98
+        # 2. 实心度检查（面积/凸包面积）
+        hull = cv2.convexHull(blob_contour)
+        hull_area = cv2.contourArea(hull)
+        blob_solidity = blob_area / hull_area if hull_area > 0 else 0.0
+
+        # 允许实心度偏差 0.35
+        if abs(blob_solidity - template_solidity) > 0.35:
+            return -1.0
+
+        # 3. 宽高比检查
+        _, _, bw, bh = cv2.boundingRect(blob_contour)
+        blob_ar = bw / bh if bh > 0 else 1.0
+
+        # 允许宽高比偏差因子 2.5x
+        ar_ratio = max(blob_ar, template_ar) / max(min(blob_ar, template_ar), 0.01)
+        if ar_ratio > 2.5:
+            return -1.0
+
+        return hu_dist
+
+    # ------------------------------------------------------------------ #
+    #  NMS 点去重                                                          #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _nms_points(
+        candidates: list[Tuple[float, float, float]],
+        radius: int,
+    ) -> List[Tuple[float, float]]:
+        """对候选点按评分排序后做距离 NMS 去重。"""
+        if not candidates:
+            return []
+
+        # 按评分升序排（越小越好）
+        candidates.sort(key=lambda c: c[2])
 
         results: List[Tuple[float, float]] = []
+        r2 = radius * radius
 
-        for i in range(1, num_labels):  # 跳过背景 label=0
-            area = stats[i, cv2.CC_STAT_AREA]
-            if area < area_lo or area > area_hi:
-                continue
-
-            # 提取该连通域的轮廓
-            blob_mask = (labels == i).astype(np.uint8) * 255
-            blob_contours, _ = cv2.findContours(
-                blob_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            if not blob_contours:
-                continue
-
-            blob_contour = max(blob_contours, key=cv2.contourArea)
-            if cv2.contourArea(blob_contour) < 4:
-                continue
-
-            # Hu 矩形状比对
-            dist = cv2.matchShapes(
-                template_contour, blob_contour, cv2.CONTOURS_MATCH_I1, 0.0
-            )
-
-            if dist <= dist_thr:
-                cx, cy = centroids[i]
-                results.append((float(cx), float(cy)))
+        for cx, cy, _ in candidates:
+            too_close = False
+            for rx, ry in results:
+                if (cx - rx) ** 2 + (cy - ry) ** 2 < r2:
+                    too_close = True
+                    break
+            if not too_close:
+                results.append((cx, cy))
 
         return results
 

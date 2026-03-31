@@ -1771,7 +1771,7 @@ class WorkspacePage(QWidget):
             self._current_project_item = item
             self._current_image_id = None
             self._current_curve_id = None
-            self._refresh_project_tree()
+            self._refresh_project_tree(show_indicator=True)
         elif item_type == "image":
             project_id = data[2]
             project_manager.set_current_project(project_id)
@@ -1797,7 +1797,7 @@ class WorkspacePage(QWidget):
                             # 同一图片，只刷新校准显示
                             if self._current_curve_id:
                                 self._display_current_curve_on_image()
-                        self._refresh_project_tree()
+                        self._refresh_project_tree(show_indicator=True)
                         self.current_image_changed.emit(img)
                         break
         elif item_type == "curve":
@@ -1824,7 +1824,7 @@ class WorkspacePage(QWidget):
             # 清除图片上的曲线，显示当前选中的曲线和校准
             self._display_current_curve_on_image()
             self._update_curve_table()
-            self._refresh_project_tree()
+            self._refresh_project_tree(show_indicator=True)
 
     def _on_tree_item_double_clicked(self, item, column):
         pass
