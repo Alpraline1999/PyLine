@@ -44,3 +44,32 @@ def surface_color():
 def hover_color():
     """悬停高亮颜色"""
     return "#383838" if isDarkTheme() else "#e8f0fe"
+
+
+# ── 通用 UI 工厂函数（避免各页面重复定义）──────────────────────────────
+
+def make_section_label(text: str, parent=None):
+    """创建节标题标签（粗体，11px）"""
+    from qfluentwidgets import BodyLabel
+    lbl = BodyLabel(text, parent)
+    lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
+    return lbl
+
+
+def make_hsep(parent=None):
+    """创建水平分隔线"""
+    from PySide6.QtWidgets import QFrame
+    line = QFrame(parent)
+    line.setFrameShape(QFrame.Shape.HLine)
+    line.setStyleSheet(f"color: {border_color()};")
+    return line
+
+
+def make_vsep(parent=None):
+    """创建垂直分隔线（1px 宽）"""
+    from PySide6.QtWidgets import QFrame
+    line = QFrame(parent)
+    line.setFrameShape(QFrame.Shape.VLine)
+    line.setFixedWidth(1)
+    line.setStyleSheet(f"color: {border_color()};")
+    return line

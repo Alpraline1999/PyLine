@@ -8,7 +8,7 @@ from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePush
     MessageBox, InfoBar, RoundMenu, MessageBoxBase,
     ToolTipFilter, ToolTipPosition, Action)
 
-from ui.theme import text_color, secondary_color, placeholder_color
+from ui.theme import text_color, secondary_color, placeholder_color, make_section_label, make_hsep, make_vsep
 from ui.widgets import ImageViewer
 from ui.dialogs import CalibrationDialog, CoordTypeDialog, PolarCalibrationDialog
 from core.project_manager import project_manager
@@ -265,8 +265,7 @@ class WorkspacePage(QWidget):
         layout.setSpacing(5)
 
         # 标题
-        title_label = BodyLabel("曲线数据", panel)
-        title_label.setStyleSheet(f"font-weight: bold; color: {text_color()};")
+        title_label = make_section_label("曲线数据", panel)
         layout.addWidget(title_label)
 
         # 曲线数据表格（带可点击排序表头）
@@ -319,13 +318,6 @@ class WorkspacePage(QWidget):
         bar_layout.setSpacing(2)
         bar_layout.addStretch()  # 推到右侧
 
-        def _vsep():
-            line = QFrame(bar)
-            line.setFrameShape(QFrame.Shape.VLine)
-            line.setFixedWidth(1)
-            line.setStyleSheet(f"color: {self._border_color()};")
-            return line
-
         # 橡皮擦
         self._eraser_btn = ToggleToolButton(FIF.ERASE_TOOL, bar)
         self._eraser_btn.setToolTip("橡皮擦 (E)")
@@ -333,7 +325,7 @@ class WorkspacePage(QWidget):
         self._eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
         bar_layout.addWidget(self._eraser_btn)
 
-        bar_layout.addWidget(_vsep())
+        bar_layout.addWidget(make_vsep(bar))
 
         # 清除所有点
         self._clear_points_btn = ToolButton(FIF.DELETE, bar)
@@ -369,13 +361,6 @@ class WorkspacePage(QWidget):
         bar_layout.setContentsMargins(4, 2, 4, 2)
         bar_layout.setSpacing(3)
 
-        def _vsep():
-            line = QFrame(bar)
-            line.setFrameShape(QFrame.Shape.VLine)
-            line.setFixedWidth(1)
-            line.setStyleSheet(f"color: {self._border_color()};")
-            return line
-
         # 颜色
         self._color_btn = ColorPickerButton(QColor("#0078D4"), "", bar)
         self._color_btn.setToolTip("曲线颜色")
@@ -391,7 +376,7 @@ class WorkspacePage(QWidget):
         self._shape_combo.currentIndexChanged.connect(self._on_shape_changed)
         bar_layout.addWidget(self._shape_combo)
 
-        bar_layout.addWidget(_vsep())
+        bar_layout.addWidget(make_vsep(bar))
 
         # 点大小
         _lbl_size = BodyLabel("大小:", bar)
@@ -435,7 +420,7 @@ class WorkspacePage(QWidget):
         bar_layout.addWidget(self._eraser_size_spin)
         bar_layout.addWidget(self._eraser_size_value_label)
 
-        bar_layout.addWidget(_vsep())
+        bar_layout.addWidget(make_vsep(bar))
 
         # 平滑
         self._smooth_method_combo = FComboBox(bar)
@@ -498,19 +483,8 @@ class WorkspacePage(QWidget):
         outer.addWidget(scroll)
         scroll.setWidget(content)
 
-        def _section_label(text):
-            lbl = BodyLabel(text, content)
-            lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
-            return lbl
-
-        def _hsep():
-            line = QFrame(content)
-            line.setFrameShape(QFrame.Shape.HLine)
-            line.setStyleSheet(f"color: {self._border_color()};")
-            return line
-
         # ══════════ 手动选点 ══════════
-        layout.addWidget(_section_label("手动选点"))
+        layout.addWidget(make_section_label("手动选点", content))
 
         manual_row = QWidget(content)
         ml = QHBoxLayout(manual_row)
@@ -533,8 +507,8 @@ class WorkspacePage(QWidget):
         layout.addWidget(manual_row)
 
         # ══════════ 自动选点（置于辅助选点之前）══════════
-        layout.addWidget(_hsep())
-        layout.addWidget(_section_label("自动选点"))
+        layout.addWidget(make_hsep(content))
+        layout.addWidget(make_section_label("自动选点", content))
 
         auto_btn_row = QWidget(content)
         abl = QHBoxLayout(auto_btn_row)
@@ -630,17 +604,17 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
         mml.addWidget(self._brush_mask_btn)
 
-        self._clear_masks_btn = ToolButton(FIF.DELETE, mask_row)
-        self._clear_masks_btn.setToolTip("清除蒙版 (Ctrl+Shift+Delete)")
-        self._clear_masks_btn.setFixedSize(34, 34)
-        self._clear_masks_btn.clicked.connect(self._on_clear_masks)
-        mml.addWidget(self._clear_masks_btn)
-
-        self._invert_mask_btn = ToggleToolButton(FIF.RETURN, mask_row)
+        self._invert_mask_btn = ToggleToolButton(FIF.UPDATE, mask_row)
         self._invert_mask_btn.setToolTip("反转蒙版\n开启后蒙版内不识别（规避）。\n关闭后蒙版内才识别（感兴趣区域）")
         self._invert_mask_btn.setFixedSize(34, 34)
         self._invert_mask_btn.clicked.connect(self._on_invert_mask)
         mml.addWidget(self._invert_mask_btn)
+
+        self._clear_masks_btn = ToolButton(FIF.CLEAR_SELECTION, mask_row)
+        self._clear_masks_btn.setToolTip("清除蒙版 (Ctrl+Shift+Delete)")
+        self._clear_masks_btn.setFixedSize(34, 34)
+        self._clear_masks_btn.clicked.connect(self._on_clear_masks)
+        mml.addWidget(self._clear_masks_btn)
 
         mml.addStretch()
         layout.addWidget(mask_row)

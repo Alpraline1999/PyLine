@@ -8,7 +8,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
-from ui.theme import text_color
+from ui.theme import text_color, make_section_label, make_hsep
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -119,19 +119,7 @@ class ChartPage(QWidget):
         lv.setContentsMargins(12, 12, 12, 12)
         lv.setSpacing(8)
 
-        def _sep():
-            s = QFrame(left_card)
-            s.setFrameShape(QFrame.HLine)
-            s.setFixedHeight(1)
-            s.setStyleSheet("color: #3d3d3d;" if isDarkTheme() else "color: #e0e0e0;")
-            return s
-
-        def _section_label(text):
-            lbl = BodyLabel(text, left_card)
-            lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
-            return lbl
-
-        lv.addWidget(_section_label("数据对比"))
+        lv.addWidget(make_section_label("数据对比", left_card))
 
         btn_grid = QGridLayout()
         btn_grid.setSpacing(4)
@@ -160,9 +148,9 @@ class ChartPage(QWidget):
         btn_grid.setColumnStretch(1, 1)
         lv.addLayout(btn_grid)
 
-        lv.addWidget(_sep())
+        lv.addWidget(make_hsep(left_card))
 
-        lv.addWidget(_section_label("曲线选择"))
+        lv.addWidget(make_section_label("曲线选择", left_card))
 
         self._curve_list = ListWidget(left_card)
         self._curve_list.setSelectionMode(ListWidget.MultiSelection)
@@ -185,10 +173,10 @@ class ChartPage(QWidget):
         lv.addLayout(sel_row)
 
 
-        lv.addWidget(_sep())
+        lv.addWidget(make_hsep(left_card))
 
         # \u66f2\u7ebf\u6837\u5f0f\u533a\u57df
-        lv.addWidget(_section_label("曲线样式(选择曲线进行设置)"))
+        lv.addWidget(make_section_label("曲线样式(选择曲线进行设置)", left_card))
 
         self._style_target_label = BodyLabel("- 未选择 -", left_card)
         self._style_target_label.setStyleSheet("color: gray; font-size: 11px;")
@@ -218,10 +206,10 @@ class ChartPage(QWidget):
         style_row.addWidget(self._style_line_combo, 1)
         lv.addLayout(style_row)
 
-        lv.addWidget(_sep())
+        lv.addWidget(make_hsep(left_card))
 
         # \u5750\u6807\u8f74\u8bbe\u7f6e
-        lv.addWidget(_section_label("坐标轴"))
+        lv.addWidget(make_section_label("坐标轴", left_card))
 
         ax_form = QHBoxLayout()
         ax_form.addWidget(BodyLabel("X 范围:", left_card))
