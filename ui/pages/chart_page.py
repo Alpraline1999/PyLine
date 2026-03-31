@@ -76,14 +76,20 @@ except ImportError:
 
 from core.project_manager import project_manager
 
-_LINESTYLES = [
-    ("实线 —",    "-"),
-    ("虚线 - -",  "--"),
-    ("点线 ···",  ":"),
-    ("点划线 —·", "-."),
+_STYLES = [
+    ("实线 —",         "-",   ""),
+    ("虚线 - -",       "--",  ""),
+    ("点线 ···",       ":",   ""),
+    ("点划线 —·",      "-.",  ""),
+    ("散点 ○",         "",    "o"),
+    ("散点 □",         "",    "s"),
+    ("散点 △",         "",    "^"),
+    ("散点+线 ○—",     "-",   "o"),
+    ("散点+线 □—",     "-",   "s"),
 ]
-_LINESTYLE_LABELS = [ls[0] for ls in _LINESTYLES]
-_LINESTYLE_VALUES = [ls[1] for ls in _LINESTYLES]
+_STYLE_LABELS     = [s[0] for s in _STYLES]
+_STYLE_LINESTYLES = [s[1] for s in _STYLES]
+_STYLE_MARKERS    = [s[2] for s in _STYLES]
 
 
 class ChartPage(QWidget):
@@ -206,7 +212,7 @@ class ChartPage(QWidget):
         style_row.addWidget(self._style_reset_color_btn)
         style_row.addWidget(BodyLabel("线型:", left_card))
         self._style_line_combo = ComboBox(left_card)
-        self._style_line_combo.addItems(_LINESTYLE_LABELS)
+        self._style_line_combo.addItems(_STYLE_LABELS)
         self._style_line_combo.setEnabled(False)
         self._style_line_combo.currentIndexChanged.connect(self._on_style_line_changed)
         style_row.addWidget(self._style_line_combo, 1)
@@ -340,8 +346,9 @@ class ChartPage(QWidget):
         name = curve["name"]
         override = self._curve_styles.get(name, {})
         color = override.get("color") or curve.get("color") or None
-        ls = override.get("linestyle") or "-"
-        return {"color": color, "linestyle": ls}
+        ls = override.get("linestyle", "-")
+        mk = override.get("marker", "")
+        return {"color": color, "linestyle": ls, "marker": mk}
 
     # ──────────────────────────── 绘图 ──────────────────────────────────
 
@@ -371,19 +378,15 @@ class ChartPage(QWidget):
 
         for c in self._selected_curves():
             style = self._get_curve_style(c)
-            kw = {"label": c["name"], "linestyle": style["linestyle"]}
+            ls = style["linestyle"] or "none"
+            marker = style["marker"] or ""
+            kw = {"label": c["name"], "linestyle": ls}
+            if marker:
+                kw["marker"] = marker
+                kw["markersize"] = 5
             if style["color"]:
                 kw["color"] = style["color"]
-            if show_line:
-                lines = ax.plot(c["x"], c["y"], linewidth=1.4, **kw)
-                eff_color = style["color"] or lines[0].get_color()
-            else:
-                eff_color = style["color"]
-            if show_scatter:
-                sc_kw = {}
-                if eff_color:
-                    sc_kw["color"] = eff_color
-                ax.scatter(c["x"], c["y"], s=12, label=(c["name"] if not show_line else "_nolegend_"), **sc_kw)
+            ax.plot(c["x"], c["y"], linewidth=1.4, **kw)
 
         if self._selected_curves():
             ax.legend(facecolor=bg, edgecolor=fg, labelcolor=fg, fontsize=8)
@@ -438,8 +441,12 @@ class ChartPage(QWidget):
             ov = self._curve_styles.get(name, {})
             eff_color = ov.get("color") or curve.get("color") or "#888888"
             self._update_color_btn(eff_color)
-            ls = ov.get("linestyle")
-            idx = _LINESTYLE_VALUES.index(ls) if ls in _LINESTYLE_VALUES else 0
+            ls = ov.get("linestyle", "-")
+            mk = ov.get("marker", "")
+            try:
+                idx = next(i for i, (sl, sm) in enumerate(zip(_STYLE_LINESTYLES, _STYLE_MARKERS)) if sl == ls and sm == mk)
+            except StopIteration:
+                idx = 0
             self._style_line_combo.blockSignals(True)
             self._style_line_combo.setCurrentIndex(idx)
             self._style_line_combo.blockSignals(False)
@@ -486,7 +493,9 @@ class ChartPage(QWidget):
     def _on_style_line_changed(self, idx: int):
         if not self._style_target:
             return
-        self._curve_styles.setdefault(self._style_target, {})["linestyle"] = _LINESTYLE_VALUES[idx]
+        styles = self._curve_styles.setdefault(self._style_target, {})
+        styles["linestyle"] = _STYLE_LINESTYLES[idx]
+        styles["marker"] = _STYLE_MARKERS[idx]
         self._redraw()
 
     def _on_delete_import_curve(self):

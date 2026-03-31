@@ -525,7 +525,7 @@ class WorkspacePage(QWidget):
         ml.addWidget(self._calibrate_btn)
 
         self._extract_btn = TogglePushButton(FIF.PENCIL_INK, "手动取点", manual_row)
-        self._extract_btn.setToolTip("手动提取曲线 (P)")
+        self._extract_btn.setToolTip("手动提取曲线 (Q)")
         self._extract_btn.setFixedHeight(34)
         self._extract_btn.clicked.connect(lambda: self._on_tool_clicked("extract"))
         ml.addWidget(self._extract_btn)
@@ -563,7 +563,7 @@ class WorkspacePage(QWidget):
         abl.addWidget(self._auto_detect_btn)
 
         self._apply_auto_btn = ToolButton(FIF.ACCEPT, auto_btn_row)
-        self._apply_auto_btn.setToolTip("应用自动检测结果 (Enter)")
+        self._apply_auto_btn.setToolTip("应用自动检测结果 (Ctrl+Enter)")
         self._apply_auto_btn.setFixedSize(34, 34)
         self._apply_auto_btn.clicked.connect(self._on_apply_auto_points)
         abl.addWidget(self._apply_auto_btn)

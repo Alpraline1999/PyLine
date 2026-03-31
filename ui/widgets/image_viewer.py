@@ -441,13 +441,19 @@ class ImageViewer(QWidget):
         self.update()
 
     def zoom_in(self):
-        """放大"""
+        """放大（以查看器中心为缩放中心）"""
+        old_scale = self._scale
         self._scale = min(self._scale * 1.2, self._max_scale)
+        factor = self._scale / old_scale
+        self._offset = self._clamp_offset(QPointF(self._offset.x() * factor, self._offset.y() * factor))
         self.update()
 
     def zoom_out(self):
-        """缩小"""
+        """缩小（以查看器中心为缩放中心）"""
+        old_scale = self._scale
         self._scale = max(self._scale / 1.2, self._min_scale)
+        factor = self._scale / old_scale
+        self._offset = self._clamp_offset(QPointF(self._offset.x() * factor, self._offset.y() * factor))
         self.update()
 
     def zoom_reset(self):
