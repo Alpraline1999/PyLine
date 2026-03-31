@@ -349,6 +349,8 @@ class ImageViewer(QWidget):
         self._mask_current_polygon = []  # 画笔蒙版笔触点列表（QPointF）
         self._brush_painting = False     # 画笔蒙版是否正在按下绘制
         self._brush_last_pt = None       # 画笔蒙版上次圆心位置（用于间距控制）
+        self._pending_brush_circles: list = []  # 本次笔触的所有圆（待合并）
+        self._cached_brush_path = QPainterPath()  # 笔触预览缓存路径
 
         # 预览点（自动检测结果）
         self._preview_points: list = []
@@ -542,6 +544,7 @@ class ImageViewer(QWidget):
         self._calibration_step_hint = ""
         self._mask_current_polygon = []
         self._pending_brush_circles = []
+        self._cached_brush_path = QPainterPath()
         self.update()
 
     def set_assisted_mode(self, shape: str = "rect"):
@@ -969,7 +972,9 @@ class ImageViewer(QWidget):
                 fill_color   = QColor("#502196F3")
 
             # Step 1: 合并所有多边形到一个 QPainterPath，统一填充（无叠加加深）
+            # 使用 addPath + WindingFill 避免在 paintEvent 中调用 united()（会冲突 QPainter）
             combined = QPainterPath()
+            combined.setFillRule(Qt.FillRule.WindingFill)
             for polygon in self._mask.polygons:
                 if len(polygon) >= 3:
                     pts = [QPointF(p[0], p[1]) for p in polygon]
@@ -978,7 +983,7 @@ class ImageViewer(QWidget):
                     for p in pts[1:]:
                         sub.lineTo(p)
                     sub.closeSubpath()
-                    combined = combined.united(sub)
+                    combined.addPath(sub)
 
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(fill_color))
@@ -1021,31 +1026,22 @@ class ImageViewer(QWidget):
             painter.setBrush(QBrush(QColor("#40FF5722")))
             painter.drawEllipse(self._mask_start_point, r * 2, r * 2)
 
-        # 绘制画笔蒙版实时预览（笔触尚未提交，鼠标释放后合并为一个区域）
-        if self._pending_brush_circles and self._current_tool == self.MODE_BRUSH_MASK:
+        # 绘制画笔蒙版实时预览（使用预缓存路径，避免在 paintEvent 中调用 united）
+        if not self._cached_brush_path.isEmpty() and self._current_tool == self.MODE_BRUSH_MASK:
             if self._mask.include_mode:
                 stroke_color = QColor("#FF9800")
                 fill_color   = QColor("#50FF9800")
             else:
                 stroke_color = QColor("#2196F3")
                 fill_color   = QColor("#502196F3")
-            combined = QPainterPath()
-            for circle in self._pending_brush_circles:
-                sub = QPainterPath()
-                pts_qp = [QPointF(p[0], p[1]) for p in circle]
-                sub.moveTo(pts_qp[0])
-                for p in pts_qp[1:]:
-                    sub.lineTo(p)
-                sub.closeSubpath()
-                combined = combined.united(sub)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(fill_color))
-            painter.drawPath(combined)
+            painter.drawPath(self._cached_brush_path)
             pen = QPen(stroke_color)
             pen.setWidthF(1.5 / self._scale)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawPath(combined)
+            painter.drawPath(self._cached_brush_path)
 
     def _draw_eraser_cursor(self, painter: QPainter):
         """绘制橡皮擦/画笔蒙版光标（仅在按下时显示）"""
@@ -1416,24 +1412,16 @@ class ImageViewer(QWidget):
             elif self._current_tool == self.MODE_BRUSH_MASK:
                 self._brush_painting = False
                 self._brush_last_pt = None
-                # 将本次笔触的所有圆合并为一个统一的蒙版多边形
-                if self._pending_brush_circles:
-                    combined = QPainterPath()
-                    for circle in self._pending_brush_circles:
-                        sub = QPainterPath()
-                        pts_qp = [QPointF(p[0], p[1]) for p in circle]
-                        sub.moveTo(pts_qp[0])
-                        for p in pts_qp[1:]:
-                            sub.lineTo(p)
-                        sub.closeSubpath()
-                        combined = combined.united(sub)
-                    polygon_qpf = combined.toFillPolygon()
+                # 将本次笔触的所有圆合并为一个统一的蒙版多边形（使用已缓存的路径）
+                if self._pending_brush_circles and not self._cached_brush_path.isEmpty():
+                    polygon_qpf = self._cached_brush_path.toFillPolygon()
                     polygon = [(pt.x(), pt.y()) for pt in polygon_qpf]
                     if len(polygon) >= 3:
                         self.mask_about_to_add.emit(polygon)
                         self._mask.add_polygon(polygon)
                         self.mask_changed.emit()
                     self._pending_brush_circles = []
+                    self._cached_brush_path = QPainterPath()
                 self.update()
             elif self._current_tool == self.MODE_CROP and self._crop_start_point:
                 end_point = self._widget_to_image_coords(event.position())
@@ -1488,17 +1476,28 @@ class ImageViewer(QWidget):
                 self.file_dropped.emit(file_path)
 
     def _add_brush_circle(self, pt: QPointF):
-        """将当前笔触圆加入待合并缓冲区（鼠标释放时统一合并为一个蒙版区域）"""
+        """将当前笔触圆加入待合并缓冲区，并增量更新预缓存路径"""
         import math
         x, y = pt.x(), pt.y()
         r = self._eraser_size
-        n = 24  # 用更多顶点使圆形更光滑，合并后轮廓更准确
+        n = 24
         circle = [
             (x + r * math.cos(2 * math.pi * i / n),
              y + r * math.sin(2 * math.pi * i / n))
             for i in range(n)
         ]
         self._pending_brush_circles.append(circle)
+        # 增量合并到预缓存路径（在鼠标事件中调用 united 安全，不在 paintEvent 中）
+        sub = QPainterPath()
+        pts_qp = [QPointF(p[0], p[1]) for p in circle]
+        sub.moveTo(pts_qp[0])
+        for p in pts_qp[1:]:
+            sub.lineTo(p)
+        sub.closeSubpath()
+        if self._cached_brush_path.isEmpty():
+            self._cached_brush_path = sub
+        else:
+            self._cached_brush_path = self._cached_brush_path.united(sub)
 
     @staticmethod
     def _stroke_to_polygon(points: list, radius: float) -> list:

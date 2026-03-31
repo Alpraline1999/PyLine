@@ -45,7 +45,7 @@ class Curve(BaseModel):
 
 
 class MaskData(BaseModel):
-    include_mode: bool = True
+    include_mode: bool = False
     polygons: List[List[Tuple[int, int]]] = []
 
 
