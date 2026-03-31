@@ -65,6 +65,8 @@ class WorkspacePage(QWidget):
         # 自动选点
         self._sampled_color = None  # 采样颜色 (QColor)
         self._auto_preview_points = []  # 自动检测预览点
+        # 图形识别模板
+        self._shape_template: dict | None = None  # preprocess_region() 返回的字典
         # 表格排序
         self._sort_col = -1  # -1表示未排序
         self._sort_order = Qt.SortOrder.AscendingOrder
@@ -136,6 +138,7 @@ class WorkspacePage(QWidget):
         self._image_viewer.color_picked.connect(self._on_color_picked)
         self._image_viewer.file_dropped.connect(self._on_image_file_dropped)
         self._image_viewer.assisted_region_selected.connect(self._on_assisted_region)
+        self._image_viewer.crop_region_selected.connect(self._on_crop_region_selected)
         self._image_viewer.curve_point_moved.connect(self._on_curve_point_moved)
         self._image_viewer.mouse_moved.connect(self._on_viewer_mouse_moved)
 
@@ -510,6 +513,21 @@ class WorkspacePage(QWidget):
         layout.addWidget(make_hsep(content))
         layout.addWidget(make_section_label("自动选点", content))
 
+        # --- 识别模式选择 ---
+        mode_row = QWidget(content)
+        mode_rl = QHBoxLayout(mode_row)
+        mode_rl.setContentsMargins(0, 0, 0, 0)
+        mode_rl.setSpacing(4)
+        mode_rl.addWidget(BodyLabel("识别模式:", mode_row))
+        self._auto_mode_combo = ComboBox(mode_row)
+        self._auto_mode_combo.addItems(["颜色识别", "图形识别 (测试功能)", "综合识别 (测试功能)"])
+        self._auto_mode_combo.setFixedHeight(32)
+        self._auto_mode_combo.setMinimumWidth(160)
+        self._auto_mode_combo.currentIndexChanged.connect(self._on_auto_mode_changed)
+        mode_rl.addWidget(self._auto_mode_combo, 1)
+        layout.addWidget(mode_row)
+
+        # --- 按钮行 ---
         auto_btn_row = QWidget(content)
         abl = QHBoxLayout(auto_btn_row)
         abl.setContentsMargins(0, 0, 0, 0)
@@ -528,6 +546,14 @@ class WorkspacePage(QWidget):
         self._screen_pick_btn.setFixedSize(34, 34)
         self._screen_pick_btn.clicked.connect(self._on_color_pick)
         abl.addWidget(self._screen_pick_btn)
+
+        # 截图模板按钮（图形识别/综合识别时可用）
+        self._crop_template_btn = ToggleToolButton(FIF.CUT, auto_btn_row)
+        self._crop_template_btn.setToolTip("截图图例形状（用于图形识别）\n在图片上拖拽框选图例符号")
+        self._crop_template_btn.setFixedSize(34, 34)
+        self._crop_template_btn.setEnabled(False)
+        self._crop_template_btn.clicked.connect(self._on_crop_template)
+        abl.addWidget(self._crop_template_btn)
 
         self._auto_detect_btn = ToolButton(FIF.SEARCH, auto_btn_row)
         self._auto_detect_btn.setToolTip("自动检测 (A)")
@@ -550,27 +576,61 @@ class WorkspacePage(QWidget):
         abl.addStretch()
         layout.addWidget(auto_btn_row)
 
-        self._sampled_color_hex_lbl = BodyLabel("#888888", content)
-        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
-        layout.addWidget(self._sampled_color_hex_lbl)
+        # --- 颜色/模板 信息行 ---
+        info_row = QWidget(content)
+        info_rl = QHBoxLayout(info_row)
+        info_rl.setContentsMargins(0, 0, 0, 0)
+        info_rl.setSpacing(6)
 
-        tol_row = QWidget(content)
-        tl = QHBoxLayout(tol_row)
+        self._sampled_color_hex_lbl = BodyLabel("#888888", info_row)
+        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        info_rl.addWidget(self._sampled_color_hex_lbl)
+
+        self._shape_template_lbl = CaptionLabel("", info_row)
+        self._shape_template_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._shape_template_lbl.setVisible(False)
+        info_rl.addWidget(self._shape_template_lbl, 1)
+
+        layout.addWidget(info_row)
+
+        # --- 颜色容差（颜色识别 / 综合识别 时显示）---
+        self._tol_widget = QWidget(content)
+        tl = QHBoxLayout(self._tol_widget)
         tl.setContentsMargins(0, 0, 0, 0)
         tl.setSpacing(4)
-        tol_lbl = BodyLabel("颜色容差:", tol_row)
-        tl.addWidget(tol_lbl)
-        self._tol_slider = Slider(Qt.Orientation.Horizontal, tol_row)
+        tl.addWidget(BodyLabel("颜色容差:", self._tol_widget))
+        self._tol_slider = Slider(Qt.Orientation.Horizontal, self._tol_widget)
         self._tol_slider.setRange(1, 80)
         self._tol_slider.setValue(20)
         tl.addWidget(self._tol_slider, 1)
-        self._tol_val_lbl = BodyLabel("20", tol_row)
+        self._tol_val_lbl = BodyLabel("20", self._tol_widget)
         self._tol_val_lbl.setFixedWidth(24)
         self._tol_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         tl.addWidget(self._tol_val_lbl)
         self._tol_slider.valueChanged.connect(lambda v: self._tol_val_lbl.setText(str(v)))
-        layout.addWidget(tol_row)
+        layout.addWidget(self._tol_widget)
 
+        # --- 匹配阈值（图形识别 / 综合识别 时显示）---
+        self._match_thr_widget = QWidget(content)
+        mtl = QHBoxLayout(self._match_thr_widget)
+        mtl.setContentsMargins(0, 0, 0, 0)
+        mtl.setSpacing(4)
+        mtl.addWidget(BodyLabel("匹配精度:", self._match_thr_widget))
+        self._match_thr_slider = Slider(Qt.Orientation.Horizontal, self._match_thr_widget)
+        self._match_thr_slider.setRange(30, 95)
+        self._match_thr_slider.setValue(65)
+        mtl.addWidget(self._match_thr_slider, 1)
+        self._match_thr_val_lbl = BodyLabel("65%", self._match_thr_widget)
+        self._match_thr_val_lbl.setFixedWidth(32)
+        self._match_thr_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        mtl.addWidget(self._match_thr_val_lbl)
+        self._match_thr_slider.valueChanged.connect(
+            lambda v: self._match_thr_val_lbl.setText(f"{v}%")
+        )
+        self._match_thr_widget.setVisible(False)
+        layout.addWidget(self._match_thr_widget)
+
+        # --- 搜索步长 ---
         step_row = QWidget(content)
         sl = QHBoxLayout(step_row)
         sl.setContentsMargins(0, 0, 0, 0)
@@ -966,6 +1026,15 @@ class WorkspacePage(QWidget):
             self._image_viewer.set_color_pick_mode()
             self._active_tool = tool_name
             self._status_label.setText("取色模式：点击图片上曲线的颜色")
+        elif tool_name == "crop_template":
+            if self._current_image_id is None:
+                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                self._deactivate_all_tools()
+                return
+            self._activate_tool_button(self._crop_template_btn)
+            self._image_viewer.set_crop_mode()
+            self._active_tool = tool_name
+            self._status_label.setText("截图模式：拖拽选取图例区域")
         elif tool_name == "assisted":
             if self._current_image_id is None:
                 InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
@@ -998,6 +1067,7 @@ class WorkspacePage(QWidget):
         self._extract_btn.setChecked(False)
         self._screen_pick_btn.setChecked(False)
         self._assist_btn.setChecked(False)
+        self._crop_template_btn.setChecked(False)
 
     def _on_escape_tool(self):
         """取消当前工具，恢复到选择模式（Escape 快捷键）"""
@@ -1226,6 +1296,72 @@ class WorkspacePage(QWidget):
 
     # ==================== 自动选点槽函数 ====================
 
+    def _on_auto_mode_changed(self, index: int):
+        """识别模式切换：0=颜色识别, 1=图形识别, 2=综合识别"""
+        color_mode = index in (0, 2)   # 颜色相关按钮
+        shape_mode = index in (1, 2)   # 图形相关按钮
+
+        # 颜色相关控件
+        self._sample_color_btn.setEnabled(color_mode)
+        self._screen_pick_btn.setEnabled(color_mode)
+        self._sampled_color_hex_lbl.setVisible(color_mode)
+        self._tol_widget.setVisible(color_mode)
+
+        # 图形相关控件
+        self._crop_template_btn.setEnabled(shape_mode)
+        self._shape_template_lbl.setVisible(shape_mode)
+        self._match_thr_widget.setVisible(shape_mode)
+
+        # 若退出取色模式，恢复 select
+        if not color_mode and self._screen_pick_btn.isChecked():
+            self._screen_pick_btn.setChecked(False)
+            self._on_tool_clicked(None)
+
+        # 若退出截图模式，恢复 select
+        if not shape_mode and self._crop_template_btn.isChecked():
+            self._crop_template_btn.setChecked(False)
+            self._on_tool_clicked(None)
+
+    def _on_crop_template(self):
+        """进入截图模板模式——在图片上框选图例形状"""
+        if self._current_image_id is None:
+            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+            self._crop_template_btn.setChecked(False)
+            return
+        self._on_tool_clicked("crop_template")
+
+    def _on_crop_region_selected(self, x1: float, y1: float, x2: float, y2: float):
+        """收到 ImageViewer 的截图区域信号，预处理形状模板"""
+        # 退出截图模式
+        self._crop_template_btn.setChecked(False)
+        self._deactivate_all_tools()
+        self._image_viewer.set_select_mode()
+        self._active_tool = None
+
+        image_path = self._image_viewer.get_image_path()
+        if not image_path:
+            return
+
+        self._auto_status_label.setText("正在预处理图例模板…")
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        try:
+            from core.shape_extractor import ShapeExtractor
+            self._shape_template = ShapeExtractor.preprocess_region(
+                image_path, x1, y1, x2, y2
+            )
+            w, h = self._shape_template["size"]
+            self._shape_template_lbl.setText(f"模板: {w}×{h}px")
+            self._shape_template_lbl.setVisible(True)
+            self._auto_status_label.setText(
+                f"图例模板已截取 ({w}×{h}px)，点击「识别」搜索匹配形状"
+            )
+        except Exception as e:
+            self._shape_template = None
+            self._shape_template_lbl.setText("")
+            self._auto_status_label.setText(f"截图处理失败: {e}")
+
     def _on_cancel_auto_preview(self):
         """放弃自动检测结果，清除预览点，不写入曲线"""
         if not self._auto_preview_points:
@@ -1273,10 +1409,7 @@ class WorkspacePage(QWidget):
         self._auto_status_label.setText(f"已采样: {hex_str}")
 
     def _on_auto_detect(self):
-        """执行自动颜色匹配检测"""
-        if self._sampled_color is None:
-            InfoBar.warning(title="警告", content="请先使用取色按钮采样颜色", parent=self, duration=3000)
-            return
+        """执行自动识别检测（颜色识别 / 图形识别 / 综合识别）"""
         if self._current_image_id is None:
             InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
             return
@@ -1286,12 +1419,7 @@ class WorkspacePage(QWidget):
             InfoBar.warning(title="警告", content="无法获取图片路径", parent=self, duration=3000)
             return
 
-        from core.auto_extractor import AutoExtractor
-        # 统一容差：将单一容差值映射到 H/S/V
-        tol = self._tol_slider.value()
-        h_tol = max(5, tol // 2)          # H 通道容差（色调，范围 0-180）
-        s_tol = min(255, tol * 4)         # S 通道容差
-        v_tol = min(255, tol * 4)         # V 通道容差
+        mode = self._auto_mode_combo.currentIndex()  # 0=颜色, 1=图形, 2=综合
         step = self._auto_step_slider.value()
 
         # 获取蒙版多边形和模式
@@ -1299,30 +1427,84 @@ class WorkspacePage(QWidget):
         mask_polygons = mask.polygons if mask and mask.enabled else None
         mask_include_mode = mask.include_mode if mask else True
 
-        self._auto_status_label.setText("检测中...")
+        self._auto_status_label.setText("检测中…")
         from PySide6.QtWidgets import QApplication
         QApplication.processEvents()
 
-        try:
-            points = AutoExtractor.extract(
-                image_path,
-                target_r=self._sampled_color.red(),
-                target_g=self._sampled_color.green(),
-                target_b=self._sampled_color.blue(),
-                h_tol=h_tol,
-                s_tol=s_tol,
-                v_tol=v_tol,
-                mask_polygons=mask_polygons,
-                mask_include_mode=mask_include_mode,
-                step=step,
-            )
-        except Exception as e:
-            self._auto_status_label.setText(f"检测失败: {e}")
-            return
+        color_points = []
+        shape_points = []
+
+        # ---- 颜色识别 ----
+        if mode in (0, 2):
+            if self._sampled_color is None:
+                InfoBar.warning(title="警告", content="请先使用取色按钮采样颜色", parent=self, duration=3000)
+                self._auto_status_label.setText("")
+                return
+            from core.auto_extractor import AutoExtractor
+            tol = self._tol_slider.value()
+            h_tol = max(5, tol // 2)
+            s_tol = min(255, tol * 4)
+            v_tol = min(255, tol * 4)
+            try:
+                color_points = AutoExtractor.extract(
+                    image_path,
+                    target_r=self._sampled_color.red(),
+                    target_g=self._sampled_color.green(),
+                    target_b=self._sampled_color.blue(),
+                    h_tol=h_tol,
+                    s_tol=s_tol,
+                    v_tol=v_tol,
+                    mask_polygons=mask_polygons,
+                    mask_include_mode=mask_include_mode,
+                    step=step,
+                )
+            except Exception as e:
+                self._auto_status_label.setText(f"颜色识别失败: {e}")
+                return
+
+        # ---- 图形识别 ----
+        if mode in (1, 2):
+            if self._shape_template is None:
+                InfoBar.warning(title="警告", content="请先使用截图按钮截取图例形状", parent=self, duration=3000)
+                self._auto_status_label.setText("")
+                return
+            from core.shape_extractor import ShapeExtractor
+            threshold = self._match_thr_slider.value() / 100.0
+            try:
+                shape_points = ShapeExtractor.extract(
+                    image_path,
+                    template_info=self._shape_template,
+                    mask_polygons=mask_polygons,
+                    mask_include_mode=mask_include_mode,
+                    step=step,
+                    threshold=threshold,
+                )
+            except Exception as e:
+                self._auto_status_label.setText(f"图形识别失败: {e}")
+                return
+
+        # ---- 合并结果（综合识别去重）----
+        if mode == 2 and color_points and shape_points:
+            # 以两倍搜索步长作为去重距离
+            merge_d2 = (step * 2) ** 2
+            merged = list(color_points)
+            for sx, sy in shape_points:
+                if not any((sx - cx) ** 2 + (sy - cy) ** 2 <= merge_d2
+                           for cx, cy in merged):
+                    merged.append((sx, sy))
+            points = merged
+            desc = f"综合识别到 {len(points)} 个点（颜色 {len(color_points)}，图形 {len(shape_points)}）"
+        elif mode == 1:
+            points = shape_points
+            desc = f"图形识别到 {len(points)} 个点"
+        else:
+            points = color_points
+            desc = f"颜色识别到 {len(points)} 个点"
 
         self._auto_preview_points = points
         self._image_viewer.set_preview_points(points)
-        self._auto_status_label.setText(f"检测到 {len(points)} 个点，点击「应用」写入曲线")
+        self._auto_status_label.setText(f"{desc}，点击「应用」写入曲线")
+
 
     def _on_apply_auto_points(self):
         """将预览点写入当前曲线"""

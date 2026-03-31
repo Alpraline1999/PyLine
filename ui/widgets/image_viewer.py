@@ -291,6 +291,7 @@ class ImageViewer(QWidget):
     color_picked = Signal(object)  # 取色信号，发送 QColor
     file_dropped = Signal(str)  # 文件拖入信号，发送文件路径
     assisted_region_selected = Signal(float, float, float, float)  # 辅助选点区域信号 (x1,y1,x2,y2)
+    crop_region_selected = Signal(float, float, float, float)  # 截图区域信号 (x1,y1,x2,y2)
     mouse_moved = Signal(float, float)  # 鼠标移动信号 (x, y 图片像素坐标)
 
     # 工具模式
@@ -302,6 +303,7 @@ class ImageViewer(QWidget):
     MODE_BRUSH_MASK = "brush_mask"
     MODE_COLOR_PICK = "color_pick"
     MODE_ASSISTED = "assisted"
+    MODE_CROP = "crop"
 
     # 默认配置
     DEFAULT_POINT_SIZE = 8.0
@@ -357,6 +359,10 @@ class ImageViewer(QWidget):
         # 辅助选点（两次点击定义矩形区域）
         self._assist_point1 = None   # QPointF - 第一次点击
         self._assist_shape = "rect"  # "rect" 或 "ellipse"
+
+        # 截图模式（拖拽选区）
+        self._crop_start_point = None    # QPointF - 截图起点（图片坐标）
+        self._crop_drag_current = None   # QPointF - 截图终点（实时拖拽）
 
         # 鼠标位置(图片坐标)
         self._mouse_image_pos = None
@@ -545,6 +551,14 @@ class ImageViewer(QWidget):
         self._assist_shape = shape
         self.update()
 
+    def set_crop_mode(self):
+        """切换到截图模式（拖拽选区，释放后发射 crop_region_selected 信号）"""
+        self._current_tool = self.MODE_CROP
+        self._calibration_step_hint = ""
+        self._crop_start_point = None
+        self._crop_drag_current = None
+        self.update()
+
     def set_eraser_size(self, size: float):
         """设置橡皮擦大小"""
         self._eraser_size = max(1.0, size)
@@ -690,6 +704,7 @@ class ImageViewer(QWidget):
         self._draw_mask_overlay(painter)
         self._draw_eraser_cursor(painter)
         self._draw_assisted_preview(painter)
+        self._draw_crop_preview(painter)
 
         painter.restore()
 
@@ -710,6 +725,15 @@ class ImageViewer(QWidget):
             hint = ("辅助选点：点击第二个端点，自动提取两点间区域的曲线"
                     if self._assist_point1 is not None
                     else "辅助选点：点击第一个端点（矩形/椭圆区域起点）")
+            painter.drawText(self.rect().adjusted(10, 10, -10, -50),
+                           Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                           hint)
+
+        if self._current_tool == self.MODE_CROP:
+            painter.setPen(QColor("#00D4FF"))
+            hint = ("截图模式：松开鼠标完成截图"
+                    if self._crop_start_point is not None
+                    else "截图模式：拖拽选取图例区域")
             painter.drawText(self.rect().adjusted(10, 10, -10, -50),
                            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
                            hint)
@@ -1053,6 +1077,27 @@ class ImageViewer(QWidget):
                 else:
                     painter.drawRect(QRectF(x1, y1, w, h))
 
+    def _draw_crop_preview(self, painter: QPainter):
+        """绘制截图模式预览矩形（青色虚线框）"""
+        if self._current_tool != self.MODE_CROP:
+            return
+        if self._crop_start_point is None:
+            return
+        p2 = self._crop_drag_current or self._mouse_image_pos
+        if p2 is None:
+            return
+        x1 = min(self._crop_start_point.x(), p2.x())
+        y1 = min(self._crop_start_point.y(), p2.y())
+        w = abs(p2.x() - self._crop_start_point.x())
+        h = abs(p2.y() - self._crop_start_point.y())
+        pen = QPen(QColor("#00D4FF"))
+        pen.setWidthF(2.0 / self._scale)
+        pen.setStyle(Qt.PenStyle.DashDotLine)
+        painter.setPen(pen)
+        painter.setBrush(QBrush(QColor("#20 00D4FF")))
+        painter.setBrush(QBrush(QColor(0, 212, 255, 32)))
+        painter.drawRect(QRectF(x1, y1, w, h))
+
     # ==================== 键盘事件 ====================
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -1168,6 +1213,11 @@ class ImageViewer(QWidget):
                     if abs(x2 - x1) > 3 or abs(y2 - y1) > 3:
                         self.assisted_region_selected.emit(x1, y1, x2, y2)
                     self._assist_point1 = None
+                self.update()
+        elif self._current_tool == self.MODE_CROP:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._crop_start_point = self._widget_to_image_coords(pos)
+                self._crop_drag_current = None
                 self.update()
     def _handle_color_pick_click(self, pos: QPointF):
         """处理取色模式点击 - 采集该像素颜色"""
@@ -1304,6 +1354,11 @@ class ImageViewer(QWidget):
             self.update()
         elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED):
             self.update()
+        elif self._current_tool == self.MODE_CROP and self._crop_start_point and event.buttons() & Qt.MouseButton.LeftButton:
+            self._crop_drag_current = self._widget_to_image_coords(event.position())
+            self.update()
+        elif self._current_tool == self.MODE_CROP:
+            self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         """鼠标释放"""
@@ -1334,6 +1389,17 @@ class ImageViewer(QWidget):
             elif self._current_tool == self.MODE_BRUSH_MASK:
                 self._brush_painting = False
                 self._brush_last_pt = None
+                self.update()
+            elif self._current_tool == self.MODE_CROP and self._crop_start_point:
+                end_point = self._widget_to_image_coords(event.position())
+                x1, y1 = self._crop_start_point.x(), self._crop_start_point.y()
+                x2, y2 = end_point.x(), end_point.y()
+                if abs(x2 - x1) > 3 and abs(y2 - y1) > 3:
+                    self.crop_region_selected.emit(
+                        min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+                    )
+                self._crop_start_point = None
+                self._crop_drag_current = None
                 self.update()
 
     def wheelEvent(self, event: QWheelEvent):
