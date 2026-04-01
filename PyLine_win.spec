@@ -1,106 +1,136 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyLine PyInstaller spec — Windows 版：单文件、无终端、最小体积"""
+"""PyLine PyInstaller spec — Windows 版：单文件、无终端
+优先保证运行正确，仅移除确认无用的 Qt 模块来缩减体积。"""
 
-import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
-
-# ── 项目根目录 ──
 ROOT = Path(SPECPATH)
 
-# ── 图标文件（预留，放置后自动使用） ──
+# ── 图标 ──
 ICON_FILE = ROOT / "assets" / "icon.ico"
 icon_path = str(ICON_FILE) if ICON_FILE.exists() else None
 
-# ── 需要排除的 PySide6 / Qt 模块（项目仅用 QtCore, QtGui, QtWidgets, QtSvg, QtXml, QtNetwork） ──
+# ══════════════════════════════════════════════════════════════════════
+# 排除列表：只排除【确认不需要】的 PySide6 子包
+# 项目实际用到的 Qt 模块（不可排除）：
+#   QtCore, QtGui, QtWidgets, QtSvg, QtSvgWidgets, QtXml,
+#   QtNetwork, QtMultimedia, QtMultimediaWidgets  ← qfluentwidgets 依赖
+# ══════════════════════════════════════════════════════════════════════
 _QT_EXCLUDES = [
+    # 3D
     "PySide6.Qt3DAnimation", "PySide6.Qt3DCore", "PySide6.Qt3DExtras",
     "PySide6.Qt3DInput", "PySide6.Qt3DLogic", "PySide6.Qt3DRender",
-    "PySide6.QtBluetooth",
+    # 蓝牙 / NFC / 串口
+    "PySide6.QtBluetooth", "PySide6.QtNfc",
+    "PySide6.QtSerialBus", "PySide6.QtSerialPort",
+    # 图表（项目用 matplotlib 而非 QtCharts）
     "PySide6.QtCharts", "PySide6.QtChartsQml",
-    "PySide6.QtConcurrent",
     "PySide6.QtDataVisualization",
-    "PySide6.QtDBus",
-    "PySide6.QtDesigner",
     "PySide6.QtGraphs", "PySide6.QtGraphsWidgets",
-    "PySide6.QtHelp",
-    "PySide6.QtHttpServer",
-    "PySide6.QtLocation",
-    "PySide6.QtMultimedia", "PySide6.QtMultimediaWidgets",
-    "PySide6.QtNetworkAuth",
-    "PySide6.QtNfc",
+    # 设计器 / 测试
+    "PySide6.QtDesigner", "PySide6.QtTest", "PySide6.QtUiTools",
+    # HTTP / DB
+    "PySide6.QtHttpServer", "PySide6.QtSql",
+    # 定位 / 传感器
+    "PySide6.QtLocation", "PySide6.QtPositioning", "PySide6.QtSensors",
+    # OpenGL
     "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets",
+    # PDF
     "PySide6.QtPdf", "PySide6.QtPdfWidgets",
-    "PySide6.QtPositioning",
-    "PySide6.QtPrintSupport",
+    # QML / Quick（纯 Widgets 应用）
     "PySide6.QtQml", "PySide6.QtQmlCore", "PySide6.QtQmlModels",
     "PySide6.QtQuick", "PySide6.QtQuickControls2", "PySide6.QtQuickWidgets",
-    "PySide6.QtRemoteObjects",
-    "PySide6.QtScxml",
-    "PySide6.QtSensors",
-    "PySide6.QtSerialBus", "PySide6.QtSerialPort",
-    "PySide6.QtShaderTools",
-    "PySide6.QtSpatialAudio",
-    "PySide6.QtSql",
-    "PySide6.QtStateMachine",
-    "PySide6.QtTest",
-    "PySide6.QtTextToSpeech",
-    "PySide6.QtUiTools",
-    "PySide6.QtVirtualKeyboard",
+    # 远程对象 / 状态机
+    "PySide6.QtRemoteObjects", "PySide6.QtScxml", "PySide6.QtStateMachine",
+    # 着色器 / 空间音频
+    "PySide6.QtShaderTools", "PySide6.QtSpatialAudio",
+    # TTS / 虚拟键盘
+    "PySide6.QtTextToSpeech", "PySide6.QtVirtualKeyboard",
+    # Web 引擎
     "PySide6.QtWebChannel", "PySide6.QtWebEngineCore",
     "PySide6.QtWebEngineQuick", "PySide6.QtWebEngineWidgets",
     "PySide6.QtWebSockets", "PySide6.QtWebView",
+    # 打印
+    "PySide6.QtPrintSupport",
+    # 网络认证 / DBus / Concurrent / Help
+    "PySide6.QtNetworkAuth", "PySide6.QtDBus",
+    "PySide6.QtConcurrent", "PySide6.QtHelp",
 ]
 
-# ── 其他不需要的模块 ──
 _OTHER_EXCLUDES = [
     "tkinter", "_tkinter",
-    "unittest", "test",
     "xmlrpc", "pydoc",
-    # matplotlib 不需要的后端和测试
-    "matplotlib.tests", "mpl_toolkits.tests",
+    # matplotlib 不需要的后端（只保留 backend_qtagg 和 backend_agg）
     "matplotlib.backends.backend_cairo",
-    "matplotlib.backends.backend_gtk3",
-    "matplotlib.backends.backend_gtk3agg",
-    "matplotlib.backends.backend_gtk4",
-    "matplotlib.backends.backend_gtk4agg",
+    "matplotlib.backends.backend_gtk3", "matplotlib.backends.backend_gtk3agg",
+    "matplotlib.backends.backend_gtk4", "matplotlib.backends.backend_gtk4agg",
     "matplotlib.backends.backend_macosx",
     "matplotlib.backends.backend_nbagg",
     "matplotlib.backends.backend_pdf",
     "matplotlib.backends.backend_pgf",
     "matplotlib.backends.backend_ps",
     "matplotlib.backends.backend_svg",
-    "matplotlib.backends.backend_tkagg",
-    "matplotlib.backends.backend_tk",
-    "matplotlib.backends.backend_webagg",
-    "matplotlib.backends.backend_webagg_core",
-    "matplotlib.backends.backend_wx",
-    "matplotlib.backends.backend_wxagg",
-    # PIL 不需要的插件
+    "matplotlib.backends.backend_tkagg", "matplotlib.backends.backend_tk",
+    "matplotlib.backends.backend_webagg", "matplotlib.backends.backend_webagg_core",
+    "matplotlib.backends.backend_wx", "matplotlib.backends.backend_wxagg",
+    # matplotlib 测试
+    "matplotlib.tests", "mpl_toolkits.tests",
+    # PIL
     "PIL.ImageTk",
 ]
 
 EXCLUDES = _QT_EXCLUDES + _OTHER_EXCLUDES
 
-# ── 隐式导入（PyInstaller 可能漏掉的） ──
+# ══════════════════════════════════════════════════════════════════════
+# 隐式导入：显式声明所有运行时需要的模块
+# ══════════════════════════════════════════════════════════════════════
 hiddenimports = [
+    # ─ qfluentwidgets ─
     "qfluentwidgets",
     *collect_submodules("qfluentwidgets"),
+    "qframelesswindow",
+    *collect_submodules("qframelesswindow"),
+    # ─ OpenCV ─
     "cv2",
+    *collect_submodules("cv2"),
+    # ─ numpy ─
     "numpy",
+    # ─ openpyxl ─
     "openpyxl",
-    "pydantic",
+    *collect_submodules("openpyxl"),
+    # ─ pydantic ─
+    "pydantic", "pydantic_core",
+    *collect_submodules("pydantic"),
+    "typing_extensions", "typing_inspection",
+    # ─ matplotlib ─
+    "matplotlib", "matplotlib.pyplot", "matplotlib.figure",
+    "matplotlib.axes", "matplotlib.axis",
+    "matplotlib.lines", "matplotlib.patches",
+    "matplotlib.colors", "matplotlib.ticker",
+    "matplotlib.font_manager",
+    "matplotlib.backends.backend_agg",
     "matplotlib.backends.backend_qtagg",
+    "mpl_toolkits",
+    # ─ matplotlib 间接依赖 ─
+    "cycler", "kiwisolver", "pyparsing",
+    "dateutil", "six", "packaging",
+    "PIL", "darkdetect",
+    # ─ stdlib（matplotlib 运行时需要 unittest） ─
+    "unittest", "unittest.mock",
 ]
 
-# ── Analysis ──
+# ══════════════════════════════════════════════════════════════════════
+# Analysis
+# ══════════════════════════════════════════════════════════════════════
 a = Analysis(
     [str(ROOT / "main.py")],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=[],
+    datas=[
+        *collect_data_files("matplotlib"),
+    ],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -110,58 +140,48 @@ a = Analysis(
     cipher=block_cipher,
 )
 
-# ── 进一步裁剪二进制文件 ──
-import re
-
-# Qt 动态库黑名单（Windows: Qt6*.dll / *d.dll）
+# ── 裁剪 Qt 动态库（仅移除确认不需要的 .dll，其他全部保留） ──
 _QT_DLL_STRIP = (
-    "Qt63D", "Qt6Bluetooth", "Qt6Charts", "Qt6Concurrent",
-    "Qt6DataVisualization", "Qt6Designer", "Qt6Graphs",
-    "Qt6Help", "Qt6HttpServer", "Qt6Labs", "Qt6Location",
-    "Qt6Multimedia", "Qt6Nfc", "Qt6Pdf", "Qt6Positioning",
-    "Qt6Quick", "Qt6Qml", "Qt6RemoteObjects", "Qt6Scxml",
-    "Qt6Sensors", "Qt6SerialBus", "Qt6SerialPort",
-    "Qt6ShaderTools", "Qt6SpatialAudio", "Qt6Sql",
-    "Qt6StateMachine", "Qt6Test", "Qt6TextToSpeech",
-    "Qt6UiTools", "Qt6VirtualKeyboard",
-    "Qt6WebChannel", "Qt6WebEngine", "Qt6WebSockets",
-    "Qt6WebView",
-)
-
-# OpenCV headless 中不需要的视频编解码库（Windows .dll 命名）
-_CV_DLL_STRIP_RE = re.compile(
-    r"(opencv_videoio|avcodec|avformat|avfilter|avdevice|"
-    r"swresample|swscale|avutil|aom|vpx|x264|x265|openh264|dav1d)",
-    re.IGNORECASE,
+    "Qt63D", "Qt6Bluetooth",
+    "Qt6Charts", "Qt6DataVisualization", "Qt6Graphs",
+    "Qt6Designer", "Qt6Test",
+    "Qt6Help", "Qt6HttpServer",
+    "Qt6Location", "Qt6Positioning", "Qt6Sensors",
+    "Qt6Nfc", "Qt6SerialBus", "Qt6SerialPort",
+    "Qt6Pdf",
+    "Qt6Quick", "Qt6Qml",
+    "Qt6RemoteObjects", "Qt6Scxml", "Qt6StateMachine",
+    "Qt6ShaderTools", "Qt6SpatialAudio",
+    "Qt6Sql",
+    "Qt6TextToSpeech", "Qt6VirtualKeyboard",
+    "Qt6WebChannel", "Qt6WebEngine", "Qt6WebSockets", "Qt6WebView",
+    "Qt6OpenGL",
+    "Qt6Concurrent", "Qt6Labs", "Qt6UiTools",
+    "Qt6DBus", "Qt6PrintSupport",
 )
 
 def _keep_binary(name):
     base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-    # Qt DLL 过滤
+    # Windows: Qt6*.dll
     if any(base.startswith(p) for p in _QT_DLL_STRIP):
         return False
-    # 兼容 Linux libQt6* 命名（spec 可在 WSL 下使用）
+    # Linux (WSL 兼容): libQt6*.so
     if any(base.startswith("lib" + p) for p in _QT_DLL_STRIP):
-        return False
-    # FFmpeg / 视频编解码
-    if _CV_DLL_STRIP_RE.search(base):
         return False
     return True
 
 a.binaries = [b for b in a.binaries if _keep_binary(b[0])]
 
-# 移除 Qt 翻译文件 + matplotlib 样本数据 + 测试数据
+# ── 裁剪数据文件 ──
 a.datas = [
     d for d in a.datas
-    if not d[0].startswith("PySide6/Qt/translations")
-    and not d[0].startswith("PySide6\\Qt\\translations")
-    and not d[0].startswith("matplotlib/mpl-data/sample_data")
-    and not d[0].startswith("matplotlib\\mpl-data\\sample_data")
+    if not d[0].startswith(("PySide6/Qt/translations", "PySide6\\Qt\\translations"))
+    and not d[0].startswith(("matplotlib/mpl-data/sample_data", "matplotlib\\mpl-data\\sample_data"))
     and "/tests/" not in d[0]
     and "\\tests\\" not in d[0]
 ]
 
-# ── PYZ (压缩 Python 字节码) ──
+# ── PYZ ──
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 # ── EXE ──
@@ -174,11 +194,11 @@ exe = EXE(
     name="PyLine",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,         # Windows 下不使用 strip
-    upx=True,            # 启用 UPX 压缩（需系统安装 UPX 并加入 PATH）
+    strip=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,       # 无终端（windowed 模式）
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

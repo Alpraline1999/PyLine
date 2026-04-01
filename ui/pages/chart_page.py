@@ -71,8 +71,10 @@ try:
 
     matplotlib.rcParams["axes.unicode_minus"] = False
     HAS_MATPLOTLIB = True
-except ImportError:
+    _MATPLOTLIB_ERROR = ""
+except Exception as _e:
     HAS_MATPLOTLIB = False
+    _MATPLOTLIB_ERROR = f"{type(_e).__name__}: {_e}"
 
 from core.project_manager import project_manager
 
@@ -273,8 +275,10 @@ class ChartPage(QWidget):
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)
         else:
-            no_mpl = BodyLabel("\u6ca1\u6709\u5b89\u88c5 matplotlib\uff0c\u8bf7\u8fd0\u884c\uff1auv pip install matplotlib", self)
+            _err_text = f"matplotlib 加载失败：{_MATPLOTLIB_ERROR}" if _MATPLOTLIB_ERROR else "没有安装 matplotlib，请运行：uv pip install matplotlib"
+            no_mpl = BodyLabel(_err_text, self)
             no_mpl.setAlignment(Qt.AlignCenter)
+            no_mpl.setWordWrap(True)
             rv.addWidget(no_mpl)
             self._figure = None
             self._canvas = None
