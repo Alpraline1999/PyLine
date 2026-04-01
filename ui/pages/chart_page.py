@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import platform
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -45,29 +46,55 @@ try:
     from matplotlib.figure import Figure
     from matplotlib import font_manager
 
-    _CJK_FONT_FILES = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-        "/usr/share/fonts/wqy/wqy-microhei.ttc",
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-    ]
-    _cjk_font_prop = None
-    for _f in _CJK_FONT_FILES:
-        if os.path.exists(_f):
-            font_manager.fontManager.addfont(_f)
-            _cjk_font_prop = font_manager.FontProperties(fname=_f)
-            matplotlib.rcParams["font.family"] = _cjk_font_prop.get_name()
-            break
-
-    if _cjk_font_prop is None:
+    _sys = platform.system().lower()
+    if _sys == "windows":
+        _CJK_FONT_FILES = [
+            r"C:\\Windows\\Fonts\\msyh.ttc",
+            r"C:\\Windows\\Fonts\\msyhbd.ttc",
+            r"C:\\Windows\\Fonts\\simhei.ttf",
+            r"C:\\Windows\\Fonts\\simsun.ttc",
+        ]
+        _CJK_NAMES = ["Microsoft YaHei", "SimHei", "SimSun", "Arial Unicode MS"]
+    else:
+        _CJK_FONT_FILES = [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/wqy/wqy-microhei.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        ]
         _CJK_NAMES = ["Noto Sans CJK JP", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "SimHei"]
-        _found = next(
-            (n for n in _CJK_NAMES if any(n == fm.name for fm in font_manager.fontManager.ttflist)),
-            None,
-        )
-        if _found:
-            matplotlib.rcParams["font.family"] = _found
+
+    _selected_font = None
+
+    # 优先使用字体文件（跨平台稳定）
+    for _f in _CJK_FONT_FILES:
+        if not os.path.exists(_f):
+            continue
+        try:
+            font_manager.fontManager.addfont(_f)
+            _prop = font_manager.FontProperties(fname=_f)
+            _name = _prop.get_name()
+            if _name:
+                _selected_font = _name
+                break
+        except Exception:
+            continue
+
+    # 回退到系统已注册字体名
+    if _selected_font is None:
+        _available_names = {fm.name for fm in font_manager.fontManager.ttflist if fm.name}
+        _selected_font = next((n for n in _CJK_NAMES if n in _available_names), None)
+
+    if _selected_font:
+        matplotlib.rcParams["font.family"] = [_selected_font, "sans-serif"]
+    else:
+        matplotlib.rcParams["font.family"] = ["sans-serif"]
+    matplotlib.rcParams["font.sans-serif"] = [
+        "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"
+    ]
+    # 强制正字号，避免某些平台字体回退导致 pointSize=-1 的警告
+    matplotlib.rcParams["font.size"] = max(1, float(matplotlib.rcParams.get("font.size", 10) or 10))
 
     matplotlib.rcParams["axes.unicode_minus"] = False
     HAS_MATPLOTLIB = True
