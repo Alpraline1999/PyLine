@@ -129,6 +129,7 @@ a = Analysis(
     pathex=[str(ROOT)],
     binaries=[],
     datas=[
+        (str(ROOT / "assets" / "icon.ico"), "assets"),
         *collect_data_files("matplotlib"),
     ],
     hiddenimports=hiddenimports,
