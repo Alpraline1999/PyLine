@@ -1,7 +1,7 @@
 PySide6
 PySide6-Fluent-Widgets
 pydantic
-opencv-python
+opencv-python-headless
 numpy
 openpyxl
 matplotlib
