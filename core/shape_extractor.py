@@ -18,6 +18,8 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+from core.image_io import cv2_imread_unicode
+
 
 class ShapeExtractor:
     """基于轮廓形状描述子的图形识别曲线点提取器"""
@@ -51,7 +53,7 @@ class ShapeExtractor:
         """
         import cv2
 
-        img = cv2.imread(image_path)
+        img = cv2_imread_unicode(image_path)
         if img is None:
             raise ValueError(f"无法读取图片: {image_path}")
 
@@ -160,7 +162,7 @@ class ShapeExtractor:
         """
         import cv2
 
-        img = cv2.imread(image_path)
+        img = cv2_imread_unicode(image_path)
         if img is None:
             raise ValueError(f"无法读取图片: {image_path}")
 

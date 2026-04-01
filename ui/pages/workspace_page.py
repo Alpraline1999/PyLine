@@ -482,6 +482,12 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
+        self._crosshair_color_btn = ColorPickerButton(QColor("#00C2FF"), "", manual_row, enableAlpha=False)
+        self._crosshair_color_btn.setToolTip("十字颜色")
+        self._crosshair_color_btn.setFixedSize(28, 28)
+        self._crosshair_color_btn.colorChanged.connect(self._on_crosshair_color_changed)
+        ml.addWidget(self._crosshair_color_btn)
+
         self._calibrate_btn = TogglePushButton(FIF.UNIT, "校准", manual_row)
         self._calibrate_btn.setToolTip("校准 (C)")
         self._calibrate_btn.setFixedHeight(34)
@@ -496,6 +502,25 @@ class WorkspacePage(QWidget):
 
         ml.addStretch()
         layout.addWidget(manual_row)
+
+        # --- 十字辅助配置 ---
+        cross_row = QWidget(content)
+        cl = QHBoxLayout(cross_row)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(4)
+        cl.addWidget(BodyLabel("十字大小:", cross_row))
+        self._crosshair_size_slider = Slider(Qt.Orientation.Horizontal, cross_row)
+        self._crosshair_size_slider.setRange(4, 24)
+        self._crosshair_size_slider.setValue(8)
+        self._crosshair_size_slider.setSingleStep(1)
+        self._crosshair_size_slider.setPageStep(1)
+        self._crosshair_size_slider.valueChanged.connect(self._on_crosshair_size_changed)
+        cl.addWidget(self._crosshair_size_slider, 1)
+        self._crosshair_size_value_label = BodyLabel("8", cross_row)
+        self._crosshair_size_value_label.setFixedWidth(24)
+        self._crosshair_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        cl.addWidget(self._crosshair_size_value_label)
+        layout.addWidget(cross_row)
 
         # --- 微调步长 ---
         nudge_row = QWidget(content)
@@ -531,6 +556,7 @@ class WorkspacePage(QWidget):
         self._auto_mode_combo.setFixedHeight(32)
         self._auto_mode_combo.setMinimumWidth(160)
         self._auto_mode_combo.currentIndexChanged.connect(self._on_auto_mode_changed)
+        self._auto_mode_combo.setCurrentIndex(0)
         mode_rl.addWidget(self._auto_mode_combo, 1)
         layout.addWidget(mode_row)
 
@@ -724,6 +750,8 @@ class WorkspacePage(QWidget):
         self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
         self._auto_status_label.setWordWrap(True)
         layout.addWidget(self._auto_status_label)
+
+        self._on_auto_mode_changed(self._auto_mode_combo.currentIndex())
 
         # ══════════ 辅助选点（暂时隐藏，功能待完善）══════════
         # 创建所有辅助选点控件，但包装在隐藏容器中
@@ -1150,13 +1178,13 @@ class WorkspacePage(QWidget):
         if project_manager.current_project is None:
             import os as _os
             default_name = _os.path.splitext(_os.path.basename(file_path))[0]
-            project_manager.create_new(default_name)
+            project_manager.create_new(default_name, parent_dir=_os.path.dirname(file_path), create_structure=True)
             self._refresh_project_tree()
 
         image_work = project_manager.add_image(file_path)
         self._current_image_id = image_work.id
         self._current_curve_id = None
-        self._image_viewer.load_image(file_path)
+        self._image_viewer.load_image(project_manager.get_image_path(image_work.id))
         self._refresh_project_tree()
         self.project_modified.emit()
         self._status_label.setText(f"已添加图片: {os.path.basename(file_path)}")
@@ -1727,6 +1755,14 @@ class WorkspacePage(QWidget):
         self._image_viewer.set_select_threshold(float(value))
         self._select_area_value_label.setText(str(value))
 
+    def _on_crosshair_size_changed(self, value):
+        self._image_viewer.set_crosshair_size(float(value))
+        self._crosshair_size_value_label.setText(str(value))
+
+    def _on_crosshair_color_changed(self, color):
+        if isinstance(color, QColor):
+            self._image_viewer.set_crosshair_color(color)
+
     def _on_eraser_size_changed(self, value):
         self._image_viewer.set_eraser_size(float(value))
         self._eraser_size_value_label.setText(f"{value} px")
@@ -1794,7 +1830,7 @@ class WorkspacePage(QWidget):
                 img_id = data[1]
                 for img in project.images:
                     if img.id == img_id:
-                        self._image_viewer.load_image(img.image_path)
+                        self._image_viewer.load_image(project_manager.get_image_path(img.id))
                         self._current_image_item = item
                         # 只有当点击不同图片时才改变曲线
                         if self._current_image_id != img_id:
@@ -1830,7 +1866,7 @@ class WorkspacePage(QWidget):
                 if project:
                     for img in project.images:
                         if img.id == self._current_image_id:
-                            self._image_viewer.load_image(img.image_path)
+                            self._image_viewer.load_image(project_manager.get_image_path(img.id))
                             break
             else:
                 self._current_image_id = None
@@ -1877,13 +1913,8 @@ class WorkspacePage(QWidget):
         if src_project is None or dest_project is None:
             return
 
-        # 移动图片数据
-        img = next((i for i in src_project.images if i.id == img_id), None)
-        if img is None:
+        if not project_manager.move_image(img_id, dest_project_id):
             return
-
-        src_project.images = [i for i in src_project.images if i.id != img_id]
-        dest_project.images.append(img)
         self._refresh_project_tree()
         self.project_modified.emit()
         event.accept()
@@ -1966,9 +1997,11 @@ class WorkspacePage(QWidget):
                 return
             dlg = _InputDialog("重命名图片", "新名称:", text=img.name, parent=self)
             if dlg.exec() and dlg.value().strip():
-                img.name = dlg.value().strip()
-                self._refresh_project_tree()
-                self.project_modified.emit()
+                if project_manager.rename_image(item_id, dlg.value().strip()):
+                    self._refresh_project_tree()
+                    self.project_modified.emit()
+                else:
+                    InfoBar.error(title="错误", content="重命名图片失败", parent=self, duration=3000)
         elif item_type == "curve":
             curve = project_manager.get_curve(item_id)
             if curve is None:
@@ -2010,11 +2043,7 @@ class WorkspacePage(QWidget):
             return
         if not MessageBox("确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？", self).exec():
             return
-        # 从所有项目中找到并删除
-        for project in project_manager.projects:
-            if any(i.id == img_id for i in project.images):
-                project.images = [i for i in project.images if i.id != img_id]
-                break
+        project_manager.remove_image(img_id)
         if self._current_image_id == img_id:
             self._current_image_id = None
             self._current_curve_id = None
@@ -2160,11 +2189,18 @@ class WorkspacePage(QWidget):
         dlg = _InputDialog("新建项目", "请输入项目名称:", parent=self)
         if not dlg.exec():
             return
-        name = dlg.value()
+        name = dlg.value().strip()
         if name:
-            project_manager.create_new(name)
-            self._refresh_project_tree()
-            self.project_modified.emit()
+            base_dir = QFileDialog.getExistingDirectory(self, "选择项目保存目录", "")
+            if not base_dir:
+                return
+            try:
+                project_manager.create_new(name, parent_dir=base_dir, create_structure=True)
+                self._refresh_project_tree()
+                self.project_saved.emit()
+                InfoBar.success(title="成功", content="项目已创建并初始化目录结构", parent=self, duration=3000)
+            except Exception as e:
+                InfoBar.error(title="错误", content=f"创建项目失败:\n{str(e)}", parent=self, duration=5000)
 
     def _on_open_project(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -2228,7 +2264,7 @@ class WorkspacePage(QWidget):
             image_work = project_manager.add_image(file_path)
             self._current_image_id = image_work.id
             self._current_curve_id = None
-            self._image_viewer.load_image(file_path)
+            self._image_viewer.load_image(project_manager.get_image_path(image_work.id))
             self._refresh_project_tree()
             self.project_modified.emit()
 

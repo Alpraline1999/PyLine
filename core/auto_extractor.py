@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 from typing import List, Tuple, Optional
 
+from core.image_io import cv2_imread_unicode
+
 
 class AutoExtractor:
     """
@@ -48,7 +50,7 @@ class AutoExtractor:
             [(x, y), ...] 像素坐标列表，已按 x 排序
         """
         # 读取图片
-        img_bgr = cv2.imread(image_path)
+        img_bgr = cv2_imread_unicode(image_path)
         if img_bgr is None:
             return []
 
@@ -112,7 +114,7 @@ class AutoExtractor:
         """
         返回颜色匹配的二值掩码图（用于调试/预览），形状 (H, W)，uint8。
         """
-        img_bgr = cv2.imread(image_path)
+        img_bgr = cv2_imread_unicode(image_path)
         if img_bgr is None:
             return None
 

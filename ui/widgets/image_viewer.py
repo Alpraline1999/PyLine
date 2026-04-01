@@ -3,6 +3,8 @@ from qfluentwidgets import BodyLabel
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF
 from PySide6.QtGui import QPixmap, QPainter, QWheelEvent, QMouseEvent, QResizeEvent, QPen, QColor, QBrush, QKeyEvent, QPainterPath
 
+from core.image_io import load_pixmap_unicode
+
 
 class CurvePoint:
     """曲线上的单个点"""
@@ -343,6 +345,8 @@ class ImageViewer(QWidget):
         self._nudge_step = self.DEFAULT_NUDGE_STEP
         self._select_threshold = self.DEFAULT_SELECT_THRESHOLD
         self._eraser_size = 20.0
+        self._crosshair_size = 8.0
+        self._crosshair_color = QColor("#00C2FF")
 
         # 蒙版
         self._mask = MaskOverlay()
@@ -408,6 +412,17 @@ class ImageViewer(QWidget):
         """设置选点区域半径（像素）"""
         self._select_threshold = max(2.0, value)
 
+    def set_crosshair_size(self, value: float):
+        """设置十字辅助光标大小（像素）。"""
+        self._crosshair_size = max(4.0, value)
+        self.update()
+
+    def set_crosshair_color(self, color: QColor):
+        """设置十字辅助光标颜色。"""
+        if isinstance(color, QColor) and color.isValid():
+            self._crosshair_color = QColor(color)
+            self.update()
+
     def event(self, ev):
         """拦截 ShortcutOverride，在提取/校准模式下预先主张方向键和WASD"""
         from PySide6.QtCore import QEvent
@@ -430,7 +445,7 @@ class ImageViewer(QWidget):
 
     def load_image(self, file_path: str) -> bool:
         """加载图片"""
-        pixmap = QPixmap(file_path)
+        pixmap = load_pixmap_unicode(file_path)
         if pixmap.isNull():
             return False
         self._pixmap = pixmap
@@ -713,6 +728,7 @@ class ImageViewer(QWidget):
         self._draw_preview_points(painter)
         self._draw_mask_overlay(painter)
         self._draw_eraser_cursor(painter)
+        self._draw_precision_crosshair(painter)
         self._draw_assisted_preview(painter)
         self._draw_crop_preview(painter)
 
@@ -1068,6 +1084,31 @@ class ImageViewer(QWidget):
             r = self._eraser_size
             painter.drawEllipse(self._mouse_image_pos, r, r)
 
+    def _draw_precision_crosshair(self, painter: QPainter):
+        """在校准/手动选点模式下绘制鼠标十字辅助光标。"""
+        if self._mouse_image_pos is None or self._pixmap is None:
+            return
+        if self._current_tool not in (self.MODE_CALIBRATE, self.MODE_EXTRACT, self.MODE_COLOR_PICK):
+            return
+
+        x = self._mouse_image_pos.x()
+        y = self._mouse_image_pos.y()
+        if x < 0 or y < 0 or x >= self._pixmap.width() or y >= self._pixmap.height():
+            return
+
+        arm = max(4.0, self._crosshair_size) / self._scale
+        pen = QPen(self._crosshair_color)
+        pen.setWidthF(1.6 / self._scale)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(QPointF(x - arm, y), QPointF(x + arm, y))
+        painter.drawLine(QPointF(x, y - arm), QPointF(x, y + arm))
+
+        ring_pen = QPen(self._crosshair_color)
+        ring_pen.setWidthF(1.0 / self._scale)
+        painter.setPen(ring_pen)
+        painter.drawEllipse(QPointF(x, y), arm * 0.45, arm * 0.45)
+
     def _draw_assisted_preview(self, painter: QPainter):
         """绘制辅助选点预览（两点点击模式）"""
         if self._current_tool != self.MODE_ASSISTED:
@@ -1381,7 +1422,7 @@ class ImageViewer(QWidget):
                 self._brush_last_pt = new_pt
                 self._add_brush_circle(new_pt)
             self.update()
-        elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED):
+        elif self._current_tool in (self.MODE_ERASER, self.MODE_BOX_MASK, self.MODE_BRUSH_MASK, self.MODE_ASSISTED, self.MODE_CALIBRATE, self.MODE_EXTRACT, self.MODE_COLOR_PICK):
             self.update()
         elif self._current_tool == self.MODE_CROP and self._crop_start_point and event.buttons() & Qt.MouseButton.LeftButton:
             self._crop_drag_current = self._widget_to_image_coords(event.position())

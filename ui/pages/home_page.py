@@ -232,10 +232,16 @@ class HomePage(QWidget):
         dlg = _InputDialog("新建项目", "请输入项目名称:", parent=self)
         if not dlg.exec():
             return
-        name = dlg.value()
+        name = dlg.value().strip()
         if name:
-            project_manager.create_new(name)
-            self.project_created.emit(name)
+            base_dir = QFileDialog.getExistingDirectory(self, "选择项目保存目录", "")
+            if not base_dir:
+                return
+            try:
+                project_manager.create_new(name, parent_dir=base_dir, create_structure=True)
+                self.project_created.emit(name)
+            except Exception as e:
+                InfoBar.error(title="错误", content=f"创建项目失败:\n{str(e)}", parent=self, duration=5000)
 
     def on_open_project(self):
         """打开项目"""

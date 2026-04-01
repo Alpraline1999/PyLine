@@ -334,8 +334,8 @@ class ChartPage(QWidget):
         name = curve["name"]
         override = self._curve_styles.get(name, {})
         color = override.get("color") or curve.get("color") or None
-        ls = override.get("linestyle", "-")
-        mk = override.get("marker", "")
+        ls = override.get("linestyle", "")
+        mk = override.get("marker", "o")
         return {"color": color, "linestyle": ls, "marker": mk}
 
     # ──────────────────────────── 绘图 ──────────────────────────────────
@@ -429,8 +429,8 @@ class ChartPage(QWidget):
             ov = self._curve_styles.get(name, {})
             eff_color = ov.get("color") or curve.get("color") or "#888888"
             self._update_color_btn(eff_color)
-            ls = ov.get("linestyle", "-")
-            mk = ov.get("marker", "")
+            ls = ov.get("linestyle", "")
+            mk = ov.get("marker", "o")
             try:
                 idx = next(i for i, (sl, sm) in enumerate(zip(_STYLE_LINESTYLES, _STYLE_MARKERS)) if sl == ls and sm == mk)
             except StopIteration:

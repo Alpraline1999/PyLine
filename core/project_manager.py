@@ -1,6 +1,9 @@
 import json
 import os
+import re
+import shutil
 import uuid
+from pathlib import Path
 from typing import Optional, List, Tuple
 from datetime import datetime
 
@@ -46,12 +49,199 @@ class ProjectManager:
         if self.get_project(project_id):
             self._current_project_id = project_id
 
-    def create_new(self, name: str) -> Project:
+    def create_new(self, name: str, parent_dir: Optional[str] = None, create_structure: bool = False) -> Project:
         """创建新项目并设为当前项目"""
         project = Project.create_new(name)
         self._projects.append(project)
         self._current_project_id = project.id
+
+        if create_structure:
+            base_dir = self._normalize_file_path(parent_dir or os.getcwd())
+            safe_name = self._safe_filename(name)
+            project_dir = Path(base_dir) / safe_name
+            project_dir.mkdir(parents=True, exist_ok=True)
+            (project_dir / "files" / "images").mkdir(parents=True, exist_ok=True)
+            project_file = project_dir / f"{safe_name}.pyline"
+            self.save(str(project_file))
+
         return project
+
+    def _normalize_file_path(self, file_path: str) -> str:
+        return str(Path(file_path).expanduser().resolve())
+
+    def _project_assets_dir(self, project_file_path: str) -> Path:
+        project_path = Path(project_file_path)
+        return project_path.parent / "files" / "images"
+
+    def _safe_filename(self, text: str) -> str:
+        text = (text or "").strip()
+        if not text:
+            return "untitled"
+        sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", text)
+        sanitized = sanitized.rstrip(". ")
+        return sanitized or "untitled"
+
+    def _backup_filename(self, image: ImageWork, source_suffix: str) -> str:
+        name = self._safe_filename(image.name)
+        p = Path(name)
+        if p.suffix:
+            return name
+        suffix = (source_suffix or ".img").lower()
+        return f"{name}{suffix}"
+
+    def _ensure_unique_path(self, candidate: Path, image_id: str) -> Path:
+        if not candidate.exists():
+            return candidate
+        stem = candidate.stem
+        suffix = candidate.suffix
+        for idx in range(1, 1000):
+            trial = candidate.with_name(f"{stem}_{idx}{suffix}")
+            if not trial.exists():
+                return trial
+        return candidate.with_name(f"{stem}_{image_id}{suffix}")
+
+    def _get_image_owner(self, image_id: str) -> Tuple[Optional[Project], Optional[ImageWork]]:
+        for project in self._projects:
+            for image in project.images:
+                if image.id == image_id:
+                    return project, image
+        return None, None
+
+    def resolve_image_path(self, image: ImageWork, project: Optional[Project] = None) -> str:
+        raw_path = image.image_path or image.source_image_path or ""
+        if not raw_path:
+            return ""
+
+        path = Path(raw_path)
+        if path.is_absolute():
+            return str(path)
+
+        owner = project
+        if owner is None:
+            owner, _ = self._get_image_owner(image.id)
+
+        if owner and owner.file_path:
+            return str((Path(owner.file_path).parent / path).resolve())
+
+        return str(path)
+
+    def get_image_path(self, image_id: str) -> str:
+        project, image = self._get_image_owner(image_id)
+        if image is None:
+            return ""
+        return self.resolve_image_path(image, project)
+
+    def _backup_image_for_project(self, image: ImageWork, project_file_path: str, source_project: Optional[Project]) -> None:
+        source_abs_path = self.resolve_image_path(image, source_project)
+        if not source_abs_path:
+            return
+
+        source_path = Path(source_abs_path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"图片文件不存在: {source_abs_path}")
+
+        backup_dir = self._project_assets_dir(project_file_path)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_filename = self._backup_filename(image, source_path.suffix)
+        backup_path = backup_dir / backup_filename
+
+        current_backup_abs = ""
+        if image.image_path and not Path(image.image_path).is_absolute():
+            current_backup_abs = str((Path(project_file_path).parent / image.image_path).resolve())
+
+        if backup_path.exists() and str(backup_path.resolve()) != current_backup_abs:
+            backup_path = self._ensure_unique_path(backup_path, image.id)
+
+        if source_path.resolve() != backup_path.resolve():
+            shutil.copy2(source_path, backup_path)
+
+        rel_path = backup_path.relative_to(Path(project_file_path).parent)
+        image.image_path = rel_path.as_posix()
+        image.source_image_path = str(source_path)
+
+    def _sync_project_backups(self, project: Project, target_file_path: str, source_file_path: Optional[str]) -> None:
+        source_project = project.model_copy(deep=False)
+        source_project.file_path = source_file_path
+        for image in project.images:
+            self._backup_image_for_project(image, target_file_path, source_project)
+
+    def _delete_backup_if_managed(self, image: ImageWork, project: Project) -> None:
+        if not project.file_path:
+            return
+
+        raw_path = image.image_path or ""
+        if not raw_path or Path(raw_path).is_absolute():
+            return
+
+        backup_path = Path(project.file_path).parent / raw_path
+        try:
+            if backup_path.exists():
+                backup_path.unlink()
+        except OSError:
+            pass
+
+    def remove_image(self, image_id: str) -> Optional[ImageWork]:
+        project, image = self._get_image_owner(image_id)
+        if project is None or image is None:
+            return None
+
+        self._delete_backup_if_managed(image, project)
+        project.images = [item for item in project.images if item.id != image_id]
+        project.is_modified = True
+        return image
+
+    def move_image(self, image_id: str, dest_project_id: str) -> bool:
+        src_project, image = self._get_image_owner(image_id)
+        dest_project = self.get_project(dest_project_id)
+        if src_project is None or image is None or dest_project is None:
+            return False
+        if src_project.id == dest_project_id:
+            return False
+
+        image.image_path = self.resolve_image_path(image, src_project)
+        src_project.images = [item for item in src_project.images if item.id != image_id]
+        dest_project.images.append(image)
+        src_project.is_modified = True
+        dest_project.is_modified = True
+        return True
+
+    def rename_image(self, image_id: str, new_name: str) -> bool:
+        project, image = self._get_image_owner(image_id)
+        if project is None or image is None:
+            return False
+
+        old_name = image.name
+        image.name = new_name
+
+        if not project.file_path:
+            project.is_modified = True
+            return True
+
+        raw_path = image.image_path or ""
+        if not raw_path or Path(raw_path).is_absolute():
+            project.is_modified = True
+            return True
+
+        old_path = (Path(project.file_path).parent / raw_path).resolve()
+        if not old_path.exists():
+            project.is_modified = True
+            return True
+
+        new_filename = self._backup_filename(image, old_path.suffix)
+        new_path = old_path.with_name(new_filename)
+        if new_path.exists() and new_path.resolve() != old_path.resolve():
+            new_path = self._ensure_unique_path(new_path, image.id)
+
+        try:
+            old_path.rename(new_path)
+            rel = new_path.relative_to(Path(project.file_path).parent)
+            image.image_path = rel.as_posix()
+        except OSError:
+            image.name = old_name
+            return False
+
+        project.is_modified = True
+        return True
 
     def save(self, file_path: Optional[str] = None) -> str:
         """保存当前项目到文件"""
@@ -63,6 +253,9 @@ class ProjectManager:
             if file_path is None:
                 raise ValueError("没有指定文件路径")
 
+        file_path = self._normalize_file_path(file_path)
+        previous_file_path = self.current_project.file_path
+
         # 确保目录存在
         dir_path = os.path.dirname(file_path)
         if dir_path:
@@ -70,6 +263,7 @@ class ProjectManager:
 
         # 更新时间戳
         self.current_project.updated_at = datetime.now().isoformat()
+        self._sync_project_backups(self.current_project, file_path, previous_file_path)
 
         # 保存为 JSON
         with open(file_path, "w", encoding="utf-8") as f:
@@ -84,6 +278,7 @@ class ProjectManager:
 
     def open(self, file_path: str) -> Project:
         """从文件打开项目"""
+        file_path = self._normalize_file_path(file_path)
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"项目文件不存在: {file_path}")
 
@@ -126,11 +321,18 @@ class ProjectManager:
         if self.current_project is None:
             raise ValueError("没有当前项目")
 
+        image_path = self._normalize_file_path(image_path)
+
         image_work = ImageWork(
             id=str(uuid.uuid4()),
             name=name or os.path.basename(image_path),
-            image_path=image_path
+            image_path=image_path,
+            source_image_path=image_path,
         )
+
+        if self.current_project.file_path:
+            self._backup_image_for_project(image_work, self.current_project.file_path, None)
+
         self.current_project.images.append(image_work)
         self.current_project.is_modified = True
         return image_work

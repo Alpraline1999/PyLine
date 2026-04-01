@@ -34,8 +34,10 @@ class CalibrationDialog(QDialog):
 
         # X轴范围
         x_layout = QHBoxLayout()
-        self._x_min_input = LineEdit("0", self)
-        self._x_max_input = LineEdit("1", self)
+        self._x_min_input = LineEdit(self)
+        self._x_max_input = LineEdit(self)
+        self._x_min_input.setText("0")
+        self._x_max_input.setText("1")
         x_layout.addWidget(BodyLabel("最小:", self))
         x_layout.addWidget(self._x_min_input)
         x_layout.addWidget(BodyLabel("最大:", self))
@@ -44,8 +46,10 @@ class CalibrationDialog(QDialog):
 
         # Y轴范围
         y_layout = QHBoxLayout()
-        self._y_min_input = LineEdit("0", self)
-        self._y_max_input = LineEdit("1", self)
+        self._y_min_input = LineEdit(self)
+        self._y_max_input = LineEdit(self)
+        self._y_min_input.setText("0")
+        self._y_max_input.setText("1")
         y_layout.addWidget(BodyLabel("最小:", self))
         y_layout.addWidget(self._y_min_input)
         y_layout.addWidget(BodyLabel("最大:", self))

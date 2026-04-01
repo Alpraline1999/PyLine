@@ -53,6 +53,7 @@ class ImageWork(BaseModel):
     id: str = ""
     name: str = ""
     image_path: str = ""
+    source_image_path: Optional[str] = None
     curves: List[Curve] = []
     mask: Optional[MaskData] = None
 
