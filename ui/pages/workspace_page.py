@@ -1,14 +1,56 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QSplitter, QFileDialog, QTreeWidgetItem, QAbstractItemView, QFormLayout, QTableWidgetItem, QHeaderView
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFrame,
+    QSizePolicy,
+    QSplitter,
+    QFileDialog,
+    QTreeWidgetItem,
+    QAbstractItemView,
+    QFormLayout,
+    QTableWidgetItem,
+    QHeaderView,
+)
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QColor
-from qfluentwidgets import (CardWidget, ToolButton, ToggleToolButton, TogglePushButton,
-    LineEdit, SpinBox, ColorPickerButton, BodyLabel, CaptionLabel, SubtitleLabel,
-    PushButton as FPushButton, TableWidget, ComboBox, TreeWidget, TreeItemDelegate,
-    Slider, SmoothScrollArea, TabWidget, TabCloseButtonDisplayMode,
-    MessageBox, InfoBar, RoundMenu, MessageBoxBase,
-    ToolTipFilter, ToolTipPosition, Action)
+from qfluentwidgets import (
+    CardWidget,
+    ToolButton,
+    ToggleToolButton,
+    TogglePushButton,
+    LineEdit,
+    SpinBox,
+    ColorPickerButton,
+    BodyLabel,
+    CaptionLabel,
+    SubtitleLabel,
+    PushButton as FPushButton,
+    TableWidget,
+    ComboBox,
+    TreeWidget,
+    TreeItemDelegate,
+    Slider,
+    SmoothScrollArea,
+    TabWidget,
+    TabCloseButtonDisplayMode,
+    MessageBox,
+    InfoBar,
+    RoundMenu,
+    MessageBoxBase,
+    ToolTipFilter,
+    ToolTipPosition,
+    Action,
+)
 
-from ui.theme import text_color, secondary_color, placeholder_color, make_section_label, make_hsep, make_vsep
+from ui.theme import (
+    text_color,
+    secondary_color,
+    placeholder_color,
+    make_section_label,
+    make_hsep,
+    make_vsep,
+)
 from ui.widgets import ImageViewer
 from ui.dialogs import CalibrationDialog, CoordTypeDialog, PolarCalibrationDialog
 from core.project_manager import project_manager
@@ -37,7 +79,7 @@ class WorkspacePage(QWidget):
     """工作区页面 - 主功能区"""
 
     project_modified = Signal()  # 项目修改信号
-    project_saved = Signal()     # 项目保存信号（不触发 is_modified=True）
+    project_saved = Signal()  # 项目保存信号（不触发 is_modified=True）
     current_project_changed = Signal(object)  # 当前项目切换信号
     current_image_changed = Signal(object)  # 当前图片切换信号
 
@@ -58,10 +100,10 @@ class WorkspacePage(QWidget):
         self._active_tool = None  # 当前激活的工具按钮
         self._hidden_curves = set()  # 隐藏的曲线ID集合
         # 撤销/重做系统
-        self._undo_stack = []  #撤销栈
-        self._redo_stack = []  #重做栈
-        self._max_history = 50  #最大历史记录数
-        self._is_undo_redo = False  #防止在撤销/重做中重复记录
+        self._undo_stack = []  # 撤销栈
+        self._redo_stack = []  # 重做栈
+        self._max_history = 50  # 最大历史记录数
+        self._is_undo_redo = False  # 防止在撤销/重做中重复记录
         # 自动选点
         self._sampled_color = None  # 采样颜色 (QColor)
         self._auto_preview_points = []  # 自动检测预览点
@@ -89,7 +131,7 @@ class WorkspacePage(QWidget):
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal, handleWidth=0)
 
         self._left_panel = self._create_left_panel()
         self._splitter.addWidget(self._left_panel)
@@ -146,6 +188,7 @@ class WorkspacePage(QWidget):
         """设置键盘快捷键（可在设置页自定义）"""
         from PySide6.QtGui import QShortcut, QKeySequence
         from core.shortcut_manager import shortcut_manager
+
         sm = shortcut_manager
         self._shortcut_objects: dict[str, QShortcut] = {}
 
@@ -156,31 +199,32 @@ class WorkspacePage(QWidget):
             sc.activated.connect(callback)
             self._shortcut_objects[action] = sc
 
-        _reg("undo",         self, self._undo)
-        _reg("redo",         self, self._redo)
-        _reg("save",         self, self._on_save_project)
-        _reg("new_project",  self, self._on_new_project)
+        _reg("undo", self, self._undo)
+        _reg("redo", self, self._redo)
+        _reg("save", self, self._on_save_project)
+        _reg("new_project", self, self._on_new_project)
         _reg("open_project", self, self._on_open_project)
         _reg("close_project", self, self._on_close_project)
-        _reg("add_image",    self, self._on_add_image)
-        _reg("add_curve",    self, self._on_add_curve)
-        _reg("extract",      self, lambda: self._on_tool_clicked("extract"))
-        _reg("calibrate",    self, lambda: self._on_tool_clicked("calibrate"))
-        _reg("eraser",       self, lambda: self._on_tool_clicked("eraser"))
-        _reg("auto_detect",  self, self._on_auto_detect)
-        _reg("apply_auto",   self, self._on_apply_auto_points)
+        _reg("add_image", self, self._on_add_image)
+        _reg("add_curve", self, self._on_add_curve)
+        _reg("extract", self, lambda: self._on_tool_clicked("extract"))
+        _reg("calibrate", self, lambda: self._on_tool_clicked("calibrate"))
+        _reg("eraser", self, lambda: self._on_tool_clicked("eraser"))
+        _reg("auto_detect", self, self._on_auto_detect)
+        _reg("apply_auto", self, self._on_apply_auto_points)
         _reg("clear_points", self, self._on_clear_all_points)
-        _reg("clear_masks",  self, self._on_clear_masks)
-        _reg("escape_tool",  self, self._on_escape_tool)
-        _reg("zoom_in",      self._image_viewer, self._image_viewer.zoom_in)
-        _reg("zoom_out",     self._image_viewer, self._image_viewer.zoom_out)
-        _reg("zoom_fit",     self._image_viewer, self._image_viewer.fit_to_window)
-        _reg("delete_rows",  self._curve_table,  self._delete_selected_table_rows)
+        _reg("clear_masks", self, self._on_clear_masks)
+        _reg("escape_tool", self, self._on_escape_tool)
+        _reg("zoom_in", self._image_viewer, self._image_viewer.zoom_in)
+        _reg("zoom_out", self._image_viewer, self._image_viewer.zoom_out)
+        _reg("zoom_fit", self._image_viewer, self._image_viewer.fit_to_window)
+        _reg("delete_rows", self._curve_table, self._delete_selected_table_rows)
 
     def apply_shortcuts(self):
         """由设置页调用，用新配置刷新所有快捷键绑定"""
         from PySide6.QtGui import QKeySequence
         from core.shortcut_manager import shortcut_manager
+
         for action, sc in self._shortcut_objects.items():
             sc.setKey(QKeySequence(shortcut_manager.get(action)))
 
@@ -243,7 +287,9 @@ class WorkspacePage(QWidget):
         self._project_tree.setFont(QFont("Microsoft YaHei", 10))
         self._project_tree.setIconSize(QSize(20, 20))
         self._project_tree.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._project_tree.customContextMenuRequested.connect(self._on_tree_context_menu)
+        self._project_tree.customContextMenuRequested.connect(
+            self._on_tree_context_menu
+        )
         self._project_tree.itemClicked.connect(self._on_tree_item_clicked)
         self._project_tree.itemDoubleClicked.connect(self._on_tree_item_double_clicked)
         # 支持图片节点拖放到其他项目
@@ -275,17 +321,25 @@ class WorkspacePage(QWidget):
         self._curve_table = TableWidget(panel)
         self._curve_table.setColumnCount(2)
         self._curve_table.setHorizontalHeaderLabels(["X", "Y"])
-        self._curve_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self._curve_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._curve_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.Stretch
+        )
+        self._curve_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.Stretch
+        )
         self._curve_table.horizontalHeader().setSectionsClickable(True)
-        self._curve_table.horizontalHeader().sectionClicked.connect(self._on_header_sort)
+        self._curve_table.horizontalHeader().sectionClicked.connect(
+            self._on_header_sort
+        )
         self._curve_table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self._curve_table.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
         self._curve_table.setAlternatingRowColors(True)
         self._curve_table.setFont(QFont("Noto Sans", 9))
         self._curve_table.verticalHeader().setDefaultSectionSize(22)
         self._curve_table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._curve_table.customContextMenuRequested.connect(self._on_curve_table_context_menu)
+        self._curve_table.customContextMenuRequested.connect(
+            self._on_curve_table_context_menu
+        )
         layout.addWidget(self._curve_table)
 
         line = QFrame(panel)
@@ -297,7 +351,9 @@ class WorkspacePage(QWidget):
         # 功能区页面
         self._right_tabs = TabWidget(panel)
         self._right_tabs.tabBar.setAddButtonVisible(False)
-        self._right_tabs.tabBar.setCloseButtonDisplayMode(TabCloseButtonDisplayMode.NEVER)
+        self._right_tabs.tabBar.setCloseButtonDisplayMode(
+            TabCloseButtonDisplayMode.NEVER
+        )
         combined_tab = self._create_combined_tab()
         self._right_tabs.addTab(combined_tab, "图片选点")
         export_tab = self._create_export_tab()
@@ -306,7 +362,9 @@ class WorkspacePage(QWidget):
 
         # 提示标签
         self._status_label = BodyLabel("", panel)
-        self._status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px; padding: 2px 0;")
+        self._status_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px; padding: 2px 0;"
+        )
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
 
@@ -392,7 +450,9 @@ class WorkspacePage(QWidget):
         self._point_size_spin.valueChanged.connect(self._on_point_size_changed)
         self._point_size_value_label = BodyLabel("3px", bar)
         self._point_size_value_label.setFixedWidth(24)
-        self._point_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._point_size_value_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 10px;"
+        )
         bar_layout.addWidget(self._point_size_spin)
         bar_layout.addWidget(self._point_size_value_label)
 
@@ -407,7 +467,9 @@ class WorkspacePage(QWidget):
         self._eraser_size_spin.valueChanged.connect(self._on_eraser_size_changed)
         self._eraser_size_value_label = BodyLabel("15px", bar)
         self._eraser_size_value_label.setFixedWidth(24)
-        self._eraser_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._eraser_size_value_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 10px;"
+        )
         bar_layout.addWidget(self._eraser_size_spin)
         bar_layout.addWidget(self._eraser_size_value_label)
 
@@ -438,15 +500,21 @@ class WorkspacePage(QWidget):
         bar.setStyleSheet(f"background: transparent;")
 
         self._status_path_label = BodyLabel("", bar)
-        self._status_path_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._status_path_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 10px;"
+        )
         self._status_path_label.setMaximumWidth(300)
-        self._status_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self._status_path_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
         bar_layout.addWidget(self._status_path_label)
 
         bar_layout.addStretch()
 
         self._status_coord_label = BodyLabel("", bar)
-        self._status_coord_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 10px;")
+        self._status_coord_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 10px;"
+        )
         self._status_coord_label.setMinimumWidth(180)
         bar_layout.addWidget(self._status_coord_label)
 
@@ -461,7 +529,9 @@ class WorkspacePage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("SmoothScrollArea { background: transparent; border: none; }")
+        scroll.setStyleSheet(
+            "SmoothScrollArea { background: transparent; border: none; }"
+        )
 
         content = QWidget()
         content.setStyleSheet("background: transparent;")
@@ -482,7 +552,9 @@ class WorkspacePage(QWidget):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
 
-        self._crosshair_color_btn = ColorPickerButton(QColor("#00C2FF"), "", manual_row, enableAlpha=False)
+        self._crosshair_color_btn = ColorPickerButton(
+            QColor("#00C2FF"), "", manual_row, enableAlpha=False
+        )
         self._crosshair_color_btn.setToolTip("十字颜色")
         self._crosshair_color_btn.setFixedSize(28, 28)
         self._crosshair_color_btn.colorChanged.connect(self._on_crosshair_color_changed)
@@ -514,11 +586,15 @@ class WorkspacePage(QWidget):
         self._crosshair_size_slider.setValue(8)
         self._crosshair_size_slider.setSingleStep(1)
         self._crosshair_size_slider.setPageStep(1)
-        self._crosshair_size_slider.valueChanged.connect(self._on_crosshair_size_changed)
+        self._crosshair_size_slider.valueChanged.connect(
+            self._on_crosshair_size_changed
+        )
         cl.addWidget(self._crosshair_size_slider, 1)
         self._crosshair_size_value_label = BodyLabel("8", cross_row)
         self._crosshair_size_value_label.setFixedWidth(24)
-        self._crosshair_size_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._crosshair_size_value_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         cl.addWidget(self._crosshair_size_value_label)
         layout.addWidget(cross_row)
 
@@ -536,7 +612,9 @@ class WorkspacePage(QWidget):
         nl.addWidget(self._select_area_slider, 1)
         self._select_area_value_label = BodyLabel("3", nudge_row)
         self._select_area_value_label.setFixedWidth(24)
-        self._select_area_value_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._select_area_value_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         nl.addWidget(self._select_area_value_label)
         self._select_area_slider.valueChanged.connect(self._on_select_area_changed)
         layout.addWidget(nudge_row)
@@ -567,10 +645,14 @@ class WorkspacePage(QWidget):
         abl.setSpacing(4)
 
         # 采样颜色按钮（ColorPickerButton 风格，点击打开对话框选色）
-        self._sample_color_btn = ColorPickerButton(QColor("#888888"), "", auto_btn_row, enableAlpha=False)
+        self._sample_color_btn = ColorPickerButton(
+            QColor("#888888"), "", auto_btn_row, enableAlpha=False
+        )
         self._sample_color_btn.setToolTip("采样颜色（点击打开颜色对话框）")
         self._sample_color_btn.setFixedSize(34, 34)
-        self._sample_color_btn.colorChanged.connect(self._on_sample_color_changed_direct)
+        self._sample_color_btn.colorChanged.connect(
+            self._on_sample_color_changed_direct
+        )
         abl.addWidget(self._sample_color_btn)
 
         # 从图片取色按钮
@@ -582,7 +664,9 @@ class WorkspacePage(QWidget):
 
         # 截图模板按钮（图形识别/综合识别时可用）
         self._crop_template_btn = ToggleToolButton(FIF.CUT, auto_btn_row)
-        self._crop_template_btn.setToolTip("截图图例形状（用于图形识别）\n在图片上拖拽框选图例符号")
+        self._crop_template_btn.setToolTip(
+            "截图图例形状（用于图形识别）\n在图片上拖拽框选图例符号"
+        )
         self._crop_template_btn.setFixedSize(34, 34)
         self._crop_template_btn.setEnabled(False)
         self._crop_template_btn.clicked.connect(self._on_crop_template)
@@ -616,11 +700,15 @@ class WorkspacePage(QWidget):
         info_rl.setSpacing(6)
 
         self._sampled_color_hex_lbl = BodyLabel("#888888", info_row)
-        self._sampled_color_hex_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._sampled_color_hex_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         info_rl.addWidget(self._sampled_color_hex_lbl)
 
         self._shape_template_lbl = CaptionLabel("", info_row)
-        self._shape_template_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._shape_template_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         self._shape_template_lbl.setVisible(False)
         info_rl.addWidget(self._shape_template_lbl, 1)
 
@@ -640,9 +728,13 @@ class WorkspacePage(QWidget):
         tl.addWidget(self._tol_slider, 1)
         self._tol_val_lbl = BodyLabel("20", self._tol_widget)
         self._tol_val_lbl.setFixedWidth(24)
-        self._tol_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._tol_val_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         tl.addWidget(self._tol_val_lbl)
-        self._tol_slider.valueChanged.connect(lambda v: self._tol_val_lbl.setText(str(v)))
+        self._tol_slider.valueChanged.connect(
+            lambda v: self._tol_val_lbl.setText(str(v))
+        )
         layout.addWidget(self._tol_widget)
 
         # --- 搜索步长 ---
@@ -659,9 +751,13 @@ class WorkspacePage(QWidget):
         sl.addWidget(self._auto_step_slider, 1)
         self._step_val_lbl = BodyLabel("5", step_row)
         self._step_val_lbl.setFixedWidth(24)
-        self._step_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._step_val_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         sl.addWidget(self._step_val_lbl)
-        self._auto_step_slider.valueChanged.connect(lambda v: self._step_val_lbl.setText(str(v)))
+        self._auto_step_slider.valueChanged.connect(
+            lambda v: self._step_val_lbl.setText(str(v))
+        )
         layout.addWidget(step_row)
 
         # --- 匹配阈值（图形识别 / 综合识别 时显示）---
@@ -670,7 +766,9 @@ class WorkspacePage(QWidget):
         mtl.setContentsMargins(0, 0, 0, 0)
         mtl.setSpacing(4)
         mtl.addWidget(BodyLabel("匹配精度:", self._match_thr_widget))
-        self._match_thr_slider = Slider(Qt.Orientation.Horizontal, self._match_thr_widget)
+        self._match_thr_slider = Slider(
+            Qt.Orientation.Horizontal, self._match_thr_widget
+        )
         self._match_thr_slider.setRange(30, 95)
         self._match_thr_slider.setValue(65)
         self._match_thr_slider.setSingleStep(1)
@@ -678,7 +776,9 @@ class WorkspacePage(QWidget):
         mtl.addWidget(self._match_thr_slider, 1)
         self._match_thr_val_lbl = BodyLabel("65%", self._match_thr_widget)
         self._match_thr_val_lbl.setFixedWidth(32)
-        self._match_thr_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._match_thr_val_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         mtl.addWidget(self._match_thr_val_lbl)
         self._match_thr_slider.valueChanged.connect(
             lambda v: self._match_thr_val_lbl.setText(f"{v}%")
@@ -692,7 +792,9 @@ class WorkspacePage(QWidget):
         cwl.setContentsMargins(0, 0, 0, 0)
         cwl.setSpacing(4)
         cwl.addWidget(BodyLabel("颜色权重:", self._color_weight_widget))
-        self._color_weight_slider = Slider(Qt.Orientation.Horizontal, self._color_weight_widget)
+        self._color_weight_slider = Slider(
+            Qt.Orientation.Horizontal, self._color_weight_widget
+        )
         self._color_weight_slider.setRange(0, 100)
         self._color_weight_slider.setValue(70)
         self._color_weight_slider.setSingleStep(1)
@@ -706,7 +808,9 @@ class WorkspacePage(QWidget):
         cwl.addWidget(self._color_weight_slider, 1)
         self._color_weight_val_lbl = BodyLabel("70%", self._color_weight_widget)
         self._color_weight_val_lbl.setFixedWidth(32)
-        self._color_weight_val_lbl.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._color_weight_val_lbl.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         cwl.addWidget(self._color_weight_val_lbl)
         self._color_weight_slider.valueChanged.connect(
             lambda v: self._color_weight_val_lbl.setText(f"{v}%")
@@ -728,11 +832,15 @@ class WorkspacePage(QWidget):
         self._brush_mask_btn = ToggleToolButton(FIF.BRUSH, mask_row)
         self._brush_mask_btn.setToolTip("画笔蒙版")
         self._brush_mask_btn.setFixedSize(34, 34)
-        self._brush_mask_btn.clicked.connect(lambda: self._on_tool_clicked("brush_mask"))
+        self._brush_mask_btn.clicked.connect(
+            lambda: self._on_tool_clicked("brush_mask")
+        )
         mml.addWidget(self._brush_mask_btn)
 
         self._invert_mask_btn = ToggleToolButton(FIF.UPDATE, mask_row)
-        self._invert_mask_btn.setToolTip("反转蒙版\n关闭时蒙版内不识别（默认/规避）。\n开启后蒙版内才识别（感兴趣区域）")
+        self._invert_mask_btn.setToolTip(
+            "反转蒙版\n关闭时蒙版内不识别（默认/规避）。\n开启后蒙版内才识别（感兴趣区域）"
+        )
         self._invert_mask_btn.setFixedSize(34, 34)
         self._invert_mask_btn.clicked.connect(self._on_invert_mask)
         mml.addWidget(self._invert_mask_btn)
@@ -747,7 +855,9 @@ class WorkspacePage(QWidget):
         layout.addWidget(mask_row)
 
         self._auto_status_label = BodyLabel("", content)
-        self._auto_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._auto_status_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         self._auto_status_label.setWordWrap(True)
         layout.addWidget(self._auto_status_label)
 
@@ -766,7 +876,9 @@ class WorkspacePage(QWidget):
         assist_sep.setStyleSheet(f"color: {self._border_color()};")
         ac_layout.addWidget(assist_sep)
         assist_lbl = BodyLabel("辅助选点", _assist_container)
-        assist_lbl.setStyleSheet(f"color: {text_color()}; font-weight: bold; font-size: 11px;")
+        assist_lbl.setStyleSheet(
+            f"color: {text_color()}; font-weight: bold; font-size: 11px;"
+        )
         ac_layout.addWidget(assist_lbl)
 
         assist_btn_row = QWidget(_assist_container)
@@ -796,7 +908,9 @@ class WorkspacePage(QWidget):
         ac_layout.addWidget(assist_btn_row)
 
         self._assist_status_label = BodyLabel("", _assist_container)
-        self._assist_status_label.setStyleSheet(f"color: {placeholder_color()}; font-size: 11px;")
+        self._assist_status_label.setStyleSheet(
+            f"color: {placeholder_color()}; font-size: 11px;"
+        )
         self._assist_status_label.setWordWrap(True)
         ac_layout.addWidget(self._assist_status_label)
 
@@ -808,6 +922,7 @@ class WorkspacePage(QWidget):
     def _create_export_tab(self) -> QWidget:
         """创建数据导出功能区"""
         from qfluentwidgets import PushButton, CheckBox
+
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -825,7 +940,9 @@ class WorkspacePage(QWidget):
         fmt_row = QHBoxLayout()
         fmt_row.addWidget(BodyLabel("文件格式:", tab))
         self._export_fmt_combo = ComboBox(tab)
-        self._export_fmt_combo.addItems(["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"])
+        self._export_fmt_combo.addItems(
+            ["CSV (.csv)", "Excel (.xlsx)", "JSON (.json)", "文本 (.txt)"]
+        )
         fmt_row.addWidget(self._export_fmt_combo)
         layout.addLayout(fmt_row)
 
@@ -854,10 +971,12 @@ class WorkspacePage(QWidget):
 
     def _border_color(self):
         from qfluentwidgets import isDarkTheme
+
         return "#3d3d3d" if isDarkTheme() else "#e0e0e0"
 
     def _selection_background_color(self):
         from qfluentwidgets import isDarkTheme
+
         return "#3d5a80" if isDarkTheme() else "#b8d4f0"
 
     def _update_curve_table(self):
@@ -872,13 +991,21 @@ class WorkspacePage(QWidget):
                 has_calibration = curve.calibration is not None
                 # 更新表头
                 if has_calibration:
-                    coord_type = curve.calibration.coord_type if curve.calibration else "linear"
+                    coord_type = (
+                        curve.calibration.coord_type if curve.calibration else "linear"
+                    )
                     if coord_type == "polar":
-                        self._curve_table.setHorizontalHeaderLabels(["\u03b8 (角度)", "r (极径)"])
+                        self._curve_table.setHorizontalHeaderLabels(
+                            ["\u03b8 (角度)", "r (极径)"]
+                        )
                     else:
-                        self._curve_table.setHorizontalHeaderLabels(["X (实际)", "Y (实际)"])
+                        self._curve_table.setHorizontalHeaderLabels(
+                            ["X (实际)", "Y (实际)"]
+                        )
                 else:
-                    self._curve_table.setHorizontalHeaderLabels(["X (像素)", "Y (像素)"])
+                    self._curve_table.setHorizontalHeaderLabels(
+                        ["X (像素)", "Y (像素)"]
+                    )
 
                 for i in range(len(curve.x_data)):
                     row = self._curve_table.rowCount()
@@ -927,15 +1054,25 @@ class WorkspacePage(QWidget):
                 font.setBold(True)
                 project_item.setFont(0, font)
                 self._current_project_item = project_item
-                if show_indicator and current_img_id is None and current_curve_id is None:
+                if (
+                    show_indicator
+                    and current_img_id is None
+                    and current_curve_id is None
+                ):
                     _target_item = project_item
 
             for img in project.images:
                 img_item = QTreeWidgetItem(project_item)
                 img_item.setText(0, f"🖼️ {img.name}")
-                img_item.setData(0, Qt.ItemDataRole.UserRole, ("image", img.id, project.id))
+                img_item.setData(
+                    0, Qt.ItemDataRole.UserRole, ("image", img.id, project.id)
+                )
                 img_item.setExpanded(True)
-                if show_indicator and img.id == current_img_id and current_curve_id is None:
+                if (
+                    show_indicator
+                    and img.id == current_img_id
+                    and current_curve_id is None
+                ):
                     _target_item = img_item
 
                 # 图片的曲线作为图片的子节点
@@ -946,7 +1083,11 @@ class WorkspacePage(QWidget):
                         curve_item.setText(0, f"🔵 {curve.name} (已隐藏)")
                     else:
                         curve_item.setText(0, f"📈 {curve.name}")
-                    curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id, img.id))
+                    curve_item.setData(
+                        0,
+                        Qt.ItemDataRole.UserRole,
+                        ("curve", curve.id, project.id, img.id),
+                    )
                     if show_indicator and curve.id == current_curve_id:
                         _target_item = curve_item
 
@@ -957,7 +1098,9 @@ class WorkspacePage(QWidget):
                     curve_item.setText(0, f"🔵 {curve.name} (已隐藏)")
                 else:
                     curve_item.setText(0, f"📈 {curve.name}")
-                curve_item.setData(0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id))
+                curve_item.setData(
+                    0, Qt.ItemDataRole.UserRole, ("curve", curve.id, project.id)
+                )
                 if show_indicator and curve.id == current_curve_id:
                     _target_item = curve_item
 
@@ -1004,13 +1147,20 @@ class WorkspacePage(QWidget):
         if tool_name == "calibrate":
             # 校准需要选中一个曲线
             if self._current_curve_id is None:
-                InfoBar.warning(title="警告", content="请先选择一个曲线进行校准", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告",
+                    content="请先选择一个曲线进行校准",
+                    parent=self,
+                    duration=3000,
+                )
                 return
 
             # 检查是否有现有校准坐标
             calib = self._image_viewer.get_calibration()
             if calib.is_complete():
-                if not MessageBox("确认", "开始校准将清除当前的校准坐标，确定要继续吗？", self).exec():
+                if not MessageBox(
+                    "确认", "开始校准将清除当前的校准坐标，确定要继续吗？", self
+                ).exec():
                     return
                 # 重置校准坐标
                 calib.reset()
@@ -1036,11 +1186,15 @@ class WorkspacePage(QWidget):
         elif tool_name == "extract":
             # 提取曲线需要先选择或创建一个曲线
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             if self._current_curve_id is None:
-                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一条曲线", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._extract_btn)
@@ -1058,7 +1212,12 @@ class WorkspacePage(QWidget):
         elif tool_name == "eraser":
             # 橡皮擦需要先选择一条曲线
             if self._current_image_id is None or self._current_curve_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片和一条曲线", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告",
+                    content="请先选择一张图片和一条曲线",
+                    parent=self,
+                    duration=3000,
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._eraser_btn)
@@ -1069,7 +1228,9 @@ class WorkspacePage(QWidget):
         elif tool_name == "box_mask":
             # 框选蒙版需要先选择一张图片
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._box_mask_btn)
@@ -1079,7 +1240,9 @@ class WorkspacePage(QWidget):
         elif tool_name == "brush_mask":
             # 画笔蒙版需要先选择一张图片
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._brush_mask_btn)
@@ -1088,7 +1251,9 @@ class WorkspacePage(QWidget):
             self._status_label.setText("涂刷蒙版：按住拖动涂抹遮罩区域")
         elif tool_name == "color_pick":
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._screen_pick_btn)
@@ -1097,7 +1262,9 @@ class WorkspacePage(QWidget):
             self._status_label.setText("取色模式：点击图片上曲线的颜色")
         elif tool_name == "crop_template":
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._crop_template_btn)
@@ -1106,15 +1273,21 @@ class WorkspacePage(QWidget):
             self._status_label.setText("截图模式：拖拽选取图例区域")
         elif tool_name == "assisted":
             if self._current_image_id is None:
-                InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一张图片", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             if self._current_curve_id is None:
-                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一条曲线", parent=self, duration=3000
+                )
                 self._deactivate_all_tools()
                 return
             self._activate_tool_button(self._assist_btn)
-            shape = "ellipse" if self._assist_shape_combo.currentText() == "◯" else "rect"
+            shape = (
+                "ellipse" if self._assist_shape_combo.currentText() == "◯" else "rect"
+            )
             self._image_viewer.set_assisted_mode(shape=shape)
             self._active_tool = tool_name
             self._status_label.setText("辅助选点：点击两个端点，提取其间矩形/椭圆区域")
@@ -1162,23 +1335,40 @@ class WorkspacePage(QWidget):
             inverted = self._invert_mask_btn.isChecked()
             mask.include_mode = inverted  # 选中=感兴趣(include), 未选中=屏蔽(默认)
             self._image_viewer.update()
-            mode_text = "感兴趣区域（蒙版内才识别）" if inverted else "屏蔽区域（蒙版内不识别）"
+            mode_text = (
+                "感兴趣区域（蒙版内才识别）" if inverted else "屏蔽区域（蒙版内不识别）"
+            )
             self._status_label.setText(f"蒙版模式已切换为: {mode_text}")
 
     def _on_image_file_dropped(self, file_path: str):
         """处理图片拖放到图片查看器"""
         import os
+
         # 判断是否是图片文件
         ext = os.path.splitext(file_path)[1].lower()
-        if ext not in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.tif', '.webp'):
+        if ext not in (
+            '.png',
+            '.jpg',
+            '.jpeg',
+            '.bmp',
+            '.gif',
+            '.tiff',
+            '.tif',
+            '.webp',
+        ):
             self._status_label.setText("不支持的文件格式")
             return
 
         # 若无当前项目，自动新建默认项目
         if project_manager.current_project is None:
             import os as _os
+
             default_name = _os.path.splitext(_os.path.basename(file_path))[0]
-            project_manager.create_new(default_name, parent_dir=_os.path.dirname(file_path), create_structure=True)
+            project_manager.create_new(
+                default_name,
+                parent_dir=_os.path.dirname(file_path),
+                create_structure=True,
+            )
             self._refresh_project_tree()
 
         image_work = project_manager.add_image(file_path)
@@ -1192,7 +1382,12 @@ class WorkspacePage(QWidget):
     def _on_assisted_region(self, x1: float, y1: float, x2: float, y2: float):
         """辅助选点：在矩形/椭圆区域内使用自动颜色识别提取点"""
         if self._sampled_color is None:
-            InfoBar.warning(title="警告", content="请先在「自动选点」区取色后再使用辅助选点", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告",
+                content="请先在「自动选点」区取色后再使用辅助选点",
+                parent=self,
+                duration=3000,
+            )
             self._deactivate_all_tools()
             self._image_viewer.set_select_mode()
             self._active_tool = None
@@ -1205,6 +1400,7 @@ class WorkspacePage(QWidget):
             return
 
         from core.auto_extractor import AutoExtractor
+
         tol = self._tol_slider.value()
         h_tol = max(5, tol // 2)
         s_tol = min(255, tol * 4)
@@ -1216,13 +1412,16 @@ class WorkspacePage(QWidget):
         y_lo, y_hi = min(y1, y2), max(y1, y2)
         if self._assist_shape_combo.currentText() == "◯":
             import math
+
             cx = (x_lo + x_hi) / 2.0
             cy = (y_lo + y_hi) / 2.0
             rx = max(1.0, (x_hi - x_lo) / 2.0)
             ry = max(1.0, (y_hi - y_lo) / 2.0)
             region_mask = [
-                (cx + rx * math.cos(2 * math.pi * i / 36.0),
-                 cy + ry * math.sin(2 * math.pi * i / 36.0))
+                (
+                    cx + rx * math.cos(2 * math.pi * i / 36.0),
+                    cy + ry * math.sin(2 * math.pi * i / 36.0),
+                )
                 for i in range(36)
             ]
         else:
@@ -1230,6 +1429,7 @@ class WorkspacePage(QWidget):
 
         self._assist_status_label.setText("辅助检测中...")
         from PySide6.QtWidgets import QApplication
+
         QApplication.processEvents()
 
         try:
@@ -1238,7 +1438,9 @@ class WorkspacePage(QWidget):
                 target_r=self._sampled_color.red(),
                 target_g=self._sampled_color.green(),
                 target_b=self._sampled_color.blue(),
-                h_tol=h_tol, s_tol=s_tol, v_tol=v_tol,
+                h_tol=h_tol,
+                s_tol=s_tol,
+                v_tol=v_tol,
                 mask_polygons=[region_mask],
                 step=step,
             )
@@ -1248,7 +1450,9 @@ class WorkspacePage(QWidget):
 
         self._auto_preview_points = points
         self._image_viewer.set_preview_points(points)
-        self._assist_status_label.setText(f"辅助选点检测到 {len(points)} 个点，点击 ✓ 写入")
+        self._assist_status_label.setText(
+            f"辅助选点检测到 {len(points)} 个点，点击 ✓ 写入"
+        )
 
         # 回到正常模式
         self._deactivate_all_tools()
@@ -1264,37 +1468,57 @@ class WorkspacePage(QWidget):
             return
 
         if self._sort_col == col:
-            self._sort_order = (Qt.SortOrder.DescendingOrder
-                                if self._sort_order == Qt.SortOrder.AscendingOrder
-                                else Qt.SortOrder.AscendingOrder)
+            self._sort_order = (
+                Qt.SortOrder.DescendingOrder
+                if self._sort_order == Qt.SortOrder.AscendingOrder
+                else Qt.SortOrder.AscendingOrder
+            )
         else:
             self._sort_col = col
             self._sort_order = Qt.SortOrder.AscendingOrder
 
-        reverse = (self._sort_order == Qt.SortOrder.DescendingOrder)
+        reverse = self._sort_order == Qt.SortOrder.DescendingOrder
         is_polar = bool(curve.calibration and curve.calibration.coord_type == "polar")
         if is_polar:
             if col == 0:
-                base_values = curve.x_actual if len(curve.x_actual) == len(curve.x_data) else [
-                    project_manager.pixel_to_actual_coords(self._current_curve_id, curve.x_data[i], curve.y_data[i])[0]
-                    for i in range(len(curve.x_data))
-                ]
+                base_values = (
+                    curve.x_actual
+                    if len(curve.x_actual) == len(curve.x_data)
+                    else [
+                        project_manager.pixel_to_actual_coords(
+                            self._current_curve_id, curve.x_data[i], curve.y_data[i]
+                        )[0]
+                        for i in range(len(curve.x_data))
+                    ]
+                )
             else:
-                base_values = curve.y_actual if len(curve.y_actual) == len(curve.y_data) else [
-                    project_manager.pixel_to_actual_coords(self._current_curve_id, curve.x_data[i], curve.y_data[i])[1]
-                    for i in range(len(curve.y_data))
-                ]
+                base_values = (
+                    curve.y_actual
+                    if len(curve.y_actual) == len(curve.y_data)
+                    else [
+                        project_manager.pixel_to_actual_coords(
+                            self._current_curve_id, curve.x_data[i], curve.y_data[i]
+                        )[1]
+                        for i in range(len(curve.y_data))
+                    ]
+                )
             key_fn = lambda i: base_values[i]
         else:
-            key_fn = (lambda i: curve.x_data[i]) if col == 0 else (lambda i: curve.y_data[i])
+            key_fn = (
+                (lambda i: curve.x_data[i]) if col == 0 else (lambda i: curve.y_data[i])
+            )
         indices = sorted(range(len(curve.x_data)), key=key_fn, reverse=reverse)
 
         # 记录到撤销栈（保存完整数据）
-        self._record_state("clear_curve", self._current_curve_id, {
-            "points": list(zip(curve.x_data, curve.y_data)),
-            "x_actual": list(curve.x_actual) if curve.x_actual else [],
-            "y_actual": list(curve.y_actual) if curve.y_actual else [],
-        })
+        self._record_state(
+            "clear_curve",
+            self._current_curve_id,
+            {
+                "points": list(zip(curve.x_data, curve.y_data)),
+                "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                "y_actual": list(curve.y_actual) if curve.y_actual else [],
+            },
+        )
 
         curve.x_data = [curve.x_data[i] for i in indices]
         curve.y_data = [curve.y_data[i] for i in indices]
@@ -1315,7 +1539,9 @@ class WorkspacePage(QWidget):
     def _on_curve_table_context_menu(self, pos):
         """曲线数据表右键菜单"""
         index = self._curve_table.indexAt(pos)
-        if index.isValid() and not self._curve_table.selectionModel().isRowSelected(index.row(), index.parent()):
+        if index.isValid() and not self._curve_table.selectionModel().isRowSelected(
+            index.row(), index.parent()
+        ):
             self._curve_table.selectRow(index.row())
         menu = RoundMenu(parent=self)
         delete_action = Action("删除选中行")
@@ -1331,24 +1557,38 @@ class WorkspacePage(QWidget):
         if curve is None or not curve.x_data:
             return
 
-        rows = sorted({idx.row() for idx in self._curve_table.selectionModel().selectedRows()})
+        rows = sorted(
+            {idx.row() for idx in self._curve_table.selectionModel().selectedRows()}
+        )
         if not rows:
             return
 
         deleted = []
         for i in rows:
             if 0 <= i < len(curve.x_data):
-                deleted.append({
-                    "index": i,
-                    "x": curve.x_data[i],
-                    "y": curve.y_data[i],
-                    "x_actual": curve.x_actual[i] if curve.x_actual and i < len(curve.x_actual) else None,
-                    "y_actual": curve.y_actual[i] if curve.y_actual and i < len(curve.y_actual) else None,
-                })
+                deleted.append(
+                    {
+                        "index": i,
+                        "x": curve.x_data[i],
+                        "y": curve.y_data[i],
+                        "x_actual": (
+                            curve.x_actual[i]
+                            if curve.x_actual and i < len(curve.x_actual)
+                            else None
+                        ),
+                        "y_actual": (
+                            curve.y_actual[i]
+                            if curve.y_actual and i < len(curve.y_actual)
+                            else None
+                        ),
+                    }
+                )
         if not deleted:
             return
 
-        self._record_state("remove_points_batch", self._current_curve_id, {"points": deleted})
+        self._record_state(
+            "remove_points_batch", self._current_curve_id, {"points": deleted}
+        )
 
         for i in sorted(rows, reverse=True):
             if 0 <= i < len(curve.x_data):
@@ -1395,7 +1635,9 @@ class WorkspacePage(QWidget):
     def _on_crop_template(self):
         """进入截图模板模式——在图片上框选图例形状"""
         if self._current_image_id is None:
-            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一张图片", parent=self, duration=3000
+            )
             self._crop_template_btn.setChecked(False)
             return
         self._on_tool_clicked("crop_template")
@@ -1414,10 +1656,12 @@ class WorkspacePage(QWidget):
 
         self._auto_status_label.setText("正在预处理图例模板…")
         from PySide6.QtWidgets import QApplication
+
         QApplication.processEvents()
 
         try:
             from core.shape_extractor import ShapeExtractor
+
             self._shape_template = ShapeExtractor.preprocess_region(
                 image_path, x1, y1, x2, y2
             )
@@ -1444,7 +1688,9 @@ class WorkspacePage(QWidget):
     def _on_color_pick(self):
         """进入图片取色模式"""
         if self._current_image_id is None:
-            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一张图片", parent=self, duration=3000
+            )
             self._screen_pick_btn.setChecked(False)
             return
         self._on_tool_clicked("color_pick")
@@ -1456,6 +1702,7 @@ class WorkspacePage(QWidget):
     def _on_color_picked(self, color):
         """收到图片取色信号，更新颜色显示"""
         from PySide6.QtGui import QColor as _QColor
+
         if not isinstance(color, _QColor):
             color = _QColor(color)
         self._sampled_color = color
@@ -1481,12 +1728,16 @@ class WorkspacePage(QWidget):
     def _on_auto_detect(self):
         """执行自动识别检测（颜色识别 / 图形识别 / 综合识别）"""
         if self._current_image_id is None:
-            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一张图片", parent=self, duration=3000
+            )
             return
 
         image_path = self._image_viewer.get_image_path()
         if not image_path:
-            InfoBar.warning(title="警告", content="无法获取图片路径", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="无法获取图片路径", parent=self, duration=3000
+            )
             return
 
         mode = self._auto_mode_combo.currentIndex()  # 0=颜色, 1=图形
@@ -1499,6 +1750,7 @@ class WorkspacePage(QWidget):
 
         self._auto_status_label.setText("检测中…")
         from PySide6.QtWidgets import QApplication
+
         QApplication.processEvents()
 
         color_points = []
@@ -1507,10 +1759,16 @@ class WorkspacePage(QWidget):
         # ---- 颜色识别 ----
         if mode == 0:
             if self._sampled_color is None:
-                InfoBar.warning(title="警告", content="请先使用取色按钮采样颜色", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告",
+                    content="请先使用取色按钮采样颜色",
+                    parent=self,
+                    duration=3000,
+                )
                 self._auto_status_label.setText("")
                 return
             from core.auto_extractor import AutoExtractor
+
             tol = self._tol_slider.value()
             h_tol = max(5, tol // 2)
             s_tol = min(255, tol * 4)
@@ -1535,10 +1793,16 @@ class WorkspacePage(QWidget):
         # ---- 图形识别 ----
         if mode == 1:
             if self._shape_template is None:
-                InfoBar.warning(title="警告", content="请先使用截图按钮截取图例形状", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告",
+                    content="请先使用截图按钮截取图例形状",
+                    parent=self,
+                    duration=3000,
+                )
                 self._auto_status_label.setText("")
                 return
             from core.shape_extractor import ShapeExtractor
+
             threshold = self._match_thr_slider.value() / 100.0
             try:
                 shape_points = ShapeExtractor.extract(
@@ -1566,14 +1830,20 @@ class WorkspacePage(QWidget):
         self._image_viewer.set_preview_points(points)
         self._auto_status_label.setText(f"{desc}，点击「应用」写入曲线")
 
-
     def _on_apply_auto_points(self):
         """将预览点写入当前曲线"""
         if not self._auto_preview_points:
-            InfoBar.info(title="提示", content="没有可应用的检测结果，请先执行自动检测", parent=self, duration=3000)
+            InfoBar.info(
+                title="提示",
+                content="没有可应用的检测结果，请先执行自动检测",
+                parent=self,
+                duration=3000,
+            )
             return
         if self._current_curve_id is None:
-            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一条曲线", parent=self, duration=3000
+            )
             return
 
         curve = project_manager.get_curve(self._current_curve_id)
@@ -1581,18 +1851,24 @@ class WorkspacePage(QWidget):
             return
 
         # 记录应用前的状态到撤销栈
-        self._record_state("clear_curve", self._current_curve_id, {
-            "points": list(zip(curve.x_data, curve.y_data)),
-            "x_actual": list(curve.x_actual) if curve.x_actual else [],
-            "y_actual": list(curve.y_actual) if curve.y_actual else [],
-        })
+        self._record_state(
+            "clear_curve",
+            self._current_curve_id,
+            {
+                "points": list(zip(curve.x_data, curve.y_data)),
+                "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                "y_actual": list(curve.y_actual) if curve.y_actual else [],
+            },
+        )
 
         # 追加预览点到曲线（保留已有点）
         for px, py in self._auto_preview_points:
             curve.x_data.append(px)
             curve.y_data.append(py)
             if curve.calibration:
-                xa, ya = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                xa, ya = project_manager.pixel_to_actual_coords(
+                    self._current_curve_id, px, py
+                )
             else:
                 xa, ya = px, py
             curve.x_actual.append(xa)
@@ -1615,30 +1891,45 @@ class WorkspacePage(QWidget):
         from core.exporter import Exporter
         import datetime
 
-        all_curves_mode = (self._export_scope_combo.currentIndex() == 1)
+        all_curves_mode = self._export_scope_combo.currentIndex() == 1
         fmt_idx = self._export_fmt_combo.currentIndex()
-        fmt_map = {0: ("CSV 文件 (*.csv)", ".csv"), 1: ("Excel 文件 (*.xlsx)", ".xlsx"),
-                   2: ("JSON 文件 (*.json)", ".json"), 3: ("文本文件 (*.txt)", ".txt")}
+        fmt_map = {
+            0: ("CSV 文件 (*.csv)", ".csv"),
+            1: ("Excel 文件 (*.xlsx)", ".xlsx"),
+            2: ("JSON 文件 (*.json)", ".json"),
+            3: ("文本文件 (*.txt)", ".txt"),
+        }
         filter_str, ext = fmt_map[fmt_idx]
-        add_ts = hasattr(self, '_export_timestamp_chk') and self._export_timestamp_chk.isChecked()
-        ts_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
+        add_ts = (
+            hasattr(self, '_export_timestamp_chk')
+            and self._export_timestamp_chk.isChecked()
+        )
+        ts_str = (
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
+        )
 
         # 获取曲线
         if all_curves_mode:
             project = project_manager.current_project
             if project is None:
-                InfoBar.warning(title="警告", content="没有打开的项目", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="没有打开的项目", parent=self, duration=3000
+                )
                 return
             curves = []
             for img in project.images:
                 curves.extend(img.curves)
             curves.extend(project.imported_curves)
             if not curves:
-                InfoBar.info(title="提示", content="项目中没有曲线", parent=self, duration=3000)
+                InfoBar.info(
+                    title="提示", content="项目中没有曲线", parent=self, duration=3000
+                )
                 return
         else:
             if self._current_curve_id is None:
-                InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+                InfoBar.warning(
+                    title="警告", content="请先选择一条曲线", parent=self, duration=3000
+                )
                 return
             curve = project_manager.get_curve(self._current_curve_id)
             if curve is None:
@@ -1646,8 +1937,14 @@ class WorkspacePage(QWidget):
             curves = [curve]
 
         # 选择保存路径
-        default_name = (project_manager.current_project.name if project_manager.current_project else "export") + ext
-        file_path, _ = QFileDialog.getSaveFileName(self, "保存文件", default_name, filter_str)
+        default_name = (
+            project_manager.current_project.name
+            if project_manager.current_project
+            else "export"
+        ) + ext
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "保存文件", default_name, filter_str
+        )
         if not file_path:
             return
 
@@ -1680,14 +1977,22 @@ class WorkspacePage(QWidget):
         """复制当前曲线数据到剪贴板"""
         from core.exporter import Exporter
         import datetime
+
         if self._current_curve_id is None:
-            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一条曲线", parent=self, duration=3000
+            )
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None:
             return
-        add_ts = hasattr(self, '_export_timestamp_chk') and self._export_timestamp_chk.isChecked()
-        ts_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
+        add_ts = (
+            hasattr(self, '_export_timestamp_chk')
+            and self._export_timestamp_chk.isChecked()
+        )
+        ts_str = (
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") if add_ts else None
+        )
         Exporter.export_to_clipboard(curve, timestamp=ts_str)
         self._status_label.setText("已复制到剪贴板")
 
@@ -1696,14 +2001,22 @@ class WorkspacePage(QWidget):
     def _on_smooth_curve(self):
         """对当前曲线进行平滑处理"""
         if self._current_curve_id is None:
-            InfoBar.warning(title="警告", content="请先选择一条曲线", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一条曲线", parent=self, duration=3000
+            )
             return
         curve = project_manager.get_curve(self._current_curve_id)
         if curve is None or len(curve.x_data) < 3:
-            InfoBar.info(title="提示", content="曲线点数太少（至少需要 3 个点）", parent=self, duration=3000)
+            InfoBar.info(
+                title="提示",
+                content="曲线点数太少（至少需要 3 个点）",
+                parent=self,
+                duration=3000,
+            )
             return
 
         from core.smoother import smooth_moving_average, smooth_savgol
+
         method = self._smooth_method_combo.currentText()
 
         # 按 X 排序
@@ -1723,11 +2036,15 @@ class WorkspacePage(QWidget):
             return
 
         # 记录到撤销栈
-        self._record_state("clear_curve", self._current_curve_id, {
-            "points": list(zip(curve.x_data, curve.y_data)),
-            "x_actual": list(curve.x_actual) if curve.x_actual else [],
-            "y_actual": list(curve.y_actual) if curve.y_actual else [],
-        })
+        self._record_state(
+            "clear_curve",
+            self._current_curve_id,
+            {
+                "points": list(zip(curve.x_data, curve.y_data)),
+                "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                "y_actual": list(curve.y_actual) if curve.y_actual else [],
+            },
+        )
 
         # 更新曲线（重新计算实际坐标）
         curve.x_data = x_new
@@ -1736,7 +2053,9 @@ class WorkspacePage(QWidget):
         curve.y_actual = []
         for px, py in zip(x_new, y_new):
             if curve.calibration:
-                xa, ya = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                xa, ya = project_manager.pixel_to_actual_coords(
+                    self._current_curve_id, px, py
+                )
             else:
                 xa, ya = px, py
             curve.x_actual.append(xa)
@@ -1796,7 +2115,15 @@ class WorkspacePage(QWidget):
 
     def _on_shape_changed(self, index):
         """形状改变"""
-        shape_map = {"●": "circle", "■": "square", "▲": "triangle", "◆": "diamond", "▼": "inv_triangle", "✕": "cross", "★": "star"}
+        shape_map = {
+            "●": "circle",
+            "■": "square",
+            "▲": "triangle",
+            "◆": "diamond",
+            "▼": "inv_triangle",
+            "✕": "cross",
+            "★": "star",
+        }
         shape = shape_map.get(self._shape_combo.currentText(), "circle")
         if self._current_curve_id:
             curve = project_manager.get_curve(self._current_curve_id)
@@ -1830,7 +2157,9 @@ class WorkspacePage(QWidget):
                 img_id = data[1]
                 for img in project.images:
                     if img.id == img_id:
-                        self._image_viewer.load_image(project_manager.get_image_path(img.id))
+                        self._image_viewer.load_image(
+                            project_manager.get_image_path(img.id)
+                        )
                         self._current_image_item = item
                         # 只有当点击不同图片时才改变曲线
                         if self._current_image_id != img_id:
@@ -1866,7 +2195,9 @@ class WorkspacePage(QWidget):
                 if project:
                     for img in project.images:
                         if img.id == self._current_image_id:
-                            self._image_viewer.load_image(project_manager.get_image_path(img.id))
+                            self._image_viewer.load_image(
+                                project_manager.get_image_path(img.id)
+                            )
                             break
             else:
                 self._current_image_id = None
@@ -1939,7 +2270,9 @@ class WorkspacePage(QWidget):
         if item_type == "project":
             project_id = data[1]
             rename_action = Action("重命名项目")
-            rename_action.triggered.connect(lambda: self._rename_item("project", project_id))
+            rename_action.triggered.connect(
+                lambda: self._rename_item("project", project_id)
+            )
             menu.addAction(rename_action)
             menu.addSeparator()
             delete_action = Action("删除项目")
@@ -1963,19 +2296,31 @@ class WorkspacePage(QWidget):
             # 显示/隐藏曲线
             if is_hidden:
                 show_action = Action("显示曲线")
-                show_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, False))
+                show_action.triggered.connect(
+                    lambda checked, cid=curve_id: self._toggle_curve_visibility(
+                        cid, False
+                    )
+                )
                 menu.addAction(show_action)
             else:
                 hide_action = Action("隐藏曲线")
-                hide_action.triggered.connect(lambda checked, cid=curve_id: self._toggle_curve_visibility(cid, True))
+                hide_action.triggered.connect(
+                    lambda checked, cid=curve_id: self._toggle_curve_visibility(
+                        cid, True
+                    )
+                )
                 menu.addAction(hide_action)
 
             rename_action = Action("重命名曲线")
-            rename_action.triggered.connect(lambda: self._rename_item("curve", curve_id))
+            rename_action.triggered.connect(
+                lambda: self._rename_item("curve", curve_id)
+            )
             menu.addAction(rename_action)
             menu.addSeparator()
             delete_action = Action("删除曲线")
-            delete_action.triggered.connect(lambda checked, cid=curve_id: self._delete_curve(cid))
+            delete_action.triggered.connect(
+                lambda checked, cid=curve_id: self._delete_curve(cid)
+            )
             menu.addAction(delete_action)
 
         menu.exec(self._project_tree.mapToGlobal(pos))
@@ -2001,7 +2346,12 @@ class WorkspacePage(QWidget):
                     self._refresh_project_tree()
                     self.project_modified.emit()
                 else:
-                    InfoBar.error(title="错误", content="重命名图片失败", parent=self, duration=3000)
+                    InfoBar.error(
+                        title="错误",
+                        content="重命名图片失败",
+                        parent=self,
+                        duration=3000,
+                    )
         elif item_type == "curve":
             curve = project_manager.get_curve(item_id)
             if curve is None:
@@ -2017,11 +2367,15 @@ class WorkspacePage(QWidget):
         project = project_manager.get_project(project_id)
         if project is None:
             return
-        if not MessageBox("确认删除", f"确定要删除项目「{project.name}」及其所有图片和曲线吗？", self).exec():
+        if not MessageBox(
+            "确认删除", f"确定要删除项目「{project.name}」及其所有图片和曲线吗？", self
+        ).exec():
             return
         project_manager.projects.remove(project)
         if project_manager.current_project_id == project_id:
-            new_id = project_manager.projects[-1].id if project_manager.projects else None
+            new_id = (
+                project_manager.projects[-1].id if project_manager.projects else None
+            )
             if new_id:
                 project_manager.set_current_project(new_id)
             else:
@@ -2041,7 +2395,9 @@ class WorkspacePage(QWidget):
         img = project_manager.get_image(img_id)
         if img is None:
             return
-        if not MessageBox("确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？", self).exec():
+        if not MessageBox(
+            "确认删除", f"确定要删除图片「{img.name}」及其所有曲线吗？", self
+        ).exec():
             return
         project_manager.remove_image(img_id)
         if self._current_image_id == img_id:
@@ -2091,7 +2447,9 @@ class WorkspacePage(QWidget):
         else:
             project = project_manager.current_project
             if project:
-                project.imported_curves = [c for c in project.imported_curves if c.id != curve_id]
+                project.imported_curves = [
+                    c for c in project.imported_curves if c.id != curve_id
+                ]
 
         # 从隐藏集合中移除
         self._hidden_curves.discard(curve_id)
@@ -2112,7 +2470,9 @@ class WorkspacePage(QWidget):
         from ui.widgets.image_viewer import CurveOverlayItem
 
         if curve and curve.x_data and curve.y_data:
-            curve_item = CurveOverlayItem(color=curve.color, point_shape=getattr(curve, 'point_shape', 'circle'))
+            curve_item = CurveOverlayItem(
+                color=curve.color, point_shape=getattr(curve, 'point_shape', 'circle')
+            )
             curve_item.name = curve.name
 
             # 直接使用存储的像素坐标
@@ -2135,8 +2495,19 @@ class WorkspacePage(QWidget):
                     self._color_btn.setColor(QColor(curve.color))
                     self._color_btn.blockSignals(False)
                 if hasattr(self, '_shape_combo'):
-                    shape_map = {"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "inv_triangle": "▼", "cross": "✕", "star": "★", "pentagram": "★"}
-                    shape_text = shape_map.get(getattr(curve, 'point_shape', 'circle'), "●")
+                    shape_map = {
+                        "circle": "●",
+                        "square": "■",
+                        "triangle": "▲",
+                        "diamond": "◆",
+                        "inv_triangle": "▼",
+                        "cross": "✕",
+                        "star": "★",
+                        "pentagram": "★",
+                    }
+                    shape_text = shape_map.get(
+                        getattr(curve, 'point_shape', 'circle'), "●"
+                    )
                     idx = self._shape_combo.findText(shape_text)
                     if idx >= 0:
                         self._shape_combo.blockSignals(True)
@@ -2153,6 +2524,7 @@ class WorkspacePage(QWidget):
     def _apply_calibration_to_viewer(self, calib_data):
         """将校准数据应用到图片查看器"""
         from PySide6.QtCore import QPointF
+
         calib = self._image_viewer.get_calibration()
         calib.reset()
         if calib_data.x_start:
@@ -2170,6 +2542,7 @@ class WorkspacePage(QWidget):
     def _create_calibration_overlay(self, calib_data):
         """从 CalibrationData 创建 CalibrationOverlay"""
         from PySide6.QtCore import QPointF
+
         overlay = self._image_viewer.get_calibration()
         overlay.reset()
         if calib_data.x_start:
@@ -2195,12 +2568,24 @@ class WorkspacePage(QWidget):
             if not base_dir:
                 return
             try:
-                project_manager.create_new(name, parent_dir=base_dir, create_structure=True)
+                project_manager.create_new(
+                    name, parent_dir=base_dir, create_structure=True
+                )
                 self._refresh_project_tree()
                 self.project_saved.emit()
-                InfoBar.success(title="成功", content="项目已创建并初始化目录结构", parent=self, duration=3000)
+                InfoBar.success(
+                    title="成功",
+                    content="项目已创建并初始化目录结构",
+                    parent=self,
+                    duration=3000,
+                )
             except Exception as e:
-                InfoBar.error(title="错误", content=f"创建项目失败:\n{str(e)}", parent=self, duration=5000)
+                InfoBar.error(
+                    title="错误",
+                    content=f"创建项目失败:\n{str(e)}",
+                    parent=self,
+                    duration=5000,
+                )
 
     def _on_open_project(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -2212,17 +2597,27 @@ class WorkspacePage(QWidget):
                 self._refresh_project_tree()
                 self.project_modified.emit()
             except Exception as e:
-                InfoBar.error(title="错误", content=f"无法打开项目:\n{str(e)}", parent=self, duration=5000)
+                InfoBar.error(
+                    title="错误",
+                    content=f"无法打开项目:\n{str(e)}",
+                    parent=self,
+                    duration=5000,
+                )
 
     def _on_save_project(self):
         if project_manager.current_project is None:
-            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一个项目", parent=self, duration=3000
+            )
             return
 
         file_path = project_manager.current_project.file_path
         if file_path is None:
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "保存项目", f"{project_manager.current_project.name}.pyline", "PyLine 项目 (*.pyline)"
+                self,
+                "保存项目",
+                f"{project_manager.current_project.name}.pyline",
+                "PyLine 项目 (*.pyline)",
             )
 
         if file_path:
@@ -2231,13 +2626,25 @@ class WorkspacePage(QWidget):
                 project_manager.current_project.is_modified = False
                 self._refresh_project_tree()
                 self.project_saved.emit()
-                InfoBar.success(title="成功", content=f"项目已保存到:\n{file_path}", parent=self, duration=4000)
+                InfoBar.success(
+                    title="成功",
+                    content=f"项目已保存到:\n{file_path}",
+                    parent=self,
+                    duration=4000,
+                )
             except Exception as e:
-                InfoBar.error(title="错误", content=f"保存失败:\n{str(e)}", parent=self, duration=5000)
+                InfoBar.error(
+                    title="错误",
+                    content=f"保存失败:\n{str(e)}",
+                    parent=self,
+                    duration=5000,
+                )
 
     def _on_close_project(self):
         if project_manager.current_project is None:
-            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一个项目", parent=self, duration=3000
+            )
             return
 
         if project_manager.current_project.is_modified:
@@ -2254,11 +2661,16 @@ class WorkspacePage(QWidget):
 
     def _on_add_image(self):
         if project_manager.current_project is None:
-            InfoBar.warning(title="警告", content="请先选择一个项目", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一个项目", parent=self, duration=3000
+            )
             return
 
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif *.tiff);;所有文件 (*)"
+            self,
+            "选择图片",
+            "",
+            "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif *.tiff);;所有文件 (*)",
         )
         if file_path:
             image_work = project_manager.add_image(file_path)
@@ -2271,7 +2683,9 @@ class WorkspacePage(QWidget):
     def _on_add_curve(self):
         """为当前选中图片添加新曲线"""
         if self._current_image_id is None:
-            InfoBar.warning(title="警告", content="请先选择一张图片", parent=self, duration=3000)
+            InfoBar.warning(
+                title="警告", content="请先选择一张图片", parent=self, duration=3000
+            )
             return
 
         img = project_manager.get_image(self._current_image_id)
@@ -2296,7 +2710,7 @@ class WorkspacePage(QWidget):
             name=f"曲线 {len(img.curves) + 1}",
             color=color,
             point_shape=point_shape,
-            calibration=calib
+            calibration=calib,
         )
 
         if curve:
@@ -2310,6 +2724,7 @@ class WorkspacePage(QWidget):
         # 更新底部状态栏路径
         if hasattr(self, '_status_path_label'):
             import os as _os
+
             short = _os.path.basename(file_path)
             self._status_path_label.setText(short)
             self._status_path_label.setToolTip(file_path)
@@ -2357,6 +2772,7 @@ class WorkspacePage(QWidget):
                 ss = lbl.styleSheet()
                 # 替换颜色值（统一使用当前 placeholder 颜色）
                 import re as _re
+
                 ss = _re.sub(r'color:\s*#[0-9a-fA-F]{3,8}', f'color: {pc}', ss)
                 lbl.setStyleSheet(ss)
 
@@ -2365,6 +2781,7 @@ class WorkspacePage(QWidget):
             ss = lbl.styleSheet()
             if 'font-weight: bold' in ss and 'color:' in ss:
                 import re as _re
+
                 ss = _re.sub(r'color:\s*#[0-9a-fA-F]{3,8}', f'color: {tc}', ss)
                 lbl.setStyleSheet(ss)
 
@@ -2373,7 +2790,10 @@ class WorkspacePage(QWidget):
             ss = frame.styleSheet()
             if 'background-color:' in ss and 'border' not in ss:
                 frame.setStyleSheet(f"background-color: {bc};")
-            elif 'color:' in ss and frame.frameShape() in (QFrame.Shape.HLine, QFrame.Shape.VLine):
+            elif 'color:' in ss and frame.frameShape() in (
+                QFrame.Shape.HLine,
+                QFrame.Shape.VLine,
+            ):
                 frame.setStyleSheet(f"color: {bc};")
 
         # 更新工具栏中无 bold 的普通 BodyLabel（大小/步长/橡皮 等说明文字）
@@ -2389,7 +2809,11 @@ class WorkspacePage(QWidget):
             return
 
         curve_before = project_manager.get_curve(self._current_curve_id)
-        old_calibration = curve_before.calibration.model_dump() if (curve_before and curve_before.calibration) else None
+        old_calibration = (
+            curve_before.calibration.model_dump()
+            if (curve_before and curve_before.calibration)
+            else None
+        )
         old_x_actual = list(curve_before.x_actual) if curve_before else []
         old_y_actual = list(curve_before.y_actual) if curve_before else []
 
@@ -2405,21 +2829,39 @@ class WorkspacePage(QWidget):
 
             if coord_type == "polar":
                 calib_data = CalibrationData(
-                    x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
-                    x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
+                    x_start=(
+                        calibration_overlay.x_start.x(),
+                        calibration_overlay.x_start.y(),
+                    ),
+                    x_end=(
+                        calibration_overlay.x_end.x(),
+                        calibration_overlay.x_end.y(),
+                    ),
                     coord_type="polar",
                     angle_A=data["angle_A"],
-                    radius_A=data["radius_A"]
+                    radius_A=data["radius_A"],
                 )
             else:
                 calib_data = CalibrationData(
-                    x_start=(calibration_overlay.x_start.x(), calibration_overlay.x_start.y()),
-                    x_end=(calibration_overlay.x_end.x(), calibration_overlay.x_end.y()),
-                    y_start=(calibration_overlay.y_start.x(), calibration_overlay.y_start.y()),
-                    y_end=(calibration_overlay.y_end.x(), calibration_overlay.y_end.y()),
+                    x_start=(
+                        calibration_overlay.x_start.x(),
+                        calibration_overlay.x_start.y(),
+                    ),
+                    x_end=(
+                        calibration_overlay.x_end.x(),
+                        calibration_overlay.x_end.y(),
+                    ),
+                    y_start=(
+                        calibration_overlay.y_start.x(),
+                        calibration_overlay.y_start.y(),
+                    ),
+                    y_end=(
+                        calibration_overlay.y_end.x(),
+                        calibration_overlay.y_end.y(),
+                    ),
                     x_range=data["x_range"],
                     y_range=data["y_range"],
-                    coord_type=data["coord_type"]
+                    coord_type=data["coord_type"],
                 )
 
             # 更新校准
@@ -2431,7 +2873,9 @@ class WorkspacePage(QWidget):
                 x_actual = []
                 y_actual = []
                 for px, py in zip(curve.x_data, curve.y_data):
-                    x, y = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+                    x, y = project_manager.pixel_to_actual_coords(
+                        self._current_curve_id, px, py
+                    )
                     x_actual.append(x)
                     y_actual.append(y)
                 curve.x_actual = x_actual
@@ -2439,14 +2883,22 @@ class WorkspacePage(QWidget):
 
             # 记录校准变更到撤销栈
             curve_after = project_manager.get_curve(self._current_curve_id)
-            self._record_state("update_calibration", self._current_curve_id, {
-                "old_calibration": old_calibration,
-                "new_calibration": curve_after.calibration.model_dump() if (curve_after and curve_after.calibration) else None,
-                "old_x_actual": old_x_actual,
-                "old_y_actual": old_y_actual,
-                "new_x_actual": list(curve_after.x_actual) if curve_after else [],
-                "new_y_actual": list(curve_after.y_actual) if curve_after else [],
-            })
+            self._record_state(
+                "update_calibration",
+                self._current_curve_id,
+                {
+                    "old_calibration": old_calibration,
+                    "new_calibration": (
+                        curve_after.calibration.model_dump()
+                        if (curve_after and curve_after.calibration)
+                        else None
+                    ),
+                    "old_x_actual": old_x_actual,
+                    "old_y_actual": old_y_actual,
+                    "new_x_actual": list(curve_after.x_actual) if curve_after else [],
+                    "new_y_actual": list(curve_after.y_actual) if curve_after else [],
+                },
+            )
 
             self._deactivate_all_tools()
             self._active_tool = None
@@ -2459,16 +2911,16 @@ class WorkspacePage(QWidget):
 
     def _on_calibration_step(self, step_type: str):
         step_hints = {
-            "x_start":            "请点击设置 X 轴起点 (第1/4)",
-            "x_end":              "请点击设置 X 轴终点 (第2/4)",
-            "y_start":            "请点击设置 Y 轴起点 (第3/4)",
-            "y_end":              "请点击设置 Y 轴终点 (第4/4)",
-            "origin":             "请点击设置原点 O (第1/2)",
+            "x_start": "请点击设置 X 轴起点 (第1/4)",
+            "x_end": "请点击设置 X 轴终点 (第2/4)",
+            "y_start": "请点击设置 Y 轴起点 (第3/4)",
+            "y_end": "请点击设置 Y 轴终点 (第4/4)",
+            "origin": "请点击设置原点 O (第1/2)",
             "angle_radius_point": "请点击设置角度+极径参考点 A (第2/2)",
-            "x_axis":             "请点击正X轴方向点",
-            "y_axis":             "请点击正Y轴方向点",
-            "angle_ref":          "请点击角度参考点",
-            "complete":           "校准点已设置完成，请再次点击校准按钮完成校准"
+            "x_axis": "请点击正X轴方向点",
+            "y_axis": "请点击正Y轴方向点",
+            "angle_ref": "请点击角度参考点",
+            "complete": "校准点已设置完成，请再次点击校准按钮完成校准",
         }
         self._status_label.setText(step_hints.get(step_type, ""))
 
@@ -2484,8 +2936,12 @@ class WorkspacePage(QWidget):
             curve = project_manager.get_curve(self._current_curve_id)
             if curve and curve.calibration:
                 try:
-                    cx, cy = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
-                    self._status_coord_label.setText(f"像素: ({px:.1f}, {py:.1f})  坐标: ({cx:.4g}, {cy:.4g})")
+                    cx, cy = project_manager.pixel_to_actual_coords(
+                        self._current_curve_id, px, py
+                    )
+                    self._status_coord_label.setText(
+                        f"像素: ({px:.1f}, {py:.1f})  坐标: ({cx:.4g}, {cy:.4g})"
+                    )
                     return
                 except Exception:
                     pass
@@ -2503,7 +2959,9 @@ class WorkspacePage(QWidget):
         curve.y_data[index] = new_py
         # 重新计算实际坐标
         if curve.calibration:
-            x_actual, y_actual = project_manager.pixel_to_actual_coords(self._current_curve_id, new_px, new_py)
+            x_actual, y_actual = project_manager.pixel_to_actual_coords(
+                self._current_curve_id, new_px, new_py
+            )
         else:
             x_actual, y_actual = new_px, new_py
         if curve.x_actual and index < len(curve.x_actual):
@@ -2534,20 +2992,26 @@ class WorkspacePage(QWidget):
 
         # 计算实际坐标
         if curve.calibration:
-            x_actual, y_actual = project_manager.pixel_to_actual_coords(self._current_curve_id, px, py)
+            x_actual, y_actual = project_manager.pixel_to_actual_coords(
+                self._current_curve_id, px, py
+            )
         else:
             x_actual, y_actual = px, py
         curve.x_actual.append(x_actual)
         curve.y_actual.append(y_actual)
 
         # 记录到撤销栈（使用在 curve.x_data 中的正确索引）
-        self._record_state("add_point", self._current_curve_id, {
-            "index": len(curve.x_data) - 1,
-            "x": px,
-            "y": py,
-            "x_actual": x_actual,
-            "y_actual": y_actual,
-        })
+        self._record_state(
+            "add_point",
+            self._current_curve_id,
+            {
+                "index": len(curve.x_data) - 1,
+                "x": px,
+                "y": py,
+                "x_actual": x_actual,
+                "y_actual": y_actual,
+            },
+        )
 
         # 刷新显示（同步清除 image_viewer 中的临时 _current_curve）
         self._display_current_curve_on_image()
@@ -2575,14 +3039,28 @@ class WorkspacePage(QWidget):
                     # 保存所有被删点的原始数据（保留原始索引用于恢复）
                     deleted = []
                     for i in points_to_remove:
-                        deleted.append({
-                            "index": i,
-                            "x": curve.x_data[i],
-                            "y": curve.y_data[i],
-                            "x_actual": curve.x_actual[i] if curve.x_actual and i < len(curve.x_actual) else None,
-                            "y_actual": curve.y_actual[i] if curve.y_actual and i < len(curve.y_actual) else None,
-                        })
-                    self._record_state("remove_points_batch", self._current_curve_id, {"points": deleted})
+                        deleted.append(
+                            {
+                                "index": i,
+                                "x": curve.x_data[i],
+                                "y": curve.y_data[i],
+                                "x_actual": (
+                                    curve.x_actual[i]
+                                    if curve.x_actual and i < len(curve.x_actual)
+                                    else None
+                                ),
+                                "y_actual": (
+                                    curve.y_actual[i]
+                                    if curve.y_actual and i < len(curve.y_actual)
+                                    else None
+                                ),
+                            }
+                        )
+                    self._record_state(
+                        "remove_points_batch",
+                        self._current_curve_id,
+                        {"points": deleted},
+                    )
 
                     # 倒序删除（保持索引有效）
                     for i in sorted(points_to_remove, reverse=True):
@@ -2600,9 +3078,11 @@ class WorkspacePage(QWidget):
         if mask and mask.enabled and mask.polygons:
             polygon_to_remove = mask.get_polygon_at_point(px, py)
             if polygon_to_remove >= 0:
-                self._record_state("remove_mask", None, {
-                    "polygon": list(mask.polygons[polygon_to_remove])
-                })
+                self._record_state(
+                    "remove_mask",
+                    None,
+                    {"polygon": list(mask.polygons[polygon_to_remove])},
+                )
                 del mask.polygons[polygon_to_remove]
                 if not mask.polygons:
                     mask.enabled = False
@@ -2706,11 +3186,15 @@ class WorkspacePage(QWidget):
             return
 
         # 记录状态用于撤销（包含完整点数据）
-        self._record_state("clear_curve", self._current_curve_id, {
-            "points": list(zip(curve.x_data, curve.y_data)),
-            "x_actual": list(curve.x_actual) if curve.x_actual else [],
-            "y_actual": list(curve.y_actual) if curve.y_actual else [],
-        })
+        self._record_state(
+            "clear_curve",
+            self._current_curve_id,
+            {
+                "points": list(zip(curve.x_data, curve.y_data)),
+                "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                "y_actual": list(curve.y_actual) if curve.y_actual else [],
+            },
+        )
 
         # 清除所有点
         curve.x_data = []
@@ -2741,11 +3225,7 @@ class WorkspacePage(QWidget):
             curve_id = self._current_curve_id
 
         # 构建操作记录
-        state = {
-            "type": action_type,
-            "curve_id": curve_id,
-            "data": data
-        }
+        state = {"type": action_type, "curve_id": curve_id, "data": data}
 
         self._undo_stack.append(state)
         # 清空重做栈
@@ -2774,17 +3254,27 @@ class WorkspacePage(QWidget):
             if curve and curve.x_data:
                 idx = data.get("index", len(curve.x_data) - 1)
                 idx = min(idx, len(curve.x_data) - 1)
-                self._redo_stack.append({
-                    "type": "add_point",
-                    "curve_id": curve_id,
-                    "data": {
-                        "index": idx,
-                        "x": curve.x_data[idx],
-                        "y": curve.y_data[idx],
-                        "x_actual": curve.x_actual[idx] if curve.x_actual and idx < len(curve.x_actual) else None,
-                        "y_actual": curve.y_actual[idx] if curve.y_actual and idx < len(curve.y_actual) else None,
+                self._redo_stack.append(
+                    {
+                        "type": "add_point",
+                        "curve_id": curve_id,
+                        "data": {
+                            "index": idx,
+                            "x": curve.x_data[idx],
+                            "y": curve.y_data[idx],
+                            "x_actual": (
+                                curve.x_actual[idx]
+                                if curve.x_actual and idx < len(curve.x_actual)
+                                else None
+                            ),
+                            "y_actual": (
+                                curve.y_actual[idx]
+                                if curve.y_actual and idx < len(curve.y_actual)
+                                else None
+                            ),
+                        },
                     }
-                })
+                )
                 del curve.x_data[idx]
                 del curve.y_data[idx]
                 if curve.x_actual and idx < len(curve.x_actual):
@@ -2794,11 +3284,13 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_points_batch":
             # 撤销批量删除 = 按原始索引升序恢复（逐个 insert 方式正确还原位置）
             if curve and data.get("points"):
-                self._redo_stack.append({
-                    "type": "remove_points_batch",
-                    "curve_id": curve_id,
-                    "data": {"points": data["points"]},
-                })
+                self._redo_stack.append(
+                    {
+                        "type": "remove_points_batch",
+                        "curve_id": curve_id,
+                        "data": {"points": data["points"]},
+                    }
+                )
                 for pt in sorted(data["points"], key=lambda p: p["index"]):
                     idx = pt["index"]
                     curve.x_data.insert(idx, pt["x"])
@@ -2813,11 +3305,13 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_point":
             # 向后兼容旧记录的单点删除
             if curve:
-                self._redo_stack.append({
-                    "type": "remove_point",
-                    "curve_id": curve_id,
-                    "data": data,
-                })
+                self._redo_stack.append(
+                    {
+                        "type": "remove_point",
+                        "curve_id": curve_id,
+                        "data": data,
+                    }
+                )
                 idx = data["index"]
                 curve.x_data.insert(idx, data["x"])
                 curve.y_data.insert(idx, data["y"])
@@ -2831,15 +3325,19 @@ class WorkspacePage(QWidget):
         elif action_type == "clear_curve":
             # 撤销清除 = 恢复所有点
             if curve and data.get("points"):
-                self._redo_stack.append({
-                    "type": "clear_curve",
-                    "curve_id": curve_id,
-                    "data": {
-                        "points": data["points"],  # 保存原始点供 redo 再次清除后仍可 undo
-                        "x_actual": data.get("x_actual", []),
-                        "y_actual": data.get("y_actual", []),
-                    },
-                })
+                self._redo_stack.append(
+                    {
+                        "type": "clear_curve",
+                        "curve_id": curve_id,
+                        "data": {
+                            "points": data[
+                                "points"
+                            ],  # 保存原始点供 redo 再次清除后仍可 undo
+                            "x_actual": data.get("x_actual", []),
+                            "y_actual": data.get("y_actual", []),
+                        },
+                    }
+                )
                 curve.x_data = [p[0] for p in data["points"]]
                 curve.y_data = [p[1] for p in data["points"]]
                 curve.x_actual = list(data.get("x_actual", []))
@@ -2848,25 +3346,39 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_mask":
             mask = self._image_viewer.get_mask()
             if mask and data.get("polygon") is not None:
-                self._redo_stack.append({"type": "remove_mask", "curve_id": None, "data": {"polygon": data["polygon"]}})
+                self._redo_stack.append(
+                    {
+                        "type": "remove_mask",
+                        "curve_id": None,
+                        "data": {"polygon": data["polygon"]},
+                    }
+                )
                 mask.polygons.append(data["polygon"])
                 mask.enabled = True
 
         elif action_type == "add_mask":
             mask = self._image_viewer.get_mask()
             if mask and mask.polygons:
-                self._redo_stack.append({"type": "add_mask", "curve_id": None, "data": {"polygon": mask.polygons[-1]}})
+                self._redo_stack.append(
+                    {
+                        "type": "add_mask",
+                        "curve_id": None,
+                        "data": {"polygon": mask.polygons[-1]},
+                    }
+                )
                 del mask.polygons[-1]
                 if not mask.polygons:
                     mask.enabled = False
 
         elif action_type == "update_calibration":
             if curve:
-                self._redo_stack.append({
-                    "type": "update_calibration",
-                    "curve_id": curve_id,
-                    "data": data,
-                })
+                self._redo_stack.append(
+                    {
+                        "type": "update_calibration",
+                        "curve_id": curve_id,
+                        "data": data,
+                    }
+                )
                 old_cal = data.get("old_calibration")
                 curve.calibration = CalibrationData(**old_cal) if old_cal else None
                 curve.x_actual = list(data.get("old_x_actual", []))
@@ -2899,11 +3411,13 @@ class WorkspacePage(QWidget):
             # 重做添加点 = 在指定索引位置重新插入
             if curve:
                 idx = data.get("index", len(curve.x_data))
-                self._undo_stack.append({
-                    "type": "add_point",
-                    "curve_id": curve_id,
-                    "data": data,
-                })
+                self._undo_stack.append(
+                    {
+                        "type": "add_point",
+                        "curve_id": curve_id,
+                        "data": data,
+                    }
+                )
                 curve.x_data.insert(idx, data["x"])
                 curve.y_data.insert(idx, data["y"])
                 if data.get("x_actual") is not None:
@@ -2916,12 +3430,16 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_points_batch":
             # 重做批量删除 = 按原始索引倒序删除
             if curve and data.get("points"):
-                self._undo_stack.append({
-                    "type": "remove_points_batch",
-                    "curve_id": curve_id,
-                    "data": {"points": data["points"]},
-                })
-                for pt in sorted(data["points"], key=lambda p: p["index"], reverse=True):
+                self._undo_stack.append(
+                    {
+                        "type": "remove_points_batch",
+                        "curve_id": curve_id,
+                        "data": {"points": data["points"]},
+                    }
+                )
+                for pt in sorted(
+                    data["points"], key=lambda p: p["index"], reverse=True
+                ):
                     idx = pt["index"]
                     if idx < len(curve.x_data):
                         del curve.x_data[idx]
@@ -2933,11 +3451,13 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_point":
             # 向后兼容旧记录的单点删除
             if curve:
-                self._undo_stack.append({
-                    "type": "remove_point",
-                    "curve_id": curve_id,
-                    "data": data,
-                })
+                self._undo_stack.append(
+                    {
+                        "type": "remove_point",
+                        "curve_id": curve_id,
+                        "data": data,
+                    }
+                )
                 idx = data["index"]
                 if idx < len(curve.x_data):
                     del curve.x_data[idx]
@@ -2949,15 +3469,21 @@ class WorkspacePage(QWidget):
         elif action_type == "clear_curve":
             # 重做清除 = 保存当前（恢复后的）状态到撤销栈，然后再次清除
             if curve:
-                self._undo_stack.append({
-                    "type": "clear_curve",
-                    "curve_id": curve_id,
-                    "data": {
-                        "points": list(zip(curve.x_data, curve.y_data)) if curve.x_data else [],
-                        "x_actual": list(curve.x_actual) if curve.x_actual else [],
-                        "y_actual": list(curve.y_actual) if curve.y_actual else [],
-                    },
-                })
+                self._undo_stack.append(
+                    {
+                        "type": "clear_curve",
+                        "curve_id": curve_id,
+                        "data": {
+                            "points": (
+                                list(zip(curve.x_data, curve.y_data))
+                                if curve.x_data
+                                else []
+                            ),
+                            "x_actual": list(curve.x_actual) if curve.x_actual else [],
+                            "y_actual": list(curve.y_actual) if curve.y_actual else [],
+                        },
+                    }
+                )
                 curve.x_data = []
                 curve.y_data = []
                 curve.x_actual = []
@@ -2966,7 +3492,13 @@ class WorkspacePage(QWidget):
         elif action_type == "remove_mask":
             mask = self._image_viewer.get_mask()
             if mask and data.get("polygon") is not None:
-                self._undo_stack.append({"type": "remove_mask", "curve_id": None, "data": {"polygon": data["polygon"]}})
+                self._undo_stack.append(
+                    {
+                        "type": "remove_mask",
+                        "curve_id": None,
+                        "data": {"polygon": data["polygon"]},
+                    }
+                )
                 for i, poly in enumerate(mask.polygons):
                     if poly == data["polygon"]:
                         del mask.polygons[i]
@@ -2977,17 +3509,25 @@ class WorkspacePage(QWidget):
         elif action_type == "add_mask":
             mask = self._image_viewer.get_mask()
             if mask and data.get("polygon") is not None:
-                self._undo_stack.append({"type": "add_mask", "curve_id": None, "data": {"polygon": data["polygon"]}})
+                self._undo_stack.append(
+                    {
+                        "type": "add_mask",
+                        "curve_id": None,
+                        "data": {"polygon": data["polygon"]},
+                    }
+                )
                 mask.polygons.append(data["polygon"])
                 mask.enabled = True
 
         elif action_type == "update_calibration":
             if curve:
-                self._undo_stack.append({
-                    "type": "update_calibration",
-                    "curve_id": curve_id,
-                    "data": data,
-                })
+                self._undo_stack.append(
+                    {
+                        "type": "update_calibration",
+                        "curve_id": curve_id,
+                        "data": data,
+                    }
+                )
                 new_cal = data.get("new_calibration")
                 curve.calibration = CalibrationData(**new_cal) if new_cal else None
                 curve.x_actual = list(data.get("new_x_actual", []))

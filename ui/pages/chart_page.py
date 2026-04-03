@@ -40,6 +40,7 @@ from qfluentwidgets import (
 
 try:
     import matplotlib
+
     matplotlib.use("QtAgg")
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -63,7 +64,12 @@ try:
             "/usr/share/fonts/wqy/wqy-microhei.ttc",
             "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         ]
-        _CJK_NAMES = ["Noto Sans CJK JP", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "SimHei"]
+        _CJK_NAMES = [
+            "Noto Sans CJK JP",
+            "Noto Sans CJK SC",
+            "WenQuanYi Micro Hei",
+            "SimHei",
+        ]
 
     _selected_font = None
 
@@ -83,7 +89,9 @@ try:
 
     # 回退到系统已注册字体名
     if _selected_font is None:
-        _available_names = {fm.name for fm in font_manager.fontManager.ttflist if fm.name}
+        _available_names = {
+            fm.name for fm in font_manager.fontManager.ttflist if fm.name
+        }
         _selected_font = next((n for n in _CJK_NAMES if n in _available_names), None)
 
     if _selected_font:
@@ -91,10 +99,16 @@ try:
     else:
         matplotlib.rcParams["font.family"] = ["sans-serif"]
     matplotlib.rcParams["font.sans-serif"] = [
-        "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"
+        "Microsoft YaHei",
+        "SimHei",
+        "Noto Sans CJK SC",
+        "WenQuanYi Micro Hei",
+        "DejaVu Sans",
     ]
     # 强制正字号，避免某些平台字体回退导致 pointSize=-1 的警告
-    matplotlib.rcParams["font.size"] = max(1, float(matplotlib.rcParams.get("font.size", 10) or 10))
+    matplotlib.rcParams["font.size"] = max(
+        1, float(matplotlib.rcParams.get("font.size", 10) or 10)
+    )
 
     matplotlib.rcParams["axes.unicode_minus"] = False
     HAS_MATPLOTLIB = True
@@ -106,19 +120,19 @@ except Exception as _e:
 from core.project_manager import project_manager
 
 _STYLES = [
-    ("实线 —",         "-",   ""),
-    ("虚线 - -",       "--",  ""),
-    ("点线 ···",       ":",   ""),
-    ("点划线 —·",      "-.",  ""),
-    ("散点 ○",         "",    "o"),
-    ("散点 □",         "",    "s"),
-    ("散点 △",         "",    "^"),
-    ("散点+线 ○—",     "-",   "o"),
-    ("散点+线 □—",     "-",   "s"),
+    ("实线 —", "-", ""),
+    ("虚线 - -", "--", ""),
+    ("点线 ···", ":", ""),
+    ("点划线 —·", "-.", ""),
+    ("散点 ○", "", "o"),
+    ("散点 □", "", "s"),
+    ("散点 △", "", "^"),
+    ("散点+线 ○—", "-", "o"),
+    ("散点+线 □—", "-", "s"),
 ]
-_STYLE_LABELS     = [s[0] for s in _STYLES]
+_STYLE_LABELS = [s[0] for s in _STYLES]
 _STYLE_LINESTYLES = [s[1] for s in _STYLES]
-_STYLE_MARKERS    = [s[2] for s in _STYLES]
+_STYLE_MARKERS = [s[2] for s in _STYLES]
 
 
 class ChartPage(QWidget):
@@ -127,8 +141,10 @@ class ChartPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._import_curves: List[dict] = []
-        self._curve_styles: Dict[str, dict] = {}   # name → {"color": str, "linestyle": str}
-        self._style_target: Optional[str] = None   # 当前正在编辑样式的曲线名
+        self._curve_styles: Dict[str, dict] = (
+            {}
+        )  # name → {"color": str, "linestyle": str}
+        self._style_target: Optional[str] = None  # 当前正在编辑样式的曲线名
         self._setup_ui()
         self._refresh()
 
@@ -136,13 +152,12 @@ class ChartPage(QWidget):
 
     def _setup_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 20, 20, 20)
-        root.setSpacing(12)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         splitter = QSplitter(Qt.Horizontal, self)
-        splitter.setHandleWidth(6)
+        splitter.setHandleWidth(0)
 
-        # \u2500\u2500 \u5de6\u4fa7\u9762\u677f \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         left_card = CardWidget(self)
         lv = QVBoxLayout(left_card)
         lv.setContentsMargins(12, 12, 12, 12)
@@ -200,7 +215,6 @@ class ChartPage(QWidget):
         self._delete_import_btn.clicked.connect(self._on_delete_import_curve)
         sel_row.addWidget(self._delete_import_btn)
         lv.addLayout(sel_row)
-
 
         lv.addWidget(make_hsep(left_card))
 
@@ -302,7 +316,11 @@ class ChartPage(QWidget):
             self._canvas.setMinimumHeight(300)
             rv.addWidget(self._canvas)
         else:
-            _err_text = f"matplotlib 加载失败：{_MATPLOTLIB_ERROR}" if _MATPLOTLIB_ERROR else "没有安装 matplotlib，请运行：uv pip install matplotlib"
+            _err_text = (
+                f"matplotlib 加载失败：{_MATPLOTLIB_ERROR}"
+                if _MATPLOTLIB_ERROR
+                else "没有安装 matplotlib，请运行：uv pip install matplotlib"
+            )
             no_mpl = BodyLabel(_err_text, self)
             no_mpl.setAlignment(Qt.AlignCenter)
             no_mpl.setWordWrap(True)
@@ -322,22 +340,23 @@ class ChartPage(QWidget):
         if proj is None:
             return []
         result = []
-        for image in (proj.images or []):
-            for curve in (image.curves or []):
+        for image in proj.images or []:
+            for curve in image.curves or []:
                 if curve.x_actual and curve.y_actual:
-                    result.append({
-                        "name": f"{image.name} / {curve.name}",
-                        "x": list(curve.x_actual),
-                        "y": list(curve.y_actual),
-                        "source": "project",
-                        "color": curve.color,
-                    })
+                    result.append(
+                        {
+                            "name": f"{image.name} / {curve.name}",
+                            "x": list(curve.x_actual),
+                            "y": list(curve.y_actual),
+                            "source": "project",
+                            "color": curve.color,
+                        }
+                    )
         return result
 
     def _refresh(self):
         prev_selected = {
-            item.data(Qt.UserRole)["name"]
-            for item in self._curve_list.selectedItems()
+            item.data(Qt.UserRole)["name"] for item in self._curve_list.selectedItems()
         }
         self._curve_list.clear()
 
@@ -351,7 +370,9 @@ class ChartPage(QWidget):
         for c in self._import_curves:
             item = QListWidgetItem(f"[导入] {c['name']}")
             item.setData(Qt.UserRole, c)
-            item.setForeground(QColor("#F0A800") if isDarkTheme() else QColor("#1a7a00"))
+            item.setForeground(
+                QColor("#F0A800") if isDarkTheme() else QColor("#1a7a00")
+            )
             if c["name"] in prev_selected:
                 item.setSelected(True)
             self._curve_list.addItem(item)
@@ -393,7 +414,7 @@ class ChartPage(QWidget):
         ax.grid(True, color=grid_c, linestyle="--", linewidth=0.5, alpha=0.7)
 
         show_scatter = False
-        show_line    = True
+        show_line = True
 
         for c in self._selected_curves():
             style = self._get_curve_style(c)
@@ -410,8 +431,12 @@ class ChartPage(QWidget):
         if self._selected_curves():
             ax.legend(facecolor=bg, edgecolor=fg, labelcolor=fg, fontsize=8)
 
-        x_label = self._x_label_edit.text().strip() if hasattr(self, '_x_label_edit') else ""
-        y_label = self._y_label_edit.text().strip() if hasattr(self, '_y_label_edit') else ""
+        x_label = (
+            self._x_label_edit.text().strip() if hasattr(self, '_x_label_edit') else ""
+        )
+        y_label = (
+            self._y_label_edit.text().strip() if hasattr(self, '_y_label_edit') else ""
+        )
         ax.set_xlabel(x_label or "X")
         ax.set_ylabel(y_label or "Y")
         ax.set_title("")
@@ -456,14 +481,20 @@ class ChartPage(QWidget):
         if enabled and curve:
             name = curve["name"]
             self._style_target = name
-            self._style_target_label.setText(name[:30] + ("…" if len(name) > 30 else ""))
+            self._style_target_label.setText(
+                name[:30] + ("…" if len(name) > 30 else "")
+            )
             ov = self._curve_styles.get(name, {})
             eff_color = ov.get("color") or curve.get("color") or "#888888"
             self._update_color_btn(eff_color)
             ls = ov.get("linestyle", "")
             mk = ov.get("marker", "o")
             try:
-                idx = next(i for i, (sl, sm) in enumerate(zip(_STYLE_LINESTYLES, _STYLE_MARKERS)) if sl == ls and sm == mk)
+                idx = next(
+                    i
+                    for i, (sl, sm) in enumerate(zip(_STYLE_LINESTYLES, _STYLE_MARKERS))
+                    if sl == ls and sm == mk
+                )
             except StopIteration:
                 idx = 0
             self._style_line_combo.blockSignals(True)
@@ -493,11 +524,16 @@ class ChartPage(QWidget):
         if not self._style_target:
             return
         curve = self._find_curve_by_name(self._style_target)
-        cur_hex = self._curve_styles.get(self._style_target, {}).get("color") \
-                  or (curve.get("color") if curve else None) or "#0078D4"
+        cur_hex = (
+            self._curve_styles.get(self._style_target, {}).get("color")
+            or (curve.get("color") if curve else None)
+            or "#0078D4"
+        )
         color = QColorDialog.getColor(QColor(cur_hex), self, "选择曲线颜色")
         if color.isValid():
-            self._curve_styles.setdefault(self._style_target, {})["color"] = color.name()
+            self._curve_styles.setdefault(self._style_target, {})[
+                "color"
+            ] = color.name()
             self._update_color_btn(color.name())
             self._redraw()
 
@@ -521,7 +557,9 @@ class ChartPage(QWidget):
         """删除当前选中的导入曲线"""
         if not self._style_target:
             return
-        self._import_curves = [c for c in self._import_curves if c["name"] != self._style_target]
+        self._import_curves = [
+            c for c in self._import_curves if c["name"] != self._style_target
+        ]
         self._curve_styles.pop(self._style_target, None)
         self._style_target = None
         self._refresh()
@@ -545,7 +583,9 @@ class ChartPage(QWidget):
 
     def _on_import(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "导入对比数据", "",
+            self,
+            "导入对比数据",
+            "",
             "数据文件 (*.csv *.txt *.dat *.tsv *.json *.npy);;"
             "CSV (*.csv);;文本 (*.txt *.dat *.tsv);;JSON (*.json);;NumPy (*.npy)",
         )
@@ -558,15 +598,23 @@ class ChartPage(QWidget):
             self._import_curves.extend(curves)
             self._refresh()
             from qfluentwidgets import InfoBar, InfoBarPosition
+
             InfoBar.success(
-                title="导入成功", content=f"共导入 {len(curves)} 条曲线",
-                position=InfoBarPosition.TOP, duration=2500, parent=self,
+                title="导入成功",
+                content=f"共导入 {len(curves)} 条曲线",
+                position=InfoBarPosition.TOP,
+                duration=2500,
+                parent=self,
             )
         except Exception as e:
             from qfluentwidgets import InfoBar, InfoBarPosition
+
             InfoBar.error(
-                title="导入失败", content=str(e),
-                position=InfoBarPosition.TOP, duration=4000, parent=self,
+                title="导入失败",
+                content=str(e),
+                position=InfoBarPosition.TOP,
+                duration=4000,
+                parent=self,
             )
 
     def _on_clear_import(self):
@@ -581,18 +629,26 @@ class ChartPage(QWidget):
         if not HAS_MATPLOTLIB or self._figure is None:
             return
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出图片", "chart.png", "PNG (*.png);;SVG (*.svg);;PDF (*.pdf)",
+            self,
+            "导出图片",
+            "chart.png",
+            "PNG (*.png);;SVG (*.svg);;PDF (*.pdf)",
         )
         if file_path:
             self._figure.savefig(file_path, dpi=150, bbox_inches="tight")
             from qfluentwidgets import InfoBar, InfoBarPosition
+
             InfoBar.success(
-                title="导出成功", content=file_path,
-                position=InfoBarPosition.TOP, duration=3000, parent=self,
+                title="导出成功",
+                content=file_path,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self,
             )
 
 
 # ─────────────────────── 数据加载工具函数 ────────────────────────
+
 
 def _load_data_file(file_path: str) -> List[dict]:
     """
@@ -612,7 +668,14 @@ def _load_data_file(file_path: str) -> List[dict]:
 def _load_npy(p: Path, name: str) -> List[dict]:
     arr = np.load(str(p))
     if arr.ndim == 1:
-        return [{"name": name, "x": list(range(len(arr))), "y": arr.tolist(), "source": "import"}]
+        return [
+            {
+                "name": name,
+                "x": list(range(len(arr))),
+                "y": arr.tolist(),
+                "source": "import",
+            }
+        ]
     if arr.ndim == 2:
         return _cols_to_curves(arr, name)
     raise ValueError("NumPy 数组维度应为 1 或 2")
@@ -631,13 +694,27 @@ def _load_json(p: Path, name: str) -> List[dict]:
                 y = item.get("y", item.get("Y", []))
                 x = item.get("x", item.get("X", list(range(len(y)))))
                 n = item.get("name", f"{name}_{i + 1}")
-                curves.append({"name": n, "x": list(map(float, x)), "y": list(map(float, y)), "source": "import"})
+                curves.append(
+                    {
+                        "name": n,
+                        "x": list(map(float, x)),
+                        "y": list(map(float, y)),
+                        "source": "import",
+                    }
+                )
             return curves
     if isinstance(data, dict):
         y = data.get("y", data.get("Y", []))
         x = data.get("x", data.get("X", list(range(len(y)))))
         n = data.get("name", name)
-        return [{"name": n, "x": list(map(float, x)), "y": list(map(float, y)), "source": "import"}]
+        return [
+            {
+                "name": n,
+                "x": list(map(float, x)),
+                "y": list(map(float, y)),
+                "source": "import",
+            }
+        ]
     raise ValueError("无法识别的 JSON 结构")
 
 
@@ -655,8 +732,11 @@ def _load_tabular(p: Path, name: str) -> List[dict]:
     if not raw_lines:
         raise ValueError("文件读取失败或为空")
 
-    data_lines = [l.rstrip("\r\n") for l in raw_lines
-                  if l.strip() and not l.lstrip().startswith(("#", "%", "!", "/"))]
+    data_lines = [
+        l.rstrip("\r\n")
+        for l in raw_lines
+        if l.strip() and not l.lstrip().startswith(("#", "%", "!", "/"))
+    ]
     if not data_lines:
         raise ValueError("文件中无有效数据行")
 
@@ -693,12 +773,28 @@ def _load_tabular(p: Path, name: str) -> List[dict]:
     return _cols_to_curves(arr, name, col_names=col_names)
 
 
-def _cols_to_curves(arr: np.ndarray, name: str, col_names: Optional[List[str]] = None) -> List[dict]:
+def _cols_to_curves(
+    arr: np.ndarray, name: str, col_names: Optional[List[str]] = None
+) -> List[dict]:
     if arr.ndim == 1:
-        return [{"name": name, "x": list(range(len(arr))), "y": arr.tolist(), "source": "import"}]
+        return [
+            {
+                "name": name,
+                "x": list(range(len(arr))),
+                "y": arr.tolist(),
+                "source": "import",
+            }
+        ]
     n_cols = arr.shape[1]
     if n_cols < 2:
-        return [{"name": name, "x": list(range(len(arr))), "y": arr[:, 0].tolist(), "source": "import"}]
+        return [
+            {
+                "name": name,
+                "x": list(range(len(arr))),
+                "y": arr[:, 0].tolist(),
+                "source": "import",
+            }
+        ]
     x = arr[:, 0].tolist()
     curves = []
     for i in range(1, n_cols):
@@ -707,7 +803,9 @@ def _cols_to_curves(arr: np.ndarray, name: str, col_names: Optional[List[str]] =
             c_name = f"{name} / {y_label}"
         else:
             c_name = name if n_cols == 2 else f"{name}_Y{i}"
-        curves.append({"name": c_name, "x": x, "y": arr[:, i].tolist(), "source": "import"})
+        curves.append(
+            {"name": c_name, "x": x, "y": arr[:, i].tolist(), "source": "import"}
+        )
     return curves
 
 
