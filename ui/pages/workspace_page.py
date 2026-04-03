@@ -94,8 +94,8 @@ class WorkspacePage(QWidget):
         self._left_panel = self._create_left_panel()
         self._splitter.addWidget(self._left_panel)
 
-        center_panel = QFrame(self)
-        center_panel.setFrameShape(QFrame.Shape.StyledPanel)
+        center_panel = CardWidget(self)
+        # center_panel.setFrameShape(QFrame.Shape.StyledPanel)
         center_layout = QVBoxLayout(center_panel)
         center_layout.setContentsMargins(5, 5, 5, 0)
         center_layout.setSpacing(0)
